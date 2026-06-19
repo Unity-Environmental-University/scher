@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Penelope lib — the glossary (Stories demonstrating themselves)</title>
+<style>
+  :root { --ink:#2b2a26; --line:#d9d4c8; --paper:#faf8f2; --accent:#2f6f4f; --scripted:#9a8a3a; }
+  body { font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+         color:var(--ink); background:var(--paper); max-width:980px; margin:0 auto; padding:32px 24px 80px; }
+  header h1 { font-size:20px; margin:0 0 4px; }
+  header .sub { color:#8a8578; font-size:13px; font-family:ui-monospace,monospace; }
+  .glo-entry { border-top:1px solid var(--line); padding:22px 0; }
+  .glo-entry h2 { font-size:16px; margin:0 0 6px; }
+  .blurb { color:#6b665c; font-size:13px; margin:0 0 14px; max-width:64ch; }
+  /* demo (left) + code (right). stacks on narrow screens. */
+  .entry-row { display:grid; grid-template-columns: minmax(280px, 1fr) 1.2fr; gap:18px; align-items:start; }
+  @media (max-width:720px) { .entry-row { grid-template-columns:1fr; } }
+  .demo { display:flex; flex-direction:column; gap:10px; align-items:flex-start; }
+  /* the CODE block — plain, monospace; this is reference, not the real UI (Design owns that) */
+  pre.code { margin:0; background:#2b2a26; color:#e8e4d8; border-radius:8px; padding:12px 14px;
+             font:12px/1.5 ui-monospace,"SF Mono",Menlo,monospace; overflow-x:auto; }
+  pre.code code { white-space:pre; }
+
+  /* a Card Story */
+  .story-card { border:1px solid var(--line); border-left:3px solid var(--scripted);
+                border-radius:8px; padding:10px 12px; background:#fff; min-width:280px; }
+  .story-card.established { border-left-color:var(--accent); }
+  .story-card .slug { font-family:ui-monospace,monospace; font-size:11px; color:var(--accent); }
+  .story-card .content { font-size:15px; margin:3px 0 6px; }
+  .story-card .mode { font-size:12px; font-weight:600; }
+  .story-card .mode.established { color:var(--accent); }
+  .story-card .mode.scripted { color:var(--scripted); }
+  .story-card .pathos { margin-top:6px; display:flex; gap:5px; }
+  .story-card .pchip { font-size:13px; border:1px solid var(--line); border-radius:11px; padding:1px 7px; background:#fff; }
+
+  /* a Button Story */
+  .story-button { font:13px inherit; padding:6px 12px; border:1px solid var(--accent);
+                  border-radius:7px; background:#fff; color:var(--accent); cursor:pointer; }
+  .story-button:hover:not([disabled]) { background:#f0f6f2; }
+  .story-button[disabled] { opacity:.5; cursor:default; border-color:var(--line); color:#9a9488; }
+
+  .readout { font-family:ui-monospace,monospace; font-size:12px; color:#6b665c;
+             background:#f3f0e7; border-radius:6px; padding:8px 10px; }
+
+  /* Clamp Story — the C-block bracket */
+  .story-clamp { border-left:3px solid var(--accent); border-radius:8px;
+                 background:rgba(47,111,79,.04); padding:0 0 0 0; margin:2px 0; min-width:280px; }
+  .clamp-lip { padding:9px 12px; }
+  .lip-once { border-bottom:1px dashed var(--line); }
+  .lip-once .lip-frame { font-weight:800; color:var(--accent); font-size:15px; }
+  .lip-end { border-top:1px dashed var(--line); }
+  .lip-end .lip-content { font-weight:600; color:var(--ink); }
+  .lip-slug { font-family:ui-monospace,monospace; font-size:10px; color:var(--accent); margin:2px 0; }
+  .lip-content { font-size:14px; }
+  .clamp-body { padding:8px 8px 8px 18px; display:flex; flex-direction:column; gap:8px; }
+  .clamp-body .story-card { min-width:0; }
+  .clamp-empty { color:#9a9488; font-size:12px; font-style:italic; }
+  .clamp-drillin { font-size:11px; color:var(--accent); margin-top:4px; }
+  /* a nested (depth-1) clamp sits a touch lighter */
+  .story-clamp .story-clamp { border-left-color:var(--scripted); background:rgba(154,138,58,.05); }
+
+  /* toggle button — checked state */
+  .story-button.toggle.checked { background:var(--accent); color:#fff; }
+
+  /* a Modal Story */
+  .modal-overlay.closed { display:none; }
+  .modal-overlay.open { position:fixed; inset:0; background:rgba(43,42,38,.45);
+                        display:flex; align-items:center; justify-content:center; z-index:50; }
+  .modal-sheet { background:var(--paper); border:1px solid var(--line); border-radius:12px;
+                 padding:20px 22px; max-width:440px; box-shadow:0 12px 40px rgba(0,0,0,.25); }
+  .modal-title { font-weight:700; font-size:16px; margin-bottom:10px; }
+  .modal-body p { font-size:13px; color:#6b665c; margin:0 0 12px; }
+  .modal-close { margin-top:14px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Penelope lib — the glossary</h1>
+  <div class="sub">Stories demonstrating themselves · a value is a reading · press = lay a beat · append-only</div>
+</header>
+<div id="glossary-root"></div>
+
+<!-- the compiled lib glossary module (tsc → penelope/static/web/lib/) -->
+<script type="module" src="../dist/glossary.js"></script>
+</body>
+</html>

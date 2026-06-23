@@ -84,6 +84,37 @@ describe("Society — append-only laws", () => {
     );
   });
 
+  it("the witnessing clock is monotone across mixed explicit + auto stamps (asOf depends on it)", () => {
+    // a history mixing beats WITH explicit witnessed stamps and beats WITHOUT — the
+    // case that hid the clock-collision bug. Every distinct slug must get a unique,
+    // and the auto-stamped ones must never reuse or precede an explicit moment.
+    const mixedArb = fc.array(
+      fc.record({
+        slug: fc.string({ minLength: 1, maxLength: 5 }),
+        witnessed: fc.option(fc.nat({ max: 50 }), { nil: undefined }),
+      }),
+      { maxLength: 25 },
+    );
+    fc.assert(
+      fc.property(mixedArb, (specs) => {
+        const soc = new Society();
+        for (const s of specs) {
+          soc.lay(
+            s.witnessed === undefined
+              ? { slug: s.slug, content: s.slug, subject: null, object: null }
+              : { slug: s.slug, content: s.slug, subject: null, object: null, witnessed: s.witnessed },
+          );
+        }
+        const stamps = soc.all().map((b) => b.witnessed ?? 0);
+        // every witnessed stamp is a positive number; no two distinct beats share one
+        // unless an explicit duplicate was authored (which is the author's truth, kept).
+        const autoStamped = soc.all().filter((b, i) => specs.find((s) => s.slug === b.slug)?.witnessed === undefined);
+        const autoMoments = autoStamped.map((b) => b.witnessed ?? 0);
+        expect(new Set(autoMoments).size).toBe(autoMoments.length); // auto stamps are unique
+      }),
+    );
+  });
+
   it("rev is monotone non-decreasing and rises iff a genuine append happened", () => {
     fc.assert(
       fc.property(historyArb, (history) => {

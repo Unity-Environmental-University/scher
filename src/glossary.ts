@@ -10,7 +10,7 @@
 
 import { el } from "./dom.js";
 import { Society, modeAt } from "./society.js";
-import { cardStory, buttonStory, toggleButtonStory, modalStory, clampStory, reading } from "./stories.js";
+import { cardStory, buttonStory, toggleButtonStory, modalStory, frameStory, reading } from "./stories.js";
 import { fact } from "./fact.js";
 import { project } from "./projection.js";
 
@@ -23,7 +23,7 @@ export function mountGlossary(root: HTMLElement): void {
     { slug: "b-rain", content: "It is raining.", subject: null, object: null },
   ]);
 
-  // a tiny Story-with-interior for the Clamp demo: Once → [two interior beats, one of
+  // a tiny Story-with-interior for the Frame demo: Once → [two interior beats, one of
   // which is ITSELF a story] → End. Demonstrates the one-level recursion cap.
   soc.layAll([
     { slug: "morning-once", content: "Once: a morning began.", subject: null, object: null },
@@ -205,17 +205,17 @@ const { openButton, overlay } = modalStory(soc, {
 root.append(openButton, overlay);`,
   ));
 
-  // ── ENTRY 6: Clamp Story (the C-block) — a Story contains its beats ──
+  // ── ENTRY 6: Frame Story (the frame-tale) — a Story contains its beats ──
   root.appendChild(entry(
-    "Clamp Story (the C-block) — a Story contains its beats",
+    "Frame Story (the frame-tale) — a Story contains its beats",
     "The Once/End bracket made visible: a top lip (the Once), the interior beats (the causal interval = " +
     "the body), a bottom lip (the End), and a spine showing the interior is HELD by the bound. Reads " +
     "intervalOf(once, end). RECURSION CAP: one level — an interior beat that's itself a story nests ONE " +
-    "sub-clamp ('A walk was taken' below); deeper, stories become drill-in affordances. The retro, the rail, " +
-    "a sprint are all Clamps.",
-    [clampStory(soc, { once: "morning-once", end: "morning-end", standpoint: "you" })],
+    "sub-frame ('A walk was taken' below); deeper, stories become drill-in affordances. The retro, the rail, " +
+    "a sprint are all Frames.",
+    [frameStory(soc, { once: "morning-once", end: "morning-end", standpoint: "you" })],
     `// the C-block: a Story bracketing its interior.
-const morning = clampStory(soc, {
+const morning = frameStory(soc, {
   once: "morning-once",   // top lip (the input)
   end:  "morning-end",    // bottom lip (the return)
   standpoint: "you",
@@ -223,7 +223,7 @@ const morning = clampStory(soc, {
 // it reads intervalOf(once, end) for the body and
 // projects each interior beat as a Card. An interior
 // beat that is ITSELF a story (here: "A walk was taken")
-// nests ONE sub-clamp — then stops (depth cap = 1).
+// nests ONE sub-frame — then stops (depth cap = 1).
 // deeper stories render as "↳ drill in" affordances.
 root.appendChild(morning);`,
   ));

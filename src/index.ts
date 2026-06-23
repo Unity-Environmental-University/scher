@@ -75,7 +75,7 @@ export {
   buttonStory,
   toggleButtonStory,
   modalStory,
-  clampStory,
+  frameStory,
   gistStory,
   gistOf,
   freshGistOf,
@@ -86,9 +86,11 @@ export {
   type ButtonStoryParams,
   type ToggleButtonStoryParams,
   type ModalStoryParams,
-  type ClampStoryParams,
+  type FrameStoryParams,
+  listStory,
   type Gist,
   type Lore,
+  type ListStoryParams,
 } from "./stories.js";
 
 // the POSITIVIST PORCELAIN — a get/set(boolean) handle over an establishment, so the
@@ -99,3 +101,17 @@ export {
   type Fact,
   type FactOptions,
 } from "./fact.js";
+
+// REFERENCE FRAMES — "a reading is relative to a standpoint," pushed down to time and
+// language: a timezone/locale IS a frame a reader inherits from the system unless they
+// establish their own. Zero-dep (native Intl). See frames.ts for the Temporal note.
+export {
+  SYSTEM_ZONE,
+  timeFrame,
+  clockLabel,
+  SYSTEM_LOCALE,
+  localeFrame,
+  makeCanon,
+  type Canon,
+  type Canons,
+} from "./frames.js";

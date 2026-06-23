@@ -4,8 +4,12 @@ A small, dependency-free reactive component library for the browser. Written in
 TypeScript. The core idea: **a view is a reading of state, re-observed.** State is an
 append-only society of facts; a value is not stored but read; "undo" is an append, not
 an erasure. You build a component from a few primitives — a card, a button, a toggle, a
-modal, a clamp (a thing that contains other things), a gist (a thing told short). The
+modal, a frame (a story that contains its beats), a list, a gist (a thing told short). The
 glossary in `src/glossary.html` demonstrates each one and shows the code beside it.
+
+The same idea — **a reading is relative to a standpoint** — also runs underneath, as
+*reference frames*: a timezone or a locale IS a frame a reader inherits from the system
+default unless they establish their own (`frames.ts`). Now is relative; so is wording.
 
 ## The name
 
@@ -22,10 +26,19 @@ Scher was originally written as a UI framework for Penelope, a process ontology 
 ```bash
 npm install
 npm run build      # tsc → dist/
+npm test           # property tests (vitest + fast-check)
 ```
 
 Then open `src/glossary.html` (served over http, e.g. `python3 -m http.server`) to see
 the components live, each beside the code that builds it.
+
+## Tests
+
+The process core is tested by its **invariants**, not by examples — property-based,
+because an append-only model's laws *are* its spec. `npm test` generates arbitrary
+histories and asserts: a lay never shrinks the log; reads depend on the *set* of beats,
+not the order they arrived; undo is an append (the log only ever grows); a `Fact`'s
+`get()` always equals the last `set()`; reference-frame inheritance holds. See `test/`.
 
 ## License
 

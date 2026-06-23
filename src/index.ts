@@ -104,12 +104,18 @@ export {
   reify,
   viewCardStory,
   boardStory,
+  dropStory,
+  relateBuckets,
+  composerStory,
   type Gist,
   type Lore,
   type ListStoryParams,
   type ViewCardParams,
   type BoardColumn,
   type BoardStoryParams,
+  type DropBucket,
+  type DropStoryParams,
+  type ComposerStoryParams,
 } from "./stories.js";
 
 // the POSITIVIST PORCELAIN — a get/set(boolean) handle over an establishment, so the

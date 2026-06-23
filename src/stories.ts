@@ -24,6 +24,7 @@ import {
   endOf,
   isStory,
   type Mode,
+  type Quality,
 } from "./society.js";
 
 /** A reading-cell over a society: re-derives whenever the society appends (rev bumps).
@@ -633,4 +634,155 @@ export function boardStory(soc: Society, params: BoardStoryParams): Node {
     board.appendChild(column);
   }
   return board;
+}
+
+// ── DROP STORY — "a drop is a reading." ────────────────────────────────────────
+// The most imperative gesture in any UI — drag A onto B — collapses into ONE thing:
+// the drop LAYS a beat, and the view RE-DERIVES from the canon. There is NO imperative
+// drag-state: no HOT card, no stashed __dragA, no DOM bloom kept in memory. You drop, a
+// beat lands, every reading re-reads. That is the whole process-ontology thesis made into
+// a toy: the substance-flavoured interaction (move this thing onto that thing) becomes a
+// pure write-then-read, append-only.
+//
+// A bucket is a way A may relate to B. Two kinds, and the difference IS the law:
+//   • kind:'edge'       — lay a LATERAL prehension A --quality--> B (layP). depends-on, etc.
+//   • kind:'membership' — lay NOTHING lateral; place A so it sits BETWEEN B's Once/End.
+//                         Membership is betweenness, NEVER a stored containment edge — so
+//                         the caller supplies HOW A is repositioned (grammar-specific), and
+//                         the interval re-reads via intervalOf. (the settled gen3 law.)
+export interface DropBucket {
+  key: string;
+  label: string;
+  /** a one-line gloss of what this relation means (shown as the option's title). */
+  sub?: string;
+  kind: "edge" | "membership";
+  /** edge-kind only: the quality of the lateral prehension laid A --quality--> B. */
+  quality?: Quality;
+  /** membership-kind only: place A inside B's interval. The caller owns the betweenness
+   *  mechanics (e.g. lay a positioning edge between B's Once and End); dropStory itself
+   *  lays NOTHING for membership — it only invokes place(). No stored containment. */
+  place?: (soc: Society, a: string, b: string) => void;
+}
+
+export interface DropStoryParams {
+  /** the candidate targets B. Each becomes a drop zone offering the buckets. */
+  targets: string[];
+  buckets: DropBucket[];
+  /** how to render each target card (default: a View Card — leaf→card, story→frame). */
+  item?: (soc: Society, slug: string) => Node;
+}
+
+/** dropStory: a lane of targets, each a drop-zone that, on drop of A, blooms a small
+ *  picker of buckets; choosing one LAYS the chosen relation. The relations on each target
+ *  RE-DERIVE from the canon — drop, and the board re-reads itself. Zero imperative
+ *  drag-state: each card is itself a story (viewCardStory) that re-reads its own relations
+ *  when the society appends, so the drop only ever LAYS — the re-derivation is the cards'
+ *  own, by construction. Returns the lane node. */
+export function dropStory(soc: Society, params: DropStoryParams): Node {
+  const drawCard = params.item ?? ((s: Society, slug: string) => viewCardStory(s, { slug }));
+  const lane = el("div", { class: "drop-lane" });
+
+  // fire() is the WHOLE write surface: one beat (edge) or one caller-owned place()
+  // (membership) per drop — nothing else. This is the dropStory thesis in three lines.
+  const fire = (bucket: DropBucket, a: string, b: string) => {
+    if (a === b) return;                          // a card can't relate to itself
+    if (bucket.kind === "edge" && bucket.quality) {
+      // lay the lateral edge; idempotent by slug. The view re-derives — nothing else to do.
+      soc.layP(`${a}-${bucket.key}-${b}`, `${a} ${bucket.label} ${b}`, a, b, bucket.quality);
+    } else if (bucket.kind === "membership" && bucket.place) {
+      bucket.place(soc, a, b);                     // betweenness, caller-owned; NO stored edge
+    }
+  };
+
+  for (const target of params.targets) {
+    const card = drawCard(soc, target) as HTMLElement;
+    card.setAttribute("draggable", "true");
+    on(card, "dragstart", (e) => (e as DragEvent).dataTransfer?.setData("text/plain", target));
+    on(card, "dragover", (e) => e.preventDefault());   // allow drop
+    on(card, "drop", (e) => {
+      e.preventDefault();
+      const a = (e as DragEvent).dataTransfer?.getData("text/plain");
+      if (!a || a === target) return;
+      // the buckets bloom as a small picker; choosing one fires the lay. The picker is a
+      // reading of "a drag is hovering here", not stored state — it lives only for this drop.
+      const picker = el("div", { class: "drop-picker" });
+      for (const bucket of params.buckets) {
+        const opt = el("button", {
+          class: `drop-bucket drop-${bucket.kind}`,
+          attrs: { title: bucket.sub ?? "" },
+          on: { click: (ev) => { ev.stopPropagation(); fire(bucket, a, target); picker.remove(); } },
+        }, bucket.label);
+        picker.appendChild(opt);
+      }
+      card.appendChild(picker);
+    });
+    lane.appendChild(card);
+  }
+  return lane;
+}
+
+/** the standard relate (A onto B): Depends-On (a lateral edge) / Sub-Beat-Of (membership).
+ *  Sub-beat-of is membership — the caller passes `place` to position A in B's interval,
+ *  because betweenness is caller-owned grammar, never a stored containment edge. */
+export function relateBuckets(place: (soc: Society, a: string, b: string) => void): DropBucket[] {
+  return [
+    { key: "depends-on", label: "Depends On", sub: "A needs B (lateral edge)", kind: "edge", quality: "q-depends-on" },
+    { key: "sub-beat", label: "Sub-Beat Of", sub: "A is PART of B — membership = betweenness, not a stored edge", kind: "membership", place },
+  ];
+}
+
+// ── COMPOSER STORY — the conjugate of the Button. ──────────────────────────────
+// buttonStory's press lays a FIXED beat; composerStory's submit lays a beat carrying the
+// user's TEXT. It is the only UI write besides a button: an input bound to a lay-fn. The
+// field holds no canonical state — its text is a transient draft until submit, which calls
+// the caller's submit(soc, text) closure (the closure owns the possibly-multi-beat lay) and
+// then clears the field. Enter or the button both submit; an empty field is inert. `enabled`
+// is a reading of the society, like the button's.
+export interface ComposerStoryParams {
+  /** the submit: LAY the user's text into the society. The closure owns the (possibly
+   *  multi-beat) lay — composerStory only hands it the trimmed text. */
+  submit: (soc: Society, text: string) => void;
+  placeholder?: string;
+  /** the button label (default "Add"). */
+  label?: string;
+  /** enabled — default always; or a reading (e.g. disabled once a frame is sealed). */
+  enabled?: (s: Society) => boolean;
+  class?: string;
+}
+
+export function composerStory(soc: Society, params: ComposerStoryParams): Node {
+  const read = reading(soc, (s) => ({ enabled: params.enabled ? params.enabled(s) : true }));
+
+  return project(read, (v) => {
+    const input = el("input", {
+      class: "composer-input",
+      attrs: {
+        type: "text",
+        placeholder: params.placeholder ?? "",
+        disabled: v.enabled ? undefined : "true",
+      },
+    }) as HTMLInputElement;
+
+    const submit = () => {
+      const text = input.value.trim();
+      if (!text || !v.enabled) return;             // an empty field is inert
+      params.submit(soc, text);                    // the closure owns the lay
+      input.value = "";                            // clear the transient draft
+    };
+
+    on(input, "keydown", (e) => {
+      if ((e as KeyboardEvent).key === "Enter") { e.preventDefault(); submit(); }
+    });
+
+    const btn = el("button", {
+      class: "story-button composer-submit",
+      attrs: { disabled: v.enabled ? undefined : "true" },
+      on: { click: () => submit() },
+    }, params.label ?? "Add") as HTMLButtonElement;
+
+    const box = el("div", { class: `story-composer ${params.class ?? ""}` });
+    box.appendChild(input);
+    box.appendChild(btn);
+    return box;
+  }).node;
 }

@@ -10,8 +10,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { Society, dependsOn, dependentsOf, prehensionsOnto } from "../src/society.js";
-import { dropStory, relateBuckets, composerStory } from "../src/stories.js";
+import { Society, dependsOn, dependentsOf, prehensionsOnto, reactionsOn } from "../src/society.js";
+import { dropStory, relateBuckets, composerStory, reactionStory } from "../src/stories.js";
 
 /** a drag from `a`: a DragEvent carrying `a` in a stub dataTransfer (jsdom has none). */
 function dropEvent(a: string): Event {
@@ -125,5 +125,40 @@ describe("composerStory — the conjugate of the button", () => {
     input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     expect(soc.has("via-enter")).toBe(true);
     expect(input.value).toBe("");
+  });
+});
+
+describe("reactionStory + reactionsOn — a typed prehension by a standpoint", () => {
+  function withBeat() {
+    return new Society([{ slug: "post", content: "a post", subject: null, object: null }]);
+  }
+
+  it("press lays a q-feel from the standpoint onto the target, read by reactionsOn", () => {
+    const soc = withBeat();
+    const btn = reactionStory(soc, { target: "post", by: "ann", emoji: "🔥" }) as HTMLButtonElement;
+    expect(reactionsOn(soc, "post")).toEqual([]);
+
+    btn.click();                                   // ann reacts 🔥
+    expect(reactionsOn(soc, "post")).toEqual([{ emoji: "🔥", count: 1, by: ["ann"] }]);
+    // the q-feel is the typed prehension: subject=ann, object=post, content=emoji.
+    const feel = soc.get("feel-ann-🔥-post");
+    expect(feel).toMatchObject({ subject: "ann", object: "post", content: "🔥" });
+  });
+
+  it("press-again supersedes my own reaction (append-only un-react)", () => {
+    const soc = withBeat();
+    const btn = reactionStory(soc, { target: "post", by: "ann", emoji: "🔥" }) as HTMLButtonElement;
+    btn.click();                                   // react
+    expect(reactionsOn(soc, "post")[0].count).toBe(1);
+    btn.click();                                   // un-react → supersede
+    expect(reactionsOn(soc, "post")).toEqual([]);  // the read drops the superseded feel
+    expect(soc.has("feel-ann-🔥-post")).toBe(true); // …but it stays in ink (append-only)
+  });
+
+  it("reactionsOn aggregates distinct standpoints' feels of the same emoji", () => {
+    const soc = withBeat();
+    (reactionStory(soc, { target: "post", by: "ann", emoji: "🔥" }) as HTMLButtonElement).click();
+    (reactionStory(soc, { target: "post", by: "bo", emoji: "🔥" }) as HTMLButtonElement).click();
+    expect(reactionsOn(soc, "post")).toEqual([{ emoji: "🔥", count: 2, by: ["ann", "bo"] }]);
   });
 });

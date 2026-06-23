@@ -297,6 +297,25 @@ export function pathosOf(soc: Society, beat: string): Pathos[] {
   return [...byEmoji.values()].sort((a, b) => b.count - a.count);
 }
 
+/** reactionsOn: the q-feel reactions ON a beat, aggregated by emoji — the read paired with
+ *  reactionStory. It is pathosOf with the SUPERSEDE GUARD: an un-react supersedes the q-feel
+ *  beat (a self-loop), so a removed reaction must not linger. (pathosOf is the raw read kept
+ *  for back-compat; reactionsOn is the one a reacting surface should use.) asOf-relative,
+ *  like every read here. */
+export function reactionsOn(soc: Society, beat: string, asOf?: number): Pathos[] {
+  const feels = prehensionsOnto(soc, beat, "q-feel", asOf).filter((p) => !isSuperseded(soc, p.slug, asOf));
+  const byEmoji = new Map<string, Pathos>();
+  for (const p of feels) {
+    const emoji = p.content.trim();
+    if (!emoji) continue;
+    const cur = byEmoji.get(emoji) ?? { emoji, count: 0, by: [] };
+    cur.count++;
+    if (p.subject) cur.by.push(p.subject);
+    byEmoji.set(emoji, cur);
+  }
+  return [...byEmoji.values()].sort((a, b) => b.count - a.count);
+}
+
 /** is_story: does `beat` lure to a beat whose slug contains 'end'? */
 export function isStory(soc: Society, beat: string): boolean {
   return soc.all().some(

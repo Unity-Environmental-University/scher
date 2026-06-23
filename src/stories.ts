@@ -17,6 +17,7 @@ import {
   modeAt,
   confidence,
   pathosOf,
+  reactionsOn,
   isSuperseded,
   isEstablished,
   prehensionsOnto,
@@ -784,5 +785,60 @@ export function composerStory(soc: Society, params: ComposerStoryParams): Node {
     box.appendChild(input);
     box.appendChild(btn);
     return box;
+  }).node;
+}
+
+// ── REACTION STORY — a buttonStory whose press lays a TYPED prehension by a standpoint. ─
+// buttonStory lays a fixed beat; toggleButtonStory grounds/ungrounds a TARGET. reactionStory
+// is the third member: a press lays a q-feel prehension FROM a standpoint ONTO another's beat,
+// carrying an emoji in its content (the felt response — pathos, not establishment). It is
+// uncheckable like the toggle: press once to react, again to SUPERSEDE your own reaction
+// (append-only undo — your feel stays in ink, the read ignores it). The live state is read
+// per-(standpoint,emoji): does THIS standpoint's non-superseded q-feel of THIS emoji exist?
+// reactionsOn(beat) aggregates everyone's; this button is one reactor's one emoji.
+export interface ReactionStoryParams {
+  /** the beat being reacted to. */
+  target: string;
+  /** the standpoint doing the reacting (the subject of the q-feel). */
+  by: string;
+  /** the emoji this button carries (its felt content). */
+  emoji: string;
+  /** stable slug stem for THIS reactor's reaction (so re-press is supersede-able). */
+  reactSlug?: string;
+  class?: string;
+}
+
+export function reactionStory(soc: Society, params: ReactionStoryParams): Node {
+  const { target, by, emoji } = params;
+  // a deterministic slug for THIS (standpoint, emoji, target) reaction. Idempotent: pressing
+  // again reads the same slug and supersedes it (un-react), never lays a duplicate.
+  const slug = params.reactSlug ?? `feel-${by}-${emoji}-${target}`;
+
+  // LIVE = does this reaction exist AND not superseded? The truth is the read, not a flag.
+  const isLive = (s: Society) => s.has(slug) && !isSuperseded(s, slug);
+
+  // the button shows the emoji + the total count of THIS emoji across all reactors (a reading
+  // of reactionsOn), and a "mine" marker when this standpoint's own reaction is live.
+  const read = reading(soc, (s) => ({
+    live: isLive(s),
+    count: reactionsOn(s, target).find((r) => r.emoji === emoji)?.count ?? 0,
+  }));
+
+  return project(read, (v) => {
+    const btn = el("button", {
+      class: `story-button reaction ${v.live ? "mine" : ""} ${params.class ?? ""}`,
+      on: {
+        click: () => {
+          if (!isLive(soc)) {
+            // REACT: lay a q-feel from `by` onto `target`, the emoji as content.
+            soc.layP(slug, emoji, by, target, "q-feel");
+          } else {
+            // UN-REACT = SUPERSEDE my own q-feel (self-loop). Append-only; the read drops it.
+            soc.lay({ slug: `sup-${slug}`, content: `un-react ${emoji}`, subject: slug, object: slug });
+          }
+        },
+      },
+    }, `${emoji}${v.count ? " " + v.count : ""}`) as HTMLButtonElement;
+    return btn;
   }).node;
 }

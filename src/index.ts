@@ -66,6 +66,7 @@ export {
   groundedBy,
   excludedBy,
   pathosOf,
+  reactionsOn,
   isStory,
   intervalOf,
   endOf,
@@ -107,6 +108,7 @@ export {
   dropStory,
   relateBuckets,
   composerStory,
+  reactionStory,
   type Gist,
   type Lore,
   type ListStoryParams,
@@ -116,6 +118,7 @@ export {
   type DropBucket,
   type DropStoryParams,
   type ComposerStoryParams,
+  type ReactionStoryParams,
 } from "./stories.js";
 
 // the POSITIVIST PORCELAIN — a get/set(boolean) handle over an establishment, so the

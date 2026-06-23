@@ -50,3 +50,31 @@ by appending, values are read not stored. For that shape, the *invariants are th
 — so the tests generate arbitrary histories and assert laws (monotonicity, order-
 independence of reads, undo-is-append, `Fact.get()` tracks the last `set()`) rather than
 checking hand-picked examples. See `test/`.
+
+## Process-shaped tests (the Trajectory harness)
+
+A substance test asserts about a *final state*: set up, act, snapshot, expect. Its unit
+is a value. But scher's claim is that the reality is *becoming*, not the snapshot — so
+the deeper test asserts about a **trajectory**, with the witnessing-axis preserved:
+
+| substance test | process test |
+|---|---|
+| final state equals X | the *trajectory passed through* X (`everReached`) |
+| `f(input) === output` | the read is correct **for every moment t**, not just now (`asOf`) |
+| idempotent | **monotone** — the reading only moves in allowed directions |
+| order doesn't matter | order doesn't matter *for the settled reading*, **but witnessing order is itself observable** |
+
+`test/support/trajectory.ts` is a harness whose unit is the trajectory: it records each
+lay with the clock the society assigned, so it can replay the society *as of* any past
+moment and read it there. Crucially, the harness is **tested as a trajectory itself**
+(`test/trajectory.harness.test.ts`) — replay-as-of-the-last-moment must reproduce the
+live society — because a test framework trusted on its own endpoint is the substance
+cheat it's meant to escape.
+
+This is also a *design* tool, not just a checking tool. The process-shaped assertion
+`asOf(past).reads(beat)` was written **before** the library could satisfy it; the red
+test was the spec for the time-relative read (`modeAt(soc, beat, asOf?)`), and making it
+green surfaced a latent clock-monotonicity bug (explicit seed stamps didn't advance the
+auto-stamp clock, so `asOf` reads could lie). A substance test would never have found
+it. The witnessing-axis reads (`asOf`) are the first of several the harness is meant to
+drive out; standpoint-relative reads (`from?`) and satisfaction/settledness come next.

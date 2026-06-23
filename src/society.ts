@@ -77,7 +77,12 @@ export class Society {
   // Beats are never overwritten; to undo, supersede with a new beat.
   #insert(b: Beat): boolean {
     if (this.#beats.has(b.slug)) return false;
-    this.#beats.set(b.slug, { ...b, witnessed: b.witnessed ?? ++this.#clock });
+    // The witnessing clock is monotone across BOTH explicit stamps and auto-stamps:
+    // an explicitly-witnessed beat advances the clock so a later auto-stamp never
+    // reuses (or precedes) a moment already witnessed. Without this, asOf reads lie.
+    const witnessed = b.witnessed ?? this.#clock + 1;
+    this.#clock = Math.max(this.#clock, witnessed);
+    this.#beats.set(b.slug, { ...b, witnessed });
     return true;
   }
 
@@ -129,46 +134,62 @@ export class Society {
 // ending '~q'. A prehension P co-prehends quality Q iff there's a beat `${P.slug}~q`
 // whose object is Q.
 
-/** Does prehension P (a beat slug) co-prehend the given quality? */
-export function prehendsAs(soc: Society, pslug: string, quality: Quality): boolean {
-  const q = soc.get(pslug + "~q");
-  return !!q && q.object === quality;
+// ── the witnessing axis ────────────────────────────────────────────────────────
+// A read is "from a moment." `asOf` is a witnessed-clock value; a read AS OF t sees
+// only beats witnessed at-or-before t. This is just the log truncated at t, re-read —
+// because a society IS read from its log, "as of t" needs no new storage, only a
+// filter. `asOf === undefined` means "now": no filter, the existing reads unchanged.
+//
+// This makes the time-relative read a property of the READS, not of the consumer: you
+// never rebuild a society to ask "what did this read as, then." It also makes "git for
+// meaning" literal — every read has an `@{time}`.
+
+/** Was beat `b` witnessed at-or-before moment `asOf`? (undefined ⇒ always visible.) */
+function visibleAt(b: Beat, asOf?: number): boolean {
+  return asOf === undefined || (b.witnessed ?? 0) <= asOf;
 }
 
-/** Every prehension reaching `beat` as object, co-prehending `quality`. Returns the
- *  prehension beats (whose `subject` is the frame/standpoint that laid it). */
-export function prehensionsOnto(soc: Society, beat: string, quality: Quality): Beat[] {
+/** Does prehension P co-prehend the given quality, as of a moment? Both the prehension
+ *  and its `~q` mode-beat must be visible — a grounding doesn't count before its quality
+ *  has landed. */
+export function prehendsAs(soc: Society, pslug: string, quality: Quality, asOf?: number): boolean {
+  const q = soc.get(pslug + "~q");
+  return !!q && q.object === quality && visibleAt(q, asOf);
+}
+
+/** Every prehension reaching `beat` as object, co-prehending `quality`, as of a moment.
+ *  Returns the prehension beats (whose `subject` is the frame/standpoint that laid it). */
+export function prehensionsOnto(soc: Society, beat: string, quality: Quality, asOf?: number): Beat[] {
   return soc.all().filter(
-    (b) => b.object === beat && b.subject !== null && prehendsAs(soc, b.slug, quality),
+    (b) => b.object === beat && b.subject !== null && visibleAt(b, asOf) && prehendsAs(soc, b.slug, quality, asOf),
   );
 }
 
-/** Is a beat superseded? A supersede is a beat whose subject and object are both the
- *  target (a self-pointing beat onto the thing it cancels). The superseded beat stays
- *  in the log; this read just ignores it. (Mirrors the retro runner's supersede
- *  pattern: lay(sup, …, target, target).) */
-export function isSuperseded(soc: Society, target: string): boolean {
-  return soc.all().some((b) => b.subject === target && b.object === target && b.slug !== target);
+/** Is a beat superseded, as of a moment? A supersede is a self-pointing beat onto the
+ *  thing it cancels. The superseded beat stays in the log; this read just ignores it.
+ *  As of an earlier moment, a not-yet-witnessed supersede does not count — so an undo is
+ *  itself a point on the trajectory, visible only after it lands. */
+export function isSuperseded(soc: Society, target: string, asOf?: number): boolean {
+  return soc.all().some((b) => b.subject === target && b.object === target && b.slug !== target && visibleAt(b, asOf));
 }
 
-/** is_established: a beat is established iff some non-superseded grounding-prehension
+/** is_established, as of a moment: established iff some non-superseded grounding-prehension
  *  reaches it. Unchecking supersedes the grounding, so this re-reads as scripted; the
  *  grounding and its supersede both remain in the society. */
-export function isEstablished(soc: Society, beat: string): boolean {
-  return prehensionsOnto(soc, beat, "q-grounding").some((p) => !isSuperseded(soc, p.slug));
+export function isEstablished(soc: Society, beat: string, asOf?: number): boolean {
+  return prehensionsOnto(soc, beat, "q-grounding", asOf).some((p) => !isSuperseded(soc, p.slug, asOf));
 }
 
-/** mode_at: the establishment-mode read of a beat, now, from this society. */
-export function modeAt(soc: Society, beat: string): Mode {
-  return isEstablished(soc, beat) ? "established" : "scripted";
+/** mode_at: the establishment-mode read of a beat, as of a moment (default: now). */
+export function modeAt(soc: Society, beat: string, asOf?: number): Mode {
+  return isEstablished(soc, beat, asOf) ? "established" : "scripted";
 }
 
-/** confidence: groundings / (groundings + exclusions), in [0,1]. Client version:
- *  every prehension counts 1. The phase/frame weighting lives server-side; this is the
- *  local approximation. */
-export function confidence(soc: Society, beat: string): number {
-  const g = prehensionsOnto(soc, beat, "q-grounding").length;
-  const e = prehensionsOnto(soc, beat, "q-exclusion").length;
+/** confidence: groundings / (groundings + exclusions), in [0,1], as of a moment. Every
+ *  prehension counts 1; weighting can live elsewhere. */
+export function confidence(soc: Society, beat: string, asOf?: number): number {
+  const g = prehensionsOnto(soc, beat, "q-grounding", asOf).length;
+  const e = prehensionsOnto(soc, beat, "q-exclusion", asOf).length;
   if (g + e === 0) return 0;
   return g / (g + e);
 }

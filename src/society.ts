@@ -30,7 +30,15 @@ export type Quality =
   | "q-utterance"
   | "q-feel"
   | "q-containment"
-  | "q-shared";
+  | "q-shared"
+  // dependency / assignment / due — the lateral qualities the planning surface lays.
+  // q-depends-on: A waits on B (read both ways: dependsOn / dependentsOf). q-assigned-to:
+  // a card → an actor. q-due: a temporal bound on a card. These are LATERAL prehensions
+  // (object is the related beat/actor, NOT a content node folded into an interval) — never
+  // membership, which stays betweenness. (harvested from the dependency/strain reads.)
+  | "q-depends-on"
+  | "q-assigned-to"
+  | "q-due";
 
 /** The mode a beat reads as. Derived, not stored. */
 export type Mode = "established" | "scripted";
@@ -165,6 +173,16 @@ export function prehensionsOnto(soc: Society, beat: string, quality: Quality, as
   );
 }
 
+/** Every prehension reaching OUT of `beat` as its SUBJECT, co-prehending `quality`, as of
+ *  a moment. The mirror of prehensionsOnto: that read sees edges INTO a beat (beat as
+ *  object); this one sees edges FROM a beat (beat as subject). A lateral relation (depends-on,
+ *  assigned-to) is laid A→B, so it is only legible from A's side through a -From read. */
+export function prehensionsFrom(soc: Society, beat: string, quality: Quality, asOf?: number): Beat[] {
+  return soc.all().filter(
+    (b) => b.subject === beat && b.object !== null && visibleAt(b, asOf) && prehendsAs(soc, b.slug, quality, asOf),
+  );
+}
+
 /** Is a beat superseded, as of a moment? A supersede is a self-pointing beat onto the
  *  thing it cancels. The superseded beat stays in the log; this read just ignores it.
  *  As of an earlier moment, a not-yet-witnessed supersede does not count — so an undo is
@@ -192,6 +210,62 @@ export function confidence(soc: Society, beat: string, asOf?: number): number {
   const e = prehensionsOnto(soc, beat, "q-exclusion", asOf).length;
   if (g + e === 0) return 0;
   return g / (g + e);
+}
+
+// ── DEPENDENCY / STRAIN READS ──────────────────────────────────────────────────
+// One structural edge — q-depends-on — read in several directions. "blocked" and
+// "parallelizable" are NOT stored flags; they are READINGS of depends-on against
+// establishment (and, like every read here, against a moment via asOf). The law: one
+// edge, many reads; never store the derived. A dep that establishes stops blocking the
+// instant it does, with no write — because blocked was never a fact, only a reading.
+
+/** dependsOn: the beats this one is waiting ON (its blockers) — the q-depends-on edges
+ *  FROM this beat (this beat as subject). Non-superseded, as of a moment. */
+export function dependsOn(soc: Society, beat: string, asOf?: number): string[] {
+  return prehensionsFrom(soc, beat, "q-depends-on", asOf)
+    .filter((p) => !isSuperseded(soc, p.slug, asOf))
+    .map((p) => p.object!).filter(Boolean);
+}
+
+/** dependentsOf: the beats waiting on THIS one — the BACKWARD read (this beat as object).
+ *  "who is blocked because of me." The mirror dependsOn couldn't see. */
+export function dependentsOf(soc: Society, beat: string, asOf?: number): string[] {
+  return prehensionsOnto(soc, beat, "q-depends-on", asOf)
+    .filter((p) => !isSuperseded(soc, p.slug, asOf))
+    .map((p) => p.subject!).filter(Boolean);
+}
+
+/** blockedOnNow: of this beat's dependencies, the ones NOT yet established — the live
+ *  blockers. Blocked is a reading, not a stored state: a dep that's established no longer
+ *  blocks. Empty ⇒ not blocked. */
+export function blockedOnNow(soc: Society, beat: string, asOf?: number): string[] {
+  return dependsOn(soc, beat, asOf).filter((d) => !isEstablished(soc, d, asOf));
+}
+
+/** isBlocked: the boolean companion — any live (unestablished) dependency remains. */
+export function isBlocked(soc: Society, beat: string, asOf?: number): boolean {
+  return blockedOnNow(soc, beat, asOf).length > 0;
+}
+
+/** parallelizable: not blocked AND not yet established — work that could start right now. */
+export function parallelizable(soc: Society, beat: string, asOf?: number): boolean {
+  return !isBlocked(soc, beat, asOf) && !isEstablished(soc, beat, asOf);
+}
+
+/** whoWaitsOn: alias of dependentsOf in intention — "waiting on me" — kept as a named
+ *  read because the views ask the question in those words. */
+export function whoWaitsOn(soc: Society, beat: string, asOf?: number): string[] {
+  return dependentsOf(soc, beat, asOf);
+}
+
+/** stressOf: a beat's blast-radius — how much waits on it, weighted by the dependents'
+ *  own commitment (established counts most, then blocked, then merely scripted). A
+ *  high-stress beat is one whose slipping hurts a lot of committed work. (the strain
+ *  channel: the algedonic signal made a reading, not a stored alarm.) */
+export function stressOf(soc: Society, beat: string, asOf?: number): { count: number; weight: number; dependents: string[] } {
+  const dependents = dependentsOf(soc, beat, asOf);
+  const weight = dependents.reduce((w, d) => w + (isEstablished(soc, d, asOf) ? 3 : isBlocked(soc, d, asOf) ? 2 : 1), 0);
+  return { count: dependents.length, weight, dependents };
 }
 
 /** grounded_by / excluded_by: WHO grounded/excluded — the subject (frame) of each

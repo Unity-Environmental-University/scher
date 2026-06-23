@@ -44,6 +44,11 @@ export interface CardStoryParams {
   slug: string;
   /** optional: standpoint label shown on the card (whose reading this is). */
   standpoint?: string;
+  /** optional: drill-in. Given, the card becomes clickable — open this beat as its own
+   *  story view. The card doesn't decide what "open" means; the caller routes. */
+  onOpen?: (slug: string) => void;
+  /** optional: reify this told-short card into an actual story (lay End + lure). */
+  onReify?: (slug: string) => void;
 }
 
 export function cardStory(soc: Society, params: CardStoryParams): Node {
@@ -61,9 +66,10 @@ export function cardStory(soc: Society, params: CardStoryParams): Node {
 
   return project(read, (v) => {
     const card = el("div", {
-      class: `story-card ${v.mode}`,
+      class: `story-card ${v.mode}${params.onOpen ? " openable" : ""}`,
       attrs: { title: params.standpoint ? `read from: ${params.standpoint}` : undefined },
     });
+    if (params.onOpen) on(card, "click", () => params.onOpen!(slug));
     card.appendChild(el("div", { class: "slug" }, slug));
     card.appendChild(el("div", { class: "content" }, v.content));
     card.appendChild(
@@ -572,15 +578,27 @@ export function reify(soc: Society, beat: string): void {
 export interface ViewCardParams {
   slug: string;
   standpoint?: string;
+  /** drill-in: open a beat as its own story view (the caller routes). */
+  onOpen?: (slug: string) => void;
+  /** reify: make this told-short card an actual story (lay its End + duration + between).
+   *  Given, the card shows a "reify" affordance. The caller re-renders after. */
+  onReify?: (slug: string) => void;
 }
 
 export function viewCardStory(soc: Society, params: ViewCardParams): Node {
-  const sp = params.standpoint;
-  if (isStory(soc, params.slug)) {
-    // already a story — tell it long (its interior rail).
-    return frameStory(soc, sp !== undefined ? { once: params.slug, standpoint: sp } : { once: params.slug });
+  const { slug, standpoint: sp, onOpen, onReify } = params;
+  const common = {
+    ...(sp !== undefined ? { standpoint: sp } : {}),
+    ...(onOpen ? { onOpen } : {}),
+    ...(onReify ? { onReify } : {}),
+  };
+  if (isStory(soc, slug)) {
+    // already a story — tell it long (no reify affordance; it's already bounded).
+    const { onReify: _drop, ...frameCommon } = common as typeof common & { onReify?: unknown };
+    void _drop;
+    return frameStory(soc, { once: slug, ...frameCommon });
   }
-  return cardStory(soc, sp !== undefined ? { slug: params.slug, standpoint: sp } : { slug: params.slug });
+  return cardStory(soc, { slug, ...common });
 }
 
 // ── BOARD STORY — "a board is a row of Lists, each over its own slice." ─────────
@@ -666,6 +684,8 @@ export interface DropBucket {
 }
 
 export interface DropStoryParams {
+  /** the dragged beat A — the draggable handle (optional; each target is also draggable). */
+  source?: string;
   /** the candidate targets B. Each becomes a drop zone offering the buckets. */
   targets: string[];
   buckets: DropBucket[];

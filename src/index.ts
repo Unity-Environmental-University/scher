@@ -76,6 +76,11 @@ export {
   type Quality,
   type Mode,
   type Pathos,
+  assigneesOf,
+  resolutionOf,
+  isResolved,
+  cleanContent,
+  distanceToHEA,
 } from "./society.js";
 
 // the reusable STORY-CONSTRUCTORS ("everything is a Story, incl. a UI component")

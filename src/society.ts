@@ -38,7 +38,9 @@ export type Quality =
   // membership, which stays betweenness. (harvested from the dependency/strain reads.)
   | "q-depends-on"
   | "q-assigned-to"
-  | "q-due";
+  | "q-due"
+  // drama resolution — a q-resolves edge runs from drama→story when the drama is settled.
+  | "q-resolves";
 
 /** The mode a beat reads as. Derived, not stored. */
 export type Mode = "established" | "scripted";
@@ -187,8 +189,22 @@ export function prehensionsFrom(soc: Society, beat: string, quality: Quality, as
  *  thing it cancels. The superseded beat stays in the log; this read just ignores it.
  *  As of an earlier moment, a not-yet-witnessed supersede does not count — so an undo is
  *  itself a point on the trajectory, visible only after it lands. */
-export function isSuperseded(soc: Society, target: string, asOf?: number): boolean {
-  return soc.all().some((b) => b.subject === target && b.object === target && b.slug !== target && visibleAt(b, asOf));
+export function isSuperseded(soc: Society, target: string, asOfOrSeen?: number | Set<string>, _seen: Set<string> = new Set()): boolean {
+  // When called with asOf (number), use the asOf-aware path.
+  // When called with a Set (internal recursion), use the recursive cycle-guarded path.
+  // Re-supersession = "supersede the supersede" = un-remove the target. One-level check
+  // couldn't express "bring back a removed thing"; this recurses so a supersede-of-a-supersede
+  // REVIVES the target. _seen guards against cycles.
+  if (typeof asOfOrSeen === "number") {
+    // asOf-relative: simple one-level check (no re-supersession tracking; use witnessed clock).
+    return soc.all().some((b) => b.subject === target && b.object === target && b.slug !== target && visibleAt(b, asOfOrSeen));
+  }
+  const seen = asOfOrSeen ?? _seen;
+  if (seen.has(target)) return false;
+  seen.add(target);
+  return soc.all().some((b) =>
+    b.subject === target && b.object === target && b.slug !== target &&
+    !isSuperseded(soc, b.slug, seen));
 }
 
 /** is_established, as of a moment: established iff some non-superseded grounding-prehension
@@ -378,4 +394,35 @@ export function distanceToHEA(soc: Society, frameOnce: string, end?: string): { 
   // the End is "realized" when it is itself established (an actual met the HEA).
   const realized = isEstablished(soc, theEnd);
   return { realized, remaining, total: interior.length };
+}
+
+// ── ITHACA-REQUIRED READS (ported from vendored scher copy, promoted into the package) ──
+
+/** assigneesOf: who is assigned to a card — the people on it. Reads the `<card>-asn-<who>` edges
+ *  (object = `actor-<who>`), non-superseded, returns bare names. */
+export function assigneesOf(soc: Society, card: string): string[] {
+  return soc.all()
+    .filter((b) => b.slug.startsWith(card + "-asn-") && !isSuperseded(soc, b.slug))
+    .map((b) => (b.object ?? "").replace(/^actor-/, ""))
+    .filter(Boolean);
+}
+
+/** resolutionOf: given a DRAMA slug, the story that settles it — read from the drama's OWN
+ *  side in ONE pass. A drama is resolved iff a non-superseded q-resolves prehension runs
+ *  from it to some story (its object). Returns the story slug, or null if still open. */
+export function resolutionOf(soc: Society, drama: string): string | null {
+  const r = prehensionsFrom(soc, drama, "q-resolves").find((p) => !isSuperseded(soc, p.slug));
+  return r?.object ?? null;
+}
+
+/** isResolved: is this drama settled? The boolean companion to resolutionOf. */
+export function isResolved(soc: Society, drama: string): boolean {
+  return resolutionOf(soc, drama) !== null;
+}
+
+/** cleanContent: strip legacy substance-smell from a beat's content on READ.
+ *  Legacy beats stored a "[well]/[better] " prefix in content; new beats store clean.
+ *  Append-only means we can't edit the old content — so we strip on display. */
+export function cleanContent(s: string): string {
+  return s.replace(/^\[(well|better)\] /, "");
 }

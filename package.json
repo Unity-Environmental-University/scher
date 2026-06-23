@@ -1,6 +1,6 @@
 {
   "name": "scher",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A metaphysics-native reactive component library — Stories that are event horizons.",
   "type": "module",
   "license": "MIT",

@@ -79,6 +79,10 @@ export {
   gistStory,
   gistOf,
   freshGistOf,
+  foldGist,
+  TALLY,
+  type Monoid,
+  type FoldGist,
   loreStory,
   loreOf,
   makeLore,
@@ -88,9 +92,15 @@ export {
   type ModalStoryParams,
   type FrameStoryParams,
   listStory,
+  reify,
+  viewCardStory,
+  boardStory,
   type Gist,
   type Lore,
   type ListStoryParams,
+  type ViewCardParams,
+  type BoardColumn,
+  type BoardStoryParams,
 } from "./stories.js";
 
 // the POSITIVIST PORCELAIN — a get/set(boolean) handle over an establishment, so the

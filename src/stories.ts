@@ -364,6 +364,83 @@ export function gistStory(soc: Society, params: { once: string; end?: string }):
   }).node;
 }
 
+// ── FOLD-GIST — the generalized Gist: a cached SSR cursor over a pluggable monoid. ──
+// gistOf freezes an interval reading at at=max(witnessed) and reports `stale`. That
+// watermark IS a render-cache cursor. foldGist generalizes on that axis: instead of the
+// hard-coded {total,established} tally, the summary is ANY associative monoid, and the
+// fold runs over only the TAIL past the cursor — so re-reading after an append is O(tail),
+// not O(interval). The monoid law fold(all) == fold(cache) ⊕ fold(tail) IS the verify law.
+//
+// gistOf ⊂ foldGist: it is foldGist with TALLY (below). The cursor is a witnessed-clock
+// watermark; it advances per WHOLE FRAME (witnessed txn) — never a partial frame — because
+// beats sharing a witnessed-stamp are one transaction and must fold atomically.
+export interface Monoid<T> {
+  /** the identity — fold of the empty interior. */
+  empty: T;
+  /** fold one more interior beat into the accumulator. MUST be associative w/ empty. */
+  step: (acc: T, beat: string, soc: Society) => T;
+}
+
+/** A FoldGist: a Gist whose summary is the fold of a pluggable monoid over the interior,
+ *  carried with the cursor (the watermark up to which the summary is already folded). */
+export interface FoldGist<T> {
+  once: string;
+  end: string;
+  interior: string[];
+  /** the monoid fold over the interior, as of `cursor`. */
+  summary: T;
+  /** the watermark: the whole-frame witnessed-clock the summary is folded up to. */
+  cursor: number;
+}
+
+/** the TALLY monoid: count + how many established. This is the one gistOf hard-codes,
+ *  so gistOf ⊂ foldGist({fold: TALLY}). */
+export const TALLY: Monoid<{ total: number; established: number }> = {
+  empty: { total: 0, established: 0 },
+  step: (acc, b, soc) => ({
+    total: acc.total + 1,
+    established: acc.established + (isEstablished(soc, b) ? 1 : 0),
+  }),
+};
+
+/** Fold a Story interval through a pluggable monoid, frozen at a whole-frame cursor.
+ *  Pure read. With no `cache`, folds the whole interior (the cold path). With a `cache`
+ *  (a prior FoldGist), folds ONLY the tail past the cache cursor and ⊕-combines — O(tail).
+ *  The cursor advances to the max whole-frame witnessed-stamp at or below the society's
+ *  current witness; partial frames (a stamp mid-append) are excluded so the fold is atomic. */
+export function foldGist<T>(
+  soc: Society,
+  fold: Monoid<T>,
+  once: string,
+  end?: string,
+  cache?: FoldGist<T>,
+  combine?: (a: T, b: T) => T,
+): FoldGist<T> {
+  const theEnd = end ?? endOf(soc, once) ?? `${once}-end`;
+  const interior = intervalOf(soc, once, theEnd).filter((b) => b !== once && b !== theEnd);
+  const witnessedOf = (s: string) => soc.get(s)?.witnessed ?? 0;
+  // the cursor = the max witnessed-stamp among the INTERIOR (the beats the monoid folds),
+  // NOT the boundary. The boundary (once/end) often pre-exists at a high stamp and does
+  // not participate in the summary; folding it into the cursor would push the watermark
+  // past interior beats yet to land, silently dropping them from every future tail. The
+  // cursor is a whole frame — each beat carries its txn's stamp, so max-present is by
+  // construction a complete frame, never partial.
+  const cursor = Math.max(0, ...interior.map(witnessedOf));
+
+  // COLD path: no usable cache → fold the whole interior.
+  if (!cache || !combine || cache.cursor > cursor) {
+    const summary = interior.reduce((acc, b) => fold.step(acc, b, soc), fold.empty);
+    return { once, end: theEnd, interior, summary, cursor };
+  }
+
+  // WARM path: fold only the tail (beats whose frame post-dates the cache cursor) and ⊕.
+  // This is the O(tail) win AND the verify law: fold(all) == fold(cache) ⊕ fold(tail).
+  const tail = interior.filter((b) => witnessedOf(b) > cache.cursor);
+  const tailSummary = tail.reduce((acc, b) => fold.step(acc, b, soc), fold.empty);
+  const summary = combine(cache.summary, tailSummary);
+  return { once, end: theEnd, interior, summary, cursor };
+}
+
 // ── LORE — the conjugate of the Gist. "This is the Lore behind it." ────────────
 // A Gist seals what's IN FRONT of a story (its interval, told short — you read the
 // surface instead of the telling). A Lore seals what's BEHIND it (the settled
@@ -449,4 +526,93 @@ export function listStory(soc: Society, params: ListStoryParams): Node {
     render: (slug) => renderItem(soc, slug),
   });
   return container;
+}
+
+// ── REIFY — make a told-short card an ACTUAL story-as-story. ────────────────────
+// A card is a Story told short. Reifying it gives it BOUNDS: an End beat (the duration's
+// far edge) and a q-lure from the beat to that End — the exact triple that makes isStory
+// true. After reify, a View Card reads it as a Frame: the interior is whatever falls in
+// intervalOf(beat, end) by betweenness. This is the only write reify makes, and it's
+// append-only — the Once is the beat itself; the End and the lure are laid beside it.
+// (No domain here: pure Once/End/betweenness grammar. A view's reify button presses this.)
+export function reify(soc: Society, beat: string): void {
+  const end = `${beat}-end`;
+  soc.lay({ slug: end, content: `…The End of ${beat} — its duration's far edge (always further in).`, subject: null, object: null });
+  soc.layP(`${beat}-lure`, `${beat} lures toward its End`, beat, end, "q-lure");
+}
+
+// ── VIEW CARD STORY — "a card, and if it contains cards, it renders like one." ──
+// The single unit of the reading surface. A beat shows as a Card — UNLESS it is itself a
+// Story (it bounds a non-empty interval between its Once/End), in which case it renders as
+// a Frame (the rail of its interior). Containment is READ, never stored: isStory(beat) is
+// true iff the beat bounds an interval (membership is betweenness). This is the recursive
+// reading primitive — frameStory already nests one level via the same switch.
+//   leaf beat  → cardStory
+//   story beat → frameStory (its interior rail)
+export interface ViewCardParams {
+  slug: string;
+  standpoint?: string;
+}
+
+export function viewCardStory(soc: Society, params: ViewCardParams): Node {
+  const sp = params.standpoint;
+  if (isStory(soc, params.slug)) {
+    // already a story — tell it long (its interior rail).
+    return frameStory(soc, sp !== undefined ? { once: params.slug, standpoint: sp } : { once: params.slug });
+  }
+  return cardStory(soc, sp !== undefined ? { slug: params.slug, standpoint: sp } : { slug: params.slug });
+}
+
+// ── BOARD STORY — "a board is a row of Lists, each over its own slice." ─────────
+// The flat structure under EVERY board screen (Trello columns, a sprint board, a kanban):
+// a row of columns, each a listStory over a caller-supplied slice. scher knows NOTHING
+// about which columns exist — the domain lives entirely in the slice functions the caller
+// passes (e.g. {name:'Doing', slice: s => beatsInMode(s,'doing')}). That keeps boardStory
+// domain-free: a board IS a row of listStorys (the missing primitive, now present).
+// Each member renders through `item` (default: a View Card — so a story-beat in a column
+// unfolds as its interior frame, one level, by the same betweenness read).
+export interface BoardColumn {
+  /** the column heading. */
+  name: string;
+  /** the slice: given the society, the ordered beat-slugs in this column. */
+  slice: (s: Society) => string[];
+}
+
+export interface BoardStoryParams {
+  columns: BoardColumn[];
+  /** per-item render (default: a View Card — leaf→card, story→frame). */
+  item?: (soc: Society, slug: string) => Node;
+  standpoint?: string;
+  class?: string;
+}
+
+export function boardStory(soc: Society, params: BoardStoryParams): Node {
+  const board = el("div", { class: `story-board ${params.class ?? ""}` });
+  const sp = params.standpoint;
+  const renderItem = params.item ?? ((s: Society, slug: string) =>
+    viewCardStory(s, sp !== undefined ? { slug, standpoint: sp } : { slug }));
+
+  for (const col of params.columns) {
+    const column = el("div", { class: "board-column" });
+    // the heading carries a live count — a reading of the slice, re-derived on append.
+    const heading = project(
+      reading(soc, (s) => col.slice(s).length),
+      (n) => {
+        const h = el("div", { class: "board-column-head" });
+        h.appendChild(el("div", { class: "board-column-name" }, col.name));
+        h.appendChild(el("div", { class: "board-column-count" }, String(n)));
+        return h;
+      },
+    ).node;
+    column.appendChild(heading);
+    // the column body IS a listStory over this column's slice.
+    column.appendChild(listStory(soc, {
+      slice: col.slice,
+      item: renderItem,
+      ...(sp !== undefined ? { standpoint: sp } : {}),
+      class: "board-column-list",
+    }));
+    board.appendChild(column);
+  }
+  return board;
 }

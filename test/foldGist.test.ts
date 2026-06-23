@@ -92,4 +92,49 @@ describe("foldGist — the generalized, cached Gist", () => {
     expect(touched).toEqual(["b5"]); // ONLY the new tail beat, never b1..b4.
     expect(cache.summary.total).toBe(4);
   });
+
+  // THE OPEN SEAM (red): a supersede BEHIND THE BOUND, past the cursor. It changes the
+  // reading of an EXISTING interior beat (established→scripted) without changing interior
+  // membership. The warm path must still re-read it — invalidation, not just append.
+  it("supersede-past-cursor: a grounding cancelled behind the bound invalidates the cache", () => {
+    const { soc, once, end } = chainStory(3);
+    // ground b2 → it becomes established. (grounding lands within the freeze frame.)
+    soc.layP("g2", "ground b2", "once", "b2", "q-grounding");
+
+    const cache = foldGist(soc, TALLY, once, end);
+    expect(cache.summary.established).toBe(1); // b2 established at freeze.
+
+    // now SUPERSEDE the grounding — a self-pointing beat onto g2, a NEW frame past cursor.
+    // membership is unchanged (b2 still interior); only b2's establishment flips.
+    soc.lay({ slug: "g2-undo", content: "undo ground b2", subject: "g2", object: "g2", witnessed: 99 });
+
+    const cold = foldGist(soc, TALLY, once, end);
+    const warm = foldGist(soc, TALLY, once, end, cache, tallyCombine);
+    expect(cold.summary.established).toBe(0); // the supersede landed → b2 scripted again.
+    expect(warm.summary).toEqual(cold.summary); // warm MUST agree — the seam.
+  });
+
+  // After invalidation forces a cold re-fold, the fresh cache must still be USABLE: a later
+  // pure append re-derives correctly through it. (Guards the cursor-after-supersede regress:
+  // a supersede stamp folded into the cursor must not strand a lower-stamped later append.)
+  it("re-caching after a supersede stays correct for a subsequent append", () => {
+    const { soc, once, end } = chainStory(3);
+    soc.layP("g2", "ground b2", "once", "b2", "q-grounding");
+    const c0 = foldGist(soc, TALLY, once, end);
+
+    // supersede behind the bound → forces cold, yields a fresh, trustworthy cache.
+    soc.lay({ slug: "g2-undo", content: "undo", subject: "g2", object: "g2", witnessed: 50 });
+    const c1 = foldGist(soc, TALLY, once, end, c0, tallyCombine);
+    expect(c1.summary).toEqual({ total: 3, established: 0 }); // b1,b2,b3 interior; b2 flipped scripted.
+
+    // now a pure append after the supersede frame.
+    soc.lay({ slug: "b4", content: "beat 4", subject: null, object: null, witnessed: 60 });
+    soc.lay({ slug: "e4", content: "edge 4", subject: "b3", object: "b4", witnessed: 60 });
+    soc.lay({ slug: "e-relink", content: "relink", subject: "b4", object: "end", witnessed: 61 });
+
+    const cold = foldGist(soc, TALLY, once, end);
+    const warm = foldGist(soc, TALLY, once, end, c1, tallyCombine);
+    expect(warm.summary).toEqual(cold.summary);
+    expect(warm.summary).toEqual({ total: 4, established: 0 }); // b1..b4 interior, none established.
+  });
 });

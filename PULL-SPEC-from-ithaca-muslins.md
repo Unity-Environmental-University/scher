@@ -24,9 +24,12 @@ it's wrong.
    - fold only the **tail** (O(tail)), not re-scan the interval (O(interval)).
    - the summary is a **pluggable associative monoid**, so `fold(all) == fold(cache) ⊕ fold(tail)`
      IS the verify law. `gistOf` ⊂ `foldGist` (fold = {empty:{total,established}, step:tally}).
-   - OPEN SEAM: supersede *behind the bound, past the cursor* — `freshGistOf`'s `stale` only
-     half-covers it (catches grew/moved, misses a supersede that doesn't change interior
-     membership). Model invalidation, not just append.
+   - ~~OPEN SEAM~~ ADDRESSED (spike/foldGist): supersede *behind the bound, past the cursor* —
+     `freshGistOf`'s `stale` only half-covered it (caught grew/moved, missed a supersede that
+     doesn't change interior membership). foldGist now folds supersede stamps into the cursor
+     and falls to a cold re-scan when an invalidating frame landed past the cache cursor — so
+     invalidation is modeled, not just append. (Future O(tail) refinement: bound invalidation
+     to supersedes onto interior beats or their causal reach, rather than any supersede.)
 
 2. **`boardStory` + `viewCardStory`** — pull from ithaca's stories.ts (they exist there, not here).
    `boardStory(soc, {columns: {name, slice:(s)=>string[]}[], item?})`. Collapses the flat

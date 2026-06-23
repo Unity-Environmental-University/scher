@@ -425,10 +425,28 @@ export function foldGist<T>(
   // past interior beats yet to land, silently dropping them from every future tail. The
   // cursor is a whole frame — each beat carries its txn's stamp, so max-present is by
   // construction a complete frame, never partial.
-  const cursor = Math.max(0, ...interior.map(witnessedOf));
+  // the watermark must move on ANY frame that can change the interval's reading — not only
+  // appended interior members, but INVALIDATION behind the bound: a supersede onto a beat
+  // already folded (e.g. a grounding cancelled → an interior beat flips established→scripted)
+  // changes b's reading without changing membership, and lands at a NEW stamp. A supersede is
+  // structurally a self-pointing beat (subject === object); fold its stamp into the cursor so
+  // such a frame is never silently behind the watermark. (This is the seam freshGistOf's
+  // `stale` only half-covered.) Bounding to supersedes onto interior beats or their reach is
+  // a future O(tail) refinement; folding the watermark forward + cold-on-invalidation is the
+  // correct, monoid-agnostic floor.
+  const supersedeStamps = soc.all()
+    .filter((b) => b.subject !== null && b.subject === b.object && b.slug !== b.subject)
+    .map((b) => b.witnessed ?? 0);
+  const cursor = Math.max(0, ...interior.map(witnessedOf), ...supersedeStamps);
 
-  // COLD path: no usable cache → fold the whole interior.
-  if (!cache || !combine || cache.cursor > cursor) {
+  // a usable cache requires that NOTHING invalidating landed past it — only pure append.
+  // If a supersede landed after cache.cursor, the cache's folded portion may be stale, so we
+  // cannot trust the ⊕ shortcut: fall to the cold re-scan. Append-only growth stays O(tail).
+  const invalidatedSinceCache = cache !== undefined
+    && supersedeStamps.some((t) => t > cache.cursor);
+
+  // COLD path: no usable cache, or invalidation behind the bound → fold the whole interior.
+  if (!cache || !combine || cache.cursor > cursor || invalidatedSinceCache) {
     const summary = interior.reduce((acc, b) => fold.step(acc, b, soc), fold.empty);
     return { once, end: theEnd, interior, summary, cursor };
   }

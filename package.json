@@ -5,11 +5,32 @@
   "type": "module",
   "license": "MIT",
   "repository": "github:Unity-Environmental-University/scher",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
+  "sideEffects": false,
   "scripts": {
     "build": "tsc",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run check && npm run test && npm run build"
   },
   "devDependencies": {
-    "typescript": "5.7.2"
+    "fast-check": "^4.8.0",
+    "typescript": "5.7.2",
+    "vitest": "^4.1.9"
   }
 }

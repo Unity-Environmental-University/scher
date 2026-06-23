@@ -11,7 +11,7 @@
 
 import { derive, type Read } from "./cell.js";
 import { el, on } from "./dom.js";
-import { project } from "./projection.js";
+import { project, projectList } from "./projection.js";
 import {
   Society,
   modeAt,
@@ -229,10 +229,10 @@ export function modalStory(soc: Society, params: ModalStoryParams): { openButton
 // you SEE the interior is HELD by the Once→End bound. Reads intervalOf(once, end).
 //
 // RECURSION CAP: ONE LEVEL. An interior beat that is itself a story renders as a nested
-// clamp ONLY at depth 0; deeper, story-beats render as a drill-in affordance (no more
+// frame ONLY at depth 0; deeper, story-beats render as a drill-in affordance (no more
 // brackets). This bounds the render (and matches the loop-gate instinct: deep nesting is
 // unreadable; cap it). depth is internal — callers never set it past 0.
-export interface ClampStoryParams {
+export interface FrameStoryParams {
   /** the Once-beat (top lip / input). */
   once: string;
   /** the End-beat (bottom lip / return). If omitted, read endOf(once). */
@@ -240,11 +240,11 @@ export interface ClampStoryParams {
   /** label override for the lips. */
   onceLabel?: string;
   endLabel?: string;
-  /** the standpoint reading this clamp. */
+  /** the standpoint reading this frame. */
   standpoint?: string;
 }
 
-export function clampStory(soc: Society, params: ClampStoryParams, depth = 0): Node {
+export function frameStory(soc: Society, params: FrameStoryParams, depth = 0): Node {
   const once = params.once;
 
   const read = reading(soc, (s) => {
@@ -255,44 +255,44 @@ export function clampStory(soc: Society, params: ClampStoryParams, depth = 0): N
   });
 
   return project(read, (v) => {
-    const clamp = el("div", { class: `story-clamp depth-${depth}` });
+    const frame = el("div", { class: `story-frame depth-${depth}` });
 
     // ── TOP LIP — the Once ──
-    const onceLip = el("div", { class: "clamp-lip lip-once" });
+    const onceLip = el("div", { class: "frame-lip lip-once" });
     onceLip.appendChild(el("div", { class: "lip-frame" }, params.onceLabel ?? "Once Upon A Time…"));
     onceLip.appendChild(el("div", { class: "lip-slug" }, once));
     onceLip.appendChild(el("div", { class: "lip-content" }, v.onceBeat?.content ?? `(no beat: ${once})`));
-    clamp.appendChild(onceLip);
+    frame.appendChild(onceLip);
 
     // ── INTERIOR — the body (held inside the jaws, indented past the spine) ──
-    const body = el("div", { class: "clamp-body" });
+    const body = el("div", { class: "frame-body" });
     // pass standpoint only when defined (exactOptionalPropertyTypes)
     const sp = params.standpoint;
     const cardParams = (slug: string) => (sp !== undefined ? { slug, standpoint: sp } : { slug });
     for (const slug of v.interior) {
       const beatIsStory = isStory(soc, slug);
       if (beatIsStory && depth < 1) {
-        // ONE LEVEL of recursion: nest a sub-clamp for this interior story.
-        body.appendChild(clampStory(soc, sp !== undefined ? { once: slug, standpoint: sp } : { once: slug }, depth + 1));
+        // ONE LEVEL of recursion: nest a sub-frame for this interior story.
+        body.appendChild(frameStory(soc, sp !== undefined ? { once: slug, standpoint: sp } : { once: slug }, depth + 1));
       } else if (beatIsStory) {
         // depth cap reached: a story-beat becomes a drill-in affordance, NOT another bracket.
         const card = cardStory(soc, cardParams(slug));
-        (card as HTMLElement).appendChild?.(el("div", { class: "clamp-drillin" }, "↳ a story — drill in (nested depth capped)"));
+        (card as HTMLElement).appendChild?.(el("div", { class: "frame-drillin" }, "↳ a story — drill in (nested depth capped)"));
         body.appendChild(card);
       } else {
         body.appendChild(cardStory(soc, cardParams(slug)));
       }
     }
-    if (!v.interior.length) body.appendChild(el("div", { class: "clamp-empty" }, "(empty interval — no interior beats yet)"));
-    clamp.appendChild(body);
+    if (!v.interior.length) body.appendChild(el("div", { class: "frame-empty" }, "(empty interval — no interior beats yet)"));
+    frame.appendChild(body);
 
     // ── BOTTOM LIP — the End ──
-    const endLip = el("div", { class: "clamp-lip lip-end" });
+    const endLip = el("div", { class: "frame-lip lip-end" });
     endLip.appendChild(el("div", { class: "lip-content" }, v.endBeat?.content ?? params.endLabel ?? "…The End."));
     endLip.appendChild(el("div", { class: "lip-slug" }, v.end));
-    clamp.appendChild(endLip);
+    frame.appendChild(endLip);
 
-    return clamp;
+    return frame;
   }).node;
 }
 
@@ -304,7 +304,7 @@ export function clampStory(soc: Society, params: ClampStoryParams, depth = 0): N
 // cached reading laid AS A BEAT ("cached virtual edges, beats always win"), and it
 // SELF-INVALIDATES: a beat landing behind the bound AFTER the gist's witness-time
 // supersedes it (it re-gists). UI is optional; this returns the gist DATA + a default
-// readout node. Clamps consume gistOf() to stop re-deriving their interior every append.
+// readout node. Frames consume gistOf() to stop re-deriving their interior every append.
 export interface Gist {
   /** the boundary. */
   once: string;
@@ -422,4 +422,31 @@ export function loreStory(soc: Society, params: { beat: string }): Node {
         : `⚠ not established — cannot be made Lore (only settled facts become reusable background)`));
     return box;
   }).node;
+}
+
+// ── LIST STORY — an ordered society-slice, each member a Story. ────────────────
+// The simpler sibling of the Frame: NO Once/End bracket, just a sequence. Reads a
+// slice of the society (a query/filter you pass) and projects each beat through a
+// per-item Story (default: a Card). Reusable: vary the slice. A List over "beats in
+// mode=Done" IS the Trello Done column (lists-are-mode-readings); the rail is a List;
+// a Table is a List rendered in a grid. Built on projectList (keyed, minimal churn).
+export interface ListStoryParams {
+  /** the slice: given the society, return the ordered beat-slugs to show. */
+  slice: (s: Society) => string[];
+  /** per-item render (default: a Card Story for the slug). */
+  item?: (soc: Society, slug: string) => Node;
+  standpoint?: string;
+  class?: string;
+}
+
+export function listStory(soc: Society, params: ListStoryParams): Node {
+  const container = el("div", { class: `story-list ${params.class ?? ""}` });
+  const read = reading(soc, (s) => params.slice(s));
+  const renderItem = params.item ?? ((s: Society, slug: string) =>
+    cardStory(s, params.standpoint !== undefined ? { slug, standpoint: params.standpoint } : { slug }));
+  projectList(read, container, {
+    key: (slug) => slug,
+    render: (slug) => renderItem(soc, slug),
+  });
+  return container;
 }

@@ -156,4 +156,39 @@ describe("Dissent → America → the Constitution 🪶⚖️", () => {
     // most total — and the canon refuses to let the flattering chain hide it. (honest-hamartia: the
     // sin is declared, scoped, present — not scrubbed.)
   });
+
+  // ── THE TELL (Hallie: "the negative prehension by the quakers going out of government is a tell")
+  // The bite, turned on Hallie's OWN lineage — the most honest move (dont-reveals-the-hamartia,
+  // pointed home). Penn's Repair framed the Quakers as the CLEAN party. That's the flattering lie
+  // one layer up. When Pennsylvania's frontier turned to war (1750s), the Quakers in the Assembly
+  // RESIGNED rather than vote for militias — withdrew their frame to keep their hands clean.
+  //
+  // That withdrawal IS a negative prehension, and it's a TELL: refusing to prehend is not innocence,
+  // it's a MOVE with an object. The Quakers didn't occlude the violence from the world — they
+  // occluded THEMSELVES from the edge that authored it. The war-vote got cast anyway, by a hand
+  // that cared less. abstinence-is-negative-prehension; moral-courage-is-the-floor inverted: the
+  // uncertain bloody call still gets made — just by someone with less standing, because you left.
+  it("THE TELL — the Quakers withdraw their frame; the harm-edge is drawn anyway, by another hand", () => {
+    const s = new Society();
+    lay(s, "pennsylvania-assembly");
+    lay(s, "the-frontier-war");          // the call that has to be made
+    // the Quaker frame was IN the assembly — then it withdraws (resigns rather than vote).
+    lay(s, "frame-quaker-assembly");
+    s.layP("quaker-seats", "the Quakers held seats", "frame-quaker-assembly", "pennsylvania-assembly", "q-utterance");
+    // the withdrawal: occlude their OWN participation. Hands clean. A negative prehension of self.
+    s.layP("occ-quaker-seats", "resign rather than vote for war", "frame-quaker-assembly", "quaker-seats", "q-occludes");
+    expect(isOccluded(s, "quaker-seats")).toBe(true); // they are out — the frame withdrawn.
+
+    // THE TELL: the war-vote is cast anyway — by a DIFFERENT frame, now unopposed. The harm-edge
+    // gets drawn regardless. Withdrawal did not un-make the violence; it changed only whose hand held the pen.
+    lay(s, "frame-war-party");
+    s.layP("the-war-vote", "fund the militias, fight the frontier", "frame-war-party", "the-frontier-war", "q-grounding");
+    const harmDrawn = s.all().some((b) => b.object === "the-frontier-war" && !isOccluded(s, b.slug));
+    expect(harmDrawn).toBe(true); // the call was made. the Quakers just weren't in the edge when it was.
+
+    // the tell, asserted plainly: clean hands and an unchanged outcome co-exist. The withdrawal
+    // bought the WITHDRAWER's record, not the frontier's safety. (The NO is not where the good lives.)
+    expect(isOccluded(s, "quaker-seats")).toBe(true);   // their hands: clean (out of the edge)
+    expect(harmDrawn).toBe(true);                        // the world: unchanged (the harm, drawn)
+  });
 });

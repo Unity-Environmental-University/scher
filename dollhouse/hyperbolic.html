@@ -1,0 +1,136 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Dollhouse — toward the one always further in</title>
+<style>
+  /* "every happily-ever-after, nested toward the one always further in." The hyperbolic frame:
+     the focus beat at center full-size, its prehension neighbours curving outward, smaller with
+     each hop — infinite depth in finite space, the way Friends draw the Light: always further in,
+     the center receding as you approach. (The muslin's sentenced geometry: focus=center, scale
+     1/(1+distance), polar rings, observer-relative by the arithmetic. CSS only — no WebGL.) */
+  :root{ --bg:#0a0c12; --ink:#cfd6e6; --gold:#e9c46a; --note:#6b7590; --line:#26304a;
+         --succ:#7fae8e; --lure:#c9a14a; --occ:#b5603a; --feel:#9a86c2; }
+  html,body{ margin:0; height:100%; background:var(--bg); color:var(--ink); overflow:hidden;
+    font:15px/1.5 ui-serif,Georgia,serif; }
+  #title{ position:fixed; top:16px; left:20px; z-index:5; font-size:12px; letter-spacing:.14em;
+    text-transform:uppercase; color:var(--note); }
+  #title b{ color:#eef; font-weight:600; }
+  #rim{ position:fixed; bottom:16px; left:20px; z-index:5; font:11px ui-monospace,monospace; color:var(--note); max-width:42ch; line-height:1.7; }
+  #stage{ position:absolute; inset:0; }
+  .edge{ position:absolute; inset:0; pointer-events:none; z-index:1; }
+  .node{ position:absolute; transform:translate(-50%,-50%); z-index:2; cursor:pointer;
+    border:1px solid var(--line); border-radius:10px; background:rgba(16,20,34,.92);
+    padding:.5rem .7rem; max-width:200px; transition:all .45s cubic-bezier(.4,0,.2,1);
+    box-shadow:0 6px 30px #0008; }
+  .node:hover{ border-color:var(--gold); }
+  .node.center{ border-color:var(--gold); box-shadow:0 0 40px #e9c46a33, 0 6px 30px #000a; }
+  .node .nm{ font-size:13px; color:#eef; line-height:1.25; }
+  .node .q{ font:10px ui-monospace,monospace; letter-spacing:.06em; margin-top:.2rem; }
+  .picker{ position:fixed; top:14px; right:16px; z-index:6; background:rgba(16,20,34,.92);
+    border:1px solid var(--line); border-radius:10px; padding:.5rem .7rem; }
+  .picker select{ background:transparent; color:var(--ink); border:1px solid var(--line);
+    border-radius:6px; padding:.25rem .4rem; font:12px ui-monospace,monospace; max-width:260px; }
+</style></head>
+<body>
+  <div id="title"><b>Hyperbolic</b> — toward the one always further in</div>
+  <div class="picker"><select id="story"></select></div>
+  <div id="stage"><svg class="edge" id="edges"></svg></div>
+  <div id="rim"></div>
+
+<script type="module">
+import { Society, prehensionsFrom, prehensionsOnto, isOccluded } from "/lib/scher/society.js";
+import { quakerStory } from "./stories/quakers.story.js";
+
+// — build a Society from a story (full history laid; the hyperbolic frame reads the whole web) —
+let nid = 0;
+const node = (s,x)=>{ if(!s.has(x)) s.lay({slug:x,content:x,subject:null,object:null}); };
+const succ = (s,h,p)=>{ node(s,h); node(s,p); s.layP("e"+(nid++), h+" succeeds "+p, h, p, "q-succeeds"); };
+function build(story){
+  const s = new Society(); nid = 0;
+  for (const sc of story.scenes) for (const m of sc.moves){
+    if (m.root) node(s, m.root);
+    else if (m.succeeds) succ(s, m.succeeds[0], m.succeeds[1]);
+    else if (m.merge) m.merge[1].forEach(p=>succ(s, m.merge[0], p));
+  }
+  return s;
+}
+
+// — the geometry: BFS hop-distance from the focus through the prehension web (both directions) —
+function neighbourhood(s, focus, maxDepth=3){
+  const dist = new Map([[focus,0]]);
+  const edges = []; // {from,to,quality}
+  let ring = [focus];
+  for (let d=0; d<maxDepth; d++){
+    const next = [];
+    for (const n of ring){
+      // out: what n prehends (n --q--> X);  in: what prehends n (X --q--> n). The full web around n.
+      const out = prehensionsFrom(s, n, "q-succeeds").concat(prehensionsFrom(s,n,"q-lure"),prehensionsFrom(s,n,"q-feel"),prehensionsFrom(s,n,"q-occludes"));
+      const inc = prehensionsOnto(s, n, "q-succeeds").concat(prehensionsOnto(s,n,"q-lure"),prehensionsOnto(s,n,"q-feel"),prehensionsOnto(s,n,"q-occludes"));
+      for (const e of out){ if(isOccluded(s,e.slug)||!e.object) continue; const q=s.get(e.slug+"~q")?.object||"prehends";
+        edges.push({from:n,to:e.object,q}); if(!dist.has(e.object)){ dist.set(e.object,d+1); next.push(e.object);} }
+      for (const e of inc){ if(isOccluded(s,e.slug)||!e.subject) continue; const q=s.get(e.slug+"~q")?.object||"prehends";
+        edges.push({from:e.subject,to:n,q}); if(!dist.has(e.subject)){ dist.set(e.subject,d+1); next.push(e.subject);} }
+    }
+    ring = next;
+  }
+  return { dist, edges };
+}
+
+const qcolor = (q)=>({ "q-succeeds":"var(--succ)", "q-lure":"var(--lure)", "q-occludes":"var(--occ)", "q-feel":"var(--feel)" }[q]||"var(--note)");
+const stage = document.getElementById("stage"), svg = document.getElementById("edges");
+let soc, focus;
+
+function render(){
+  const W = stage.clientWidth, H = stage.clientHeight, cx = W/2, cy = H/2;
+  const maxDepth = 3, ringStep = Math.min(W,H) / (2*maxDepth + 1);
+  const { dist, edges } = neighbourhood(soc, focus, maxDepth);
+  // place nodes: center at middle; each ring evenly by angle, radius = distance*ringStep.
+  const byRing = new Map();
+  for (const [name,d] of dist){ if(!byRing.has(d)) byRing.set(d,[]); byRing.get(d).push(name); }
+  const pos = new Map();
+  for (const [d,names] of byRing){
+    names.forEach((name,i)=>{
+      if (d===0){ pos.set(name,[cx,cy]); return; }
+      const a = (i / names.length) * Math.PI*2 - Math.PI/2 + d*0.5; // small per-ring twist so rings don't align
+      pos.set(name, [cx + Math.cos(a)*d*ringStep, cy + Math.sin(a)*d*ringStep]);
+    });
+  }
+  // clear
+  [...stage.querySelectorAll(".node")].forEach(n=>n.remove());
+  svg.innerHTML = "";
+  // edges first (under nodes)
+  for (const e of edges){ const a=pos.get(e.from), b=pos.get(e.to); if(!a||!b) continue;
+    const ln=document.createElementNS("http://www.w3.org/2000/svg","line");
+    ln.setAttribute("x1",a[0]);ln.setAttribute("y1",a[1]);ln.setAttribute("x2",b[0]);ln.setAttribute("y2",b[1]);
+    ln.setAttribute("stroke",qcolor(e.q));ln.setAttribute("stroke-width","1");ln.setAttribute("opacity","0.35"); svg.appendChild(ln); }
+  // nodes
+  for (const [name,d] of dist){ const p=pos.get(name); if(!p) continue;
+    const scale = 1/(1+d);                       // the muslin's law: closer = bigger; the center, full.
+    const el=document.createElement("div"); el.className="node"+(d===0?" center":"");
+    el.style.left=p[0]+"px"; el.style.top=p[1]+"px"; el.style.transform=`translate(-50%,-50%) scale(${0.55+scale*0.65})`;
+    el.style.opacity = String(0.5 + scale*0.5);
+    el.innerHTML = `<div class="nm">${name}</div>` + (d===0?`<div class="q" style="color:var(--gold)">◆ the one further in</div>`:"");
+    el.onclick = ()=>{ focus=name; render(); };  // re-seat: any node becomes the center
+    stage.appendChild(el);
+  }
+  // the rim-label (Sympathy Pole's gift: show your own blindness) — what's outside reach from this seat.
+  const total = soc.all().filter(b=>b.subject===null && !b.slug.endsWith("~q")).length;
+  const shown = [...dist.keys()].length;
+  document.getElementById("rim").textContent =
+    `focus: ${focus} · ${shown} beats within ${maxDepth} hops · ${Math.max(0,total-shown)} beyond this seat's reach. Click any node to seat there — the web curves around your choice. The center is always one more hop further in.`;
+}
+
+// stories available (more can be added to dollhouse/stories/)
+const stories = { "The Society of Friends — Fox to today": quakerStory };
+const sel = document.getElementById("story");
+for (const name of Object.keys(stories)){ const o=document.createElement("option"); o.value=name; o.textContent=name; sel.appendChild(o); }
+function load(name){ soc = build(stories[name]);
+  // default focus = the root (the oldest, the source — "Fox", the deepest in)
+  const heirSet = new Set(soc.all().filter(b=>soc.get(b.slug+"~q")?.object==="q-succeeds").map(b=>b.subject));
+  focus = soc.all().filter(b=>b.subject===null && !b.slug.endsWith("~q") && !heirSet.has(b.slug)).map(b=>b.slug)[0];
+  render();
+}
+sel.onchange = ()=>load(sel.value);
+addEventListener("resize", ()=>soc && render());
+load(Object.keys(stories)[0]);
+</script>
+</body></html>

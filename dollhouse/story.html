@@ -1,0 +1,112 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>The Dollhouse — watch a story unfold</title>
+<style>
+  :root{ --paper:#faf7f1; --ink:#2a2622; --line:#e4ddd2; --note:#8a8170; --gold:#9a7d1f; --fork:#b5603a; }
+  body{ margin:0; background:var(--paper); color:var(--ink); font:16px/1.55 ui-serif,Georgia,serif; }
+  .wrap{ max-width:820px; margin:0 auto; padding:2.2rem 1.4rem 4rem; }
+  h1{ font-size:1.55rem; margin:0 0 .15rem; }
+  .blurb{ color:var(--note); margin:0 0 1.4rem; font-style:italic; }
+  .controls{ display:flex; gap:.6rem; align-items:center; margin:0 0 1.2rem; }
+  button{ background:#fff; border:1px solid var(--line); border-radius:999px; padding:.4rem 1.1rem;
+          font:inherit; font-size:.9rem; cursor:pointer; color:var(--ink); }
+  button:hover:not(:disabled){ background:var(--ink); color:var(--paper); }
+  button:disabled{ opacity:.4; cursor:default; }
+  .step{ color:var(--note); font:13px ui-monospace,monospace; margin-left:auto; }
+  .stage{ display:grid; grid-template-columns:1fr 1fr; gap:1.4rem; align-items:start; }
+  @media(max-width:680px){ .stage{ grid-template-columns:1fr; } }
+  .scene,.tree{ border:1px solid var(--line); border-radius:12px; padding:1.1rem 1.2rem; background:#fff; min-height:8rem; }
+  .scene .year{ font-family:ui-monospace,monospace; color:var(--gold); font-size:.85rem; letter-spacing:.5px; }
+  .scene .prose{ margin:.4rem 0 0; }
+  .tree{ font-family:ui-monospace,monospace; font-size:.82rem; white-space:pre; overflow:auto; }
+  .tree .head{ color:var(--gold); font-weight:700; }
+  .tree .forked{ color:var(--fork); }
+  .note{ color:var(--note); font-size:.82rem; margin-top:1.2rem; font-style:italic; }
+</style></head>
+<body><div class="wrap">
+  <h1 id="title">…</h1>
+  <p class="blurb" id="blurb"></p>
+  <div class="controls">
+    <button id="prev">‹ back</button>
+    <button id="next">next ›</button>
+    <button id="play">▶ play</button>
+    <span class="step" id="step"></span>
+  </div>
+  <div class="stage">
+    <div class="scene"><div class="year" id="year"></div><p class="prose" id="prose"></p></div>
+    <div class="tree" id="tree"></div>
+  </div>
+  <p class="note">The line of descent, drawn live by the grammar after each scene. A schism FORKS
+  (two heirs of one body); a reunion MERGES (one heir of two); HEAD (gold) is who is living now.
+  Nothing is ever deleted — every parent stays an honored ancestor.</p>
+</div>
+
+<script type="module">
+import { Society, prehensionsOnto, isOccluded } from "/lib/scher/society.js";
+import { quakerStory as story } from "./stories/quakers.story.js";
+
+// — replay an append-only history by rebuilding the society fresh up to scene `i`. Plain and honest:
+//   we never mutate; back/forward just replays from the start. —
+let nid = 0;
+const node = (s, x) => { if (!s.has(x)) s.lay({ slug:x, content:x, subject:null, object:null }); };
+const succeeds = (s, heir, parent) => { node(s,heir); node(s,parent);
+  s.layP("e"+(nid++), heir+" succeeds "+parent, heir, parent, "q-succeeds"); };
+const applyMove = (s, m) =>
+  m.root ? node(s, m.root)
+  : m.succeeds ? succeeds(s, m.succeeds[0], m.succeeds[1])
+  : m.merge ? m.merge[1].forEach(p => succeeds(s, m.merge[0], p))
+  : null;
+
+const heirs = (s, parent) =>
+  [...new Set(prehensionsOnto(s, parent, "q-succeeds").filter(e => !isOccluded(s, e.slug)).map(e => e.subject))];
+const roots = (s) => {
+  const names = s.all().filter(b => b.subject === null && !b.slug.endsWith("~q")).map(b => b.slug);
+  const isHeir = new Set(s.all().filter(b => s.get(b.slug+"~q")?.object === "q-succeeds").map(b => b.subject));
+  return names.filter(n => !isHeir.has(n));
+};
+
+function buildTo(i) {
+  const s = new Society(); nid = 0;
+  for (let k = 0; k <= i; k++) story.scenes[k].moves.forEach(m => applyMove(s, m));
+  return s;
+}
+function treeHTML(s) {
+  const seen = new Set(), lines = [];
+  const walk = (name, depth) => {
+    const kids = heirs(s, name), head = kids.length === 0, forked = kids.length > 1;
+    const cls = head ? "head" : forked ? "forked" : "";
+    const tag = forked ? "  ⑂ forks" : head ? "  ◆ living" : "";
+    lines.push(`<span class="${cls}">${"  ".repeat(depth)}${name}${tag}</span>`);
+    if (seen.has(name)) return; seen.add(name);
+    kids.forEach(k => walk(k, depth + 1));
+  };
+  roots(s).forEach(r => walk(r, 0));
+  return lines.join("\n");
+}
+
+let i = 0, playing = null;
+function show(idx) {
+  i = idx;
+  const s = buildTo(i), sc = story.scenes[i];
+  document.getElementById("year").textContent = sc.year;
+  document.getElementById("prose").textContent = sc.prose;
+  document.getElementById("step").textContent = `scene ${i+1} / ${story.scenes.length}`;
+  document.getElementById("prev").disabled = i <= 0;
+  document.getElementById("next").disabled = i >= story.scenes.length - 1;
+  document.getElementById("tree").innerHTML = treeHTML(s);
+}
+document.getElementById("title").textContent = story.title;
+document.getElementById("blurb").textContent = story.blurb;
+document.getElementById("next").onclick = () => show(Math.min(i+1, story.scenes.length-1));
+document.getElementById("prev").onclick = () => show(Math.max(i-1, 0));
+document.getElementById("play").onclick = (e) => {
+  if (playing) { clearInterval(playing); playing = null; e.target.textContent = "▶ play"; return; }
+  e.target.textContent = "⏸ pause";
+  playing = setInterval(() => {
+    if (i >= story.scenes.length - 1) { clearInterval(playing); playing = null; e.target.textContent = "▶ play"; return; }
+    show(i + 1);
+  }, 2400);
+};
+show(0);
+</script>
+</body></html>

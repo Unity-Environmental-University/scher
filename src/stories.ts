@@ -18,7 +18,7 @@ import {
   confidence,
   pathosOf,
   reactionsOn,
-  isSuperseded,
+  isOccluded,
   isEstablished,
   prehensionsOnto,
   intervalOf,
@@ -163,13 +163,14 @@ export function toggleButtonStory(soc: Society, params: ToggleButtonStoryParams)
         // CHECK: lay a fresh-slugged grounding (always new → never born-superseded).
         soc.layP(`${groundSlug}-${nth++}`, `${by} grounds ${target}`, by, target, "q-grounding");
       } else {
-        // UNCHECK = SUPERSEDE every live grounding onto the target. Append-only: the
-        // groundings stay in ink, the read ignores them. The society count RISES on undo.
+        // UNCHECK = OCCLUDE every live grounding onto the target (2026-06-26: was a self-loop
+        // supersede the freeze 409s / isOccluded ignores). `by` is the named occluder. Append-only:
+        // the groundings stay in ink, the read ignores them. The society count RISES on undo.
         const liveGroundings = prehensionsOnto(soc, target, "q-grounding").filter(
-          (p) => !isSuperseded(soc, p.slug),
+          (p) => !isOccluded(soc, p.slug),
         );
         for (const g of liveGroundings) {
-          soc.lay({ slug: `sup-${g.slug}`, content: `supersedes ${g.slug} (uncheck)`, subject: g.slug, object: g.slug });
+          soc.layP(`occ-${g.slug}`, `${by} un-grounds ${g.slug} (uncheck)`, by, g.slug, "q-occludes");
         }
       }
     });
@@ -195,13 +196,15 @@ export interface ModalStoryParams {
 export function modalStory(soc: Society, params: ModalStoryParams): { openButton: Node; overlay: Node } {
   const openSlug = `modal-open-${params.id}`;
 
-  const isOpen = (s: Society) => !!s.get(openSlug) && !isSuperseded(s, openSlug);
+  const isOpen = (s: Society) => !!s.get(openSlug) && !isOccluded(s, openSlug);
   const open = () => { if (!isOpen(soc)) soc.lay({ slug: openSlug, content: `modal ${params.id} open`, subject: null, object: null }); };
   const close = () => {
-    // close = supersede the open-beat (append-only). re-open later lays a fresh one.
+    // close = OCCLUDE the open-beat (append-only; 2026-06-26: was a self-loop supersede). The
+    // ui-seat is the named occluder. re-open later lays a fresh open-beat.
     if (isOpen(soc)) {
-      const n = soc.all().filter((b) => b.slug.startsWith(`sup-${openSlug}`)).length;
-      soc.lay({ slug: `sup-${openSlug}-${n}`, content: `closes modal ${params.id}`, subject: openSlug, object: openSlug });
+      const n = soc.all().filter((b) => b.slug.startsWith(`occ-${openSlug}`)).length;
+      if (!soc.has("modal-ui")) soc.lay({ slug: "modal-ui", content: "modal ui seat", subject: null, object: null });
+      soc.layP(`occ-${openSlug}-${n}`, `closes modal ${params.id}`, "modal-ui", openSlug, "q-occludes");
     }
   };
 
@@ -434,24 +437,24 @@ export function foldGist<T>(
   // cursor is a whole frame — each beat carries its txn's stamp, so max-present is by
   // construction a complete frame, never partial.
   // the watermark must move on ANY frame that can change the interval's reading — not only
-  // appended interior members, but INVALIDATION behind the bound: a supersede onto a beat
+  // appended interior members, but INVALIDATION behind the bound: an OCCLUSION onto a beat
   // already folded (e.g. a grounding cancelled → an interior beat flips established→scripted)
-  // changes b's reading without changing membership, and lands at a NEW stamp. A supersede is
-  // structurally a self-pointing beat (subject === object); fold its stamp into the cursor so
-  // such a frame is never silently behind the watermark. (This is the seam freshGistOf's
-  // `stale` only half-covered.) Bounding to supersedes onto interior beats or their reach is
-  // a future O(tail) refinement; folding the watermark forward + cold-on-invalidation is the
-  // correct, monoid-agnostic floor.
-  const supersedeStamps = soc.all()
-    .filter((b) => b.subject !== null && b.subject === b.object && b.slug !== b.subject)
+  // changes b's reading without changing membership, and lands at a NEW stamp. (2026-06-26:
+  // was a self-loop supersede `subject === object`; occlusion is `E --q-occludes--> X`, so we
+  // detect it by the q-occludes ~q mode-beat and fold the occlusion EDGE's stamp into the cursor
+  // so such a frame is never silently behind the watermark. Bounding to occlusions onto interior
+  // beats or their reach is a future O(tail) refinement; folding the watermark forward +
+  // cold-on-invalidation is the correct, monoid-agnostic floor.
+  const occlusionStamps = soc.all()
+    .filter((b) => soc.get(b.slug + "~q")?.object === "q-occludes")
     .map((b) => b.witnessed ?? 0);
-  const cursor = Math.max(0, ...interior.map(witnessedOf), ...supersedeStamps);
+  const cursor = Math.max(0, ...interior.map(witnessedOf), ...occlusionStamps);
 
   // a usable cache requires that NOTHING invalidating landed past it — only pure append.
-  // If a supersede landed after cache.cursor, the cache's folded portion may be stale, so we
+  // If an occlusion landed after cache.cursor, the cache's folded portion may be stale, so we
   // cannot trust the ⊕ shortcut: fall to the cold re-scan. Append-only growth stays O(tail).
   const invalidatedSinceCache = cache !== undefined
-    && supersedeStamps.some((t) => t > cache.cursor);
+    && occlusionStamps.some((t: number) => t > cache.cursor);
 
   // COLD path: no usable cache, or invalidation behind the bound → fold the whole interior.
   if (!cache || !combine || cache.cursor > cursor || invalidatedSinceCache) {
@@ -491,7 +494,7 @@ export interface Lore {
 export function loreOf(soc: Society, beat: string): Lore {
   const established = isEstablished(soc, beat);
   const groundedBy = prehensionsOnto(soc, beat, "q-grounding")
-    .filter((p) => !isSuperseded(soc, p.slug))
+    .filter((p) => !isOccluded(soc, p.slug))
     .map((p) => p.subject!)
     .filter(Boolean);
   const at = soc.get(beat)?.witnessed ?? 0;
@@ -835,7 +838,7 @@ export function reactionStory(soc: Society, params: ReactionStoryParams): Node {
   const slug = params.reactSlug ?? `feel-${by}-${emoji}-${target}`;
 
   // LIVE = does this reaction exist AND not superseded? The truth is the read, not a flag.
-  const isLive = (s: Society) => s.has(slug) && !isSuperseded(s, slug);
+  const isLive = (s: Society) => s.has(slug) && !isOccluded(s, slug);
 
   // the button shows the emoji + the total count of THIS emoji across all reactors (a reading
   // of reactionsOn), and a "mine" marker when this standpoint's own reaction is live.
@@ -853,8 +856,9 @@ export function reactionStory(soc: Society, params: ReactionStoryParams): Node {
             // REACT: lay a q-feel from `by` onto `target`, the emoji as content.
             soc.layP(slug, emoji, by, target, "q-feel");
           } else {
-            // UN-REACT = SUPERSEDE my own q-feel (self-loop). Append-only; the read drops it.
-            soc.lay({ slug: `sup-${slug}`, content: `un-react ${emoji}`, subject: slug, object: slug });
+            // UN-REACT = OCCLUDE my own q-feel (2026-06-26: was a self-loop supersede). `by` is the
+            // named occluder. Append-only; the read drops the occluded feel.
+            soc.layP(`occ-${slug}`, `un-react ${emoji}`, by, slug, "q-occludes");
           }
         },
       },

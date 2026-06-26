@@ -104,13 +104,14 @@ describe("foldGist — the generalized, cached Gist", () => {
     const cache = foldGist(soc, TALLY, once, end);
     expect(cache.summary.established).toBe(1); // b2 established at freeze.
 
-    // now SUPERSEDE the grounding — a self-pointing beat onto g2, a NEW frame past cursor.
+    // now OCCLUDE the grounding — a NAMED event (once) casts q-occludes over g2, past cursor.
     // membership is unchanged (b2 still interior); only b2's establishment flips.
-    soc.lay({ slug: "g2-undo", content: "undo ground b2", subject: "g2", object: "g2", witnessed: 99 });
+    soc.lay({ slug: "occ-g2", content: "occlude g2", subject: "undoer", object: "g2", witnessed: 99 });
+    soc.lay({ slug: "occ-g2~q", content: "[q-occludes]", subject: "occ-g2", object: "q-occludes", witnessed: 99 });
 
     const cold = foldGist(soc, TALLY, once, end);
     const warm = foldGist(soc, TALLY, once, end, cache, tallyCombine);
-    expect(cold.summary.established).toBe(0); // the supersede landed → b2 scripted again.
+    expect(cold.summary.established).toBe(0); // the occlusion landed → b2 scripted again.
     expect(warm.summary).toEqual(cold.summary); // warm MUST agree — the seam.
   });
 
@@ -122,8 +123,9 @@ describe("foldGist — the generalized, cached Gist", () => {
     soc.layP("g2", "ground b2", "once", "b2", "q-grounding");
     const c0 = foldGist(soc, TALLY, once, end);
 
-    // supersede behind the bound → forces cold, yields a fresh, trustworthy cache.
-    soc.lay({ slug: "g2-undo", content: "undo", subject: "g2", object: "g2", witnessed: 50 });
+    // occlude behind the bound → forces cold, yields a fresh, trustworthy cache.
+    soc.lay({ slug: "occ-g2", content: "occlude g2", subject: "undoer", object: "g2", witnessed: 50 });
+    soc.lay({ slug: "occ-g2~q", content: "[q-occludes]", subject: "occ-g2", object: "q-occludes", witnessed: 50 });
     const c1 = foldGist(soc, TALLY, once, end, c0, tallyCombine);
     expect(c1.summary).toEqual({ total: 3, established: 0 }); // b1,b2,b3 interior; b2 flipped scripted.
 

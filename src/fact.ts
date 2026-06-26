@@ -22,7 +22,7 @@ import { derive, type Read } from "./cell.js";
 import {
   Society,
   isEstablished,
-  isSuperseded,
+  isOccluded,
   confidence as readConfidence,
   prehensionsOnto,
   type Beat,
@@ -84,9 +84,11 @@ export function fact(soc: Society, target: string, opts: FactOptions): Fact {
         // GROUND: always a FRESH slug → never born-superseded (kills the desync bug).
         soc.layP(`${prefix}-${nth++}`, `${opts.by} grounds ${target}`, opts.by, target, "q-grounding");
       } else {
-        // UN-GROUND = SUPERSEDE every live grounding. Append-only; groundings stay in ink.
-        for (const g of prehensionsOnto(soc, target, "q-grounding").filter((p) => !isSuperseded(soc, p.slug))) {
-          soc.lay({ slug: `sup-${g.slug}`, content: `supersedes ${g.slug}`, subject: g.slug, object: g.slug });
+        // UN-GROUND = OCCLUDE every live grounding (2026-06-26: was a self-loop supersede, which
+        // the freeze 409s and isOccluded no longer reads). The actor (opts.by) is the named occluder
+        // — records WHO un-grounded, and is reversible. Append-only; groundings stay in ink.
+        for (const g of prehensionsOnto(soc, target, "q-grounding").filter((p) => !isOccluded(soc, p.slug))) {
+          soc.layP(`occ-${g.slug}`, `${opts.by} un-grounds ${g.slug}`, opts.by, g.slug, "q-occludes");
         }
       }
     },

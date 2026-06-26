@@ -52,10 +52,10 @@ describe("dependency reads — one edge, read both ways", () => {
     expect(parallelizable(soc, "a")).toBe(true);    // now pickup-able
   });
 
-  it("supersede unblocks: cancelling the depends-on edge drops the dependency", () => {
+  it("occlude unblocks: occluding the depends-on edge drops the dependency", () => {
     const soc = deps();
     expect(dependsOn(soc, "a")).toEqual(["b"]);
-    soc.lay({ slug: "sup-a-dep-b", content: "drop the dep", subject: "a-dep-b", object: "a-dep-b" });
+    soc.layP("occ-a-dep-b", "drop the dep", "fr", "a-dep-b", "q-occludes");
     expect(dependsOn(soc, "a")).toEqual([]);
     expect(isBlocked(soc, "a")).toBe(false);
     expect(dependentsOf(soc, "b")).toEqual([]);

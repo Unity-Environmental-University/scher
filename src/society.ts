@@ -228,15 +228,11 @@ function isOccluder(soc: Society, occludeEdge: string, asOf?: number): boolean {
     visibleAt(b, asOf) && prehendsAs(soc, b.slug, "q-occludes", asOf));
 }
 
-/** @deprecated supersession is gone — occlusion replaces it (society-scoped, agent-named,
- *  reversible). Kept as a thin alias so stragglers compile; the guards catch new uses. */
-export const isSuperseded = isOccluded;
-
 /** is_established, as of a moment: established iff some non-superseded grounding-prehension
  *  reaches it. Unchecking supersedes the grounding, so this re-reads as scripted; the
  *  grounding and its supersede both remain in the society. */
 export function isEstablished(soc: Society, beat: string, asOf?: number): boolean {
-  return prehensionsOnto(soc, beat, "q-grounding", asOf).some((p) => !isSuperseded(soc, p.slug, asOf));
+  return prehensionsOnto(soc, beat, "q-grounding", asOf).some((p) => !isOccluded(soc, p.slug, asOf));
 }
 
 /** mode_at: the establishment-mode read of a beat, as of a moment (default: now). */
@@ -264,7 +260,7 @@ export function confidence(soc: Society, beat: string, asOf?: number): number {
  *  FROM this beat (this beat as subject). Non-superseded, as of a moment. */
 export function dependsOn(soc: Society, beat: string, asOf?: number): string[] {
   return prehensionsFrom(soc, beat, "q-depends-on", asOf)
-    .filter((p) => !isSuperseded(soc, p.slug, asOf))
+    .filter((p) => !isOccluded(soc, p.slug, asOf))
     .map((p) => p.object!).filter(Boolean);
 }
 
@@ -272,7 +268,7 @@ export function dependsOn(soc: Society, beat: string, asOf?: number): string[] {
  *  "who is blocked because of me." The mirror dependsOn couldn't see. */
 export function dependentsOf(soc: Society, beat: string, asOf?: number): string[] {
   return prehensionsOnto(soc, beat, "q-depends-on", asOf)
-    .filter((p) => !isSuperseded(soc, p.slug, asOf))
+    .filter((p) => !isOccluded(soc, p.slug, asOf))
     .map((p) => p.subject!).filter(Boolean);
 }
 
@@ -344,7 +340,7 @@ export function pathosOf(soc: Society, beat: string): Pathos[] {
  *  for back-compat; reactionsOn is the one a reacting surface should use.) asOf-relative,
  *  like every read here. */
 export function reactionsOn(soc: Society, beat: string, asOf?: number): Pathos[] {
-  const feels = prehensionsOnto(soc, beat, "q-feel", asOf).filter((p) => !isSuperseded(soc, p.slug, asOf));
+  const feels = prehensionsOnto(soc, beat, "q-feel", asOf).filter((p) => !isOccluded(soc, p.slug, asOf));
   const byEmoji = new Map<string, Pathos>();
   for (const p of feels) {
     const emoji = p.content.trim();
@@ -427,7 +423,7 @@ export function distanceToHEA(soc: Society, frameOnce: string, end?: string): { 
  *  (object = `actor-<who>`), non-superseded, returns bare names. */
 export function assigneesOf(soc: Society, card: string): string[] {
   return soc.all()
-    .filter((b) => b.slug.startsWith(card + "-asn-") && !isSuperseded(soc, b.slug))
+    .filter((b) => b.slug.startsWith(card + "-asn-") && !isOccluded(soc, b.slug))
     .map((b) => (b.object ?? "").replace(/^actor-/, ""))
     .filter(Boolean);
 }
@@ -436,7 +432,7 @@ export function assigneesOf(soc: Society, card: string): string[] {
  *  side in ONE pass. A drama is resolved iff a non-superseded q-resolves prehension runs
  *  from it to some story (its object). Returns the story slug, or null if still open. */
 export function resolutionOf(soc: Society, drama: string): string | null {
-  const r = prehensionsFrom(soc, drama, "q-resolves").find((p) => !isSuperseded(soc, p.slug));
+  const r = prehensionsFrom(soc, drama, "q-resolves").find((p) => !isOccluded(soc, p.slug));
   return r?.object ?? null;
 }
 

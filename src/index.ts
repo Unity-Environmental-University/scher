@@ -53,7 +53,6 @@ export {
   prehensionsOnto,
   prehensionsFrom,
   isOccluded,
-  isSuperseded,
   dependsOn,
   dependentsOf,
   blockedOnNow,

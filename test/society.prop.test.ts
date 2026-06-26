@@ -18,7 +18,7 @@ import {
   modeAt,
   confidence,
   isEstablished,
-  isSuperseded,
+  isOccluded,
   contentBeats,
   type Beat,
 } from "../src/society.js";
@@ -227,11 +227,11 @@ describe("Society — undo is an append, not an erasure", () => {
         expect(isEstablished(soc, target)).toBe(true);
         const sizeAfterGround = soc.size;
 
-        // supersede: a self-pointing beat onto the grounding
-        soc.lay({ slug: "sup-g0", content: "supersedes g0", subject: "g0", object: "g0" });
-        expect(isSuperseded(soc, "g0")).toBe(true);
+        // occlude: a NAMED event casts q-occludes over the grounding (no self-loop)
+        soc.layP("occ-g0", "occludes g0", frame, "g0", "q-occludes");
+        expect(isOccluded(soc, "g0")).toBe(true);
         expect(isEstablished(soc, target)).toBe(false); // re-reads as scripted
-        expect(soc.size).toBe(sizeAfterGround + 1); // GREW — nothing erased
+        expect(soc.size).toBe(sizeAfterGround + 2); // GREW (edge + its ~q) — nothing erased
         expect(soc.has("g0")).toBe(true); // the grounding is still in ink
       }),
     );

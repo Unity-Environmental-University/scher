@@ -16,6 +16,10 @@ import { Cell, type Read } from "./cell.js";
 export interface Beat {
   slug: string;
   content: string;
+  /** the BULLET — a short human headline, distinct from content (the notes). Render this as the
+   *  scannable line; content is the foldable detail. (gen3.beat.title; the title-ratchet requires it
+   *  on new human beats.) Optional: pre-title beats and auto edges have none. */
+  title?: string | null;
   subject: string | null;
   object: string | null;
   /** when the local society witnessed this beat (the client's own db_witnessed). */
@@ -40,7 +44,19 @@ export type Quality =
   | "q-assigned-to"
   | "q-due"
   // drama resolution — a q-resolves edge runs from drama→story when the drama is settled.
-  | "q-resolves";
+  | "q-resolves"
+  // gratitude — the positive BACKWARD prehension: a perished occasion taken AS GIFT, opening no
+  // debt. To the past what q-lure is to the future. The receiving-side of the gift economy.
+  | "q-receives"
+  // occlusion — supersession, reframed (2026-06-26). A CURRENT event (superject-forming) casts a
+  // shadow over a prehended member of its OWN society: E --q-occludes--> X. Replaces the incoherent
+  // self-loop supersede ({subject:X,object:X}, no agent, X cancels itself). Occlusion NAMES the
+  // occluding event (subject=E), is STANDPOINT-RELATIVE (the society is the frame — X occluded HERE
+  // stands in full light in another society), and is REVERSIBLE/EMERGENT (un-occlusion = simply no
+  // live member occluding it; no "occlude the occlusion" recursion). Nothing leaves the DB — that is
+  // banishment, a separate ceremony. See OCCLUSION-DESIGN.md / the events-triad: occlude is the
+  // CURRENT tense (safe), banish violates the MEASURED tense (dangerous).
+  | "q-occludes";
 
 /** The mode a beat reads as. Derived, not stored. */
 export type Mode = "established" | "scripted";
@@ -185,27 +201,36 @@ export function prehensionsFrom(soc: Society, beat: string, quality: Quality, as
   );
 }
 
-/** Is a beat superseded, as of a moment? A supersede is a self-pointing beat onto the
- *  thing it cancels. The superseded beat stays in the log; this read just ignores it.
- *  As of an earlier moment, a not-yet-witnessed supersede does not count — so an undo is
- *  itself a point on the trajectory, visible only after it lands. */
-export function isSuperseded(soc: Society, target: string, asOfOrSeen?: number | Set<string>, _seen: Set<string> = new Set()): boolean {
-  // When called with asOf (number), use the asOf-aware path.
-  // When called with a Set (internal recursion), use the recursive cycle-guarded path.
-  // Re-supersession = "supersede the supersede" = un-remove the target. One-level check
-  // couldn't express "bring back a removed thing"; this recurses so a supersede-of-a-supersede
-  // REVIVES the target. _seen guards against cycles.
-  if (typeof asOfOrSeen === "number") {
-    // asOf-relative: simple one-level check (no re-supersession tracking; use witnessed clock).
-    return soc.all().some((b) => b.subject === target && b.object === target && b.slug !== target && visibleAt(b, asOfOrSeen));
-  }
-  const seen = asOfOrSeen ?? _seen;
-  if (seen.has(target)) return false;
-  seen.add(target);
+/** Is `target` OCCLUDED within this society, as of a moment? (Supersession, reframed —
+ *  2026-06-26.) A member E of the society casts a q-occludes shadow over the member it
+ *  prehends: E --q-occludes--> target. Unlike the old self-loop supersede, occlusion NAMES
+ *  the occluder (subject=E), so the perished past gains depth (walk target ← q-occludes ← E
+ *  = readable lineage). It is STANDPOINT-RELATIVE: `soc` IS the frame — `target` occluded in
+ *  THIS society stands in full light in another. And it is EMERGENT/REVERSIBLE: un-occlusion
+ *  needs no "occlude the occlusion" recursion — it is simply the absence of a live occluder
+ *  (an occluder that is itself occluded does not count, one level, no cycle-guard needed).
+ *
+ *  As of an earlier moment, a not-yet-witnessed occlusion does not count — so an undo is itself
+ *  a point on the trajectory, visible only after it lands. */
+export function isOccluded(soc: Society, target: string, asOf?: number): boolean {
   return soc.all().some((b) =>
-    b.subject === target && b.object === target && b.slug !== target &&
-    !isSuperseded(soc, b.slug, seen));
+    b.object === target && b.subject !== null && b.subject !== target &&
+    visibleAt(b, asOf) && prehendsAs(soc, b.slug, "q-occludes", asOf) &&
+    // emergent un-occlusion: an occluder that is itself occluded casts no shadow (one level).
+    !isOccluder(soc, b.slug, asOf));
 }
+
+/** Is this occlusion-prehension itself occluded (its occluder occluded)? One level only — by
+ *  design there is no deep recursion: un-occlusion is the absence of a LIVE occluder, read fresh. */
+function isOccluder(soc: Society, occludeEdge: string, asOf?: number): boolean {
+  return soc.all().some((b) =>
+    b.object === occludeEdge && b.subject !== null && b.subject !== occludeEdge &&
+    visibleAt(b, asOf) && prehendsAs(soc, b.slug, "q-occludes", asOf));
+}
+
+/** @deprecated supersession is gone — occlusion replaces it (society-scoped, agent-named,
+ *  reversible). Kept as a thin alias so stragglers compile; the guards catch new uses. */
+export const isSuperseded = isOccluded;
 
 /** is_established, as of a moment: established iff some non-superseded grounding-prehension
  *  reaches it. Unchecking supersedes the grounding, so this re-reads as scripted; the

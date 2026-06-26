@@ -17,13 +17,15 @@ import {
   modeAt,
   confidence,
   pathosOf,
-  isSuperseded,
+  reactionsOn,
+  isOccluded,
   isEstablished,
   prehensionsOnto,
   intervalOf,
   endOf,
   isStory,
   type Mode,
+  type Quality,
 } from "./society.js";
 
 /** A reading-cell over a society: re-derives whenever the society appends (rev bumps).
@@ -42,6 +44,11 @@ export interface CardStoryParams {
   slug: string;
   /** optional: standpoint label shown on the card (whose reading this is). */
   standpoint?: string;
+  /** optional: drill-in. Given, the card becomes clickable — open this beat as its own
+   *  story view. The card doesn't decide what "open" means; the caller routes. */
+  onOpen?: (slug: string) => void;
+  /** optional: reify this told-short card into an actual story (lay End + lure). */
+  onReify?: (slug: string) => void;
 }
 
 export function cardStory(soc: Society, params: CardStoryParams): Node {
@@ -59,9 +66,10 @@ export function cardStory(soc: Society, params: CardStoryParams): Node {
 
   return project(read, (v) => {
     const card = el("div", {
-      class: `story-card ${v.mode}`,
+      class: `story-card ${v.mode}${params.onOpen ? " openable" : ""}`,
       attrs: { title: params.standpoint ? `read from: ${params.standpoint}` : undefined },
     });
+    if (params.onOpen) on(card, "click", () => params.onOpen!(slug));
     card.appendChild(el("div", { class: "slug" }, slug));
     card.appendChild(el("div", { class: "content" }, v.content));
     card.appendChild(
@@ -155,13 +163,14 @@ export function toggleButtonStory(soc: Society, params: ToggleButtonStoryParams)
         // CHECK: lay a fresh-slugged grounding (always new → never born-superseded).
         soc.layP(`${groundSlug}-${nth++}`, `${by} grounds ${target}`, by, target, "q-grounding");
       } else {
-        // UNCHECK = SUPERSEDE every live grounding onto the target. Append-only: the
-        // groundings stay in ink, the read ignores them. The society count RISES on undo.
+        // UNCHECK = OCCLUDE every live grounding onto the target (2026-06-26: was a self-loop
+        // supersede the freeze 409s / isOccluded ignores). `by` is the named occluder. Append-only:
+        // the groundings stay in ink, the read ignores them. The society count RISES on undo.
         const liveGroundings = prehensionsOnto(soc, target, "q-grounding").filter(
-          (p) => !isSuperseded(soc, p.slug),
+          (p) => !isOccluded(soc, p.slug),
         );
         for (const g of liveGroundings) {
-          soc.lay({ slug: `sup-${g.slug}`, content: `supersedes ${g.slug} (uncheck)`, subject: g.slug, object: g.slug });
+          soc.layP(`occ-${g.slug}`, `${by} un-grounds ${g.slug} (uncheck)`, by, g.slug, "q-occludes");
         }
       }
     });
@@ -187,13 +196,15 @@ export interface ModalStoryParams {
 export function modalStory(soc: Society, params: ModalStoryParams): { openButton: Node; overlay: Node } {
   const openSlug = `modal-open-${params.id}`;
 
-  const isOpen = (s: Society) => !!s.get(openSlug) && !isSuperseded(s, openSlug);
+  const isOpen = (s: Society) => !!s.get(openSlug) && !isOccluded(s, openSlug);
   const open = () => { if (!isOpen(soc)) soc.lay({ slug: openSlug, content: `modal ${params.id} open`, subject: null, object: null }); };
   const close = () => {
-    // close = supersede the open-beat (append-only). re-open later lays a fresh one.
+    // close = OCCLUDE the open-beat (append-only; 2026-06-26: was a self-loop supersede). The
+    // ui-seat is the named occluder. re-open later lays a fresh open-beat.
     if (isOpen(soc)) {
-      const n = soc.all().filter((b) => b.slug.startsWith(`sup-${openSlug}`)).length;
-      soc.lay({ slug: `sup-${openSlug}-${n}`, content: `closes modal ${params.id}`, subject: openSlug, object: openSlug });
+      const n = soc.all().filter((b) => b.slug.startsWith(`occ-${openSlug}`)).length;
+      if (!soc.has("modal-ui")) soc.lay({ slug: "modal-ui", content: "modal ui seat", subject: null, object: null });
+      soc.layP(`occ-${openSlug}-${n}`, `closes modal ${params.id}`, "modal-ui", openSlug, "q-occludes");
     }
   };
 
@@ -364,6 +375,101 @@ export function gistStory(soc: Society, params: { once: string; end?: string }):
   }).node;
 }
 
+// ── FOLD-GIST — the generalized Gist: a cached SSR cursor over a pluggable monoid. ──
+// gistOf freezes an interval reading at at=max(witnessed) and reports `stale`. That
+// watermark IS a render-cache cursor. foldGist generalizes on that axis: instead of the
+// hard-coded {total,established} tally, the summary is ANY associative monoid, and the
+// fold runs over only the TAIL past the cursor — so re-reading after an append is O(tail),
+// not O(interval). The monoid law fold(all) == fold(cache) ⊕ fold(tail) IS the verify law.
+//
+// gistOf ⊂ foldGist: it is foldGist with TALLY (below). The cursor is a witnessed-clock
+// watermark; it advances per WHOLE FRAME (witnessed txn) — never a partial frame — because
+// beats sharing a witnessed-stamp are one transaction and must fold atomically.
+export interface Monoid<T> {
+  /** the identity — fold of the empty interior. */
+  empty: T;
+  /** fold one more interior beat into the accumulator. MUST be associative w/ empty. */
+  step: (acc: T, beat: string, soc: Society) => T;
+}
+
+/** A FoldGist: a Gist whose summary is the fold of a pluggable monoid over the interior,
+ *  carried with the cursor (the watermark up to which the summary is already folded). */
+export interface FoldGist<T> {
+  once: string;
+  end: string;
+  interior: string[];
+  /** the monoid fold over the interior, as of `cursor`. */
+  summary: T;
+  /** the watermark: the whole-frame witnessed-clock the summary is folded up to. */
+  cursor: number;
+}
+
+/** the TALLY monoid: count + how many established. This is the one gistOf hard-codes,
+ *  so gistOf ⊂ foldGist({fold: TALLY}). */
+export const TALLY: Monoid<{ total: number; established: number }> = {
+  empty: { total: 0, established: 0 },
+  step: (acc, b, soc) => ({
+    total: acc.total + 1,
+    established: acc.established + (isEstablished(soc, b) ? 1 : 0),
+  }),
+};
+
+/** Fold a Story interval through a pluggable monoid, frozen at a whole-frame cursor.
+ *  Pure read. With no `cache`, folds the whole interior (the cold path). With a `cache`
+ *  (a prior FoldGist), folds ONLY the tail past the cache cursor and ⊕-combines — O(tail).
+ *  The cursor advances to the max whole-frame witnessed-stamp at or below the society's
+ *  current witness; partial frames (a stamp mid-append) are excluded so the fold is atomic. */
+export function foldGist<T>(
+  soc: Society,
+  fold: Monoid<T>,
+  once: string,
+  end?: string,
+  cache?: FoldGist<T>,
+  combine?: (a: T, b: T) => T,
+): FoldGist<T> {
+  const theEnd = end ?? endOf(soc, once) ?? `${once}-end`;
+  const interior = intervalOf(soc, once, theEnd).filter((b) => b !== once && b !== theEnd);
+  const witnessedOf = (s: string) => soc.get(s)?.witnessed ?? 0;
+  // the cursor = the max witnessed-stamp among the INTERIOR (the beats the monoid folds),
+  // NOT the boundary. The boundary (once/end) often pre-exists at a high stamp and does
+  // not participate in the summary; folding it into the cursor would push the watermark
+  // past interior beats yet to land, silently dropping them from every future tail. The
+  // cursor is a whole frame — each beat carries its txn's stamp, so max-present is by
+  // construction a complete frame, never partial.
+  // the watermark must move on ANY frame that can change the interval's reading — not only
+  // appended interior members, but INVALIDATION behind the bound: an OCCLUSION onto a beat
+  // already folded (e.g. a grounding cancelled → an interior beat flips established→scripted)
+  // changes b's reading without changing membership, and lands at a NEW stamp. (2026-06-26:
+  // was a self-loop supersede `subject === object`; occlusion is `E --q-occludes--> X`, so we
+  // detect it by the q-occludes ~q mode-beat and fold the occlusion EDGE's stamp into the cursor
+  // so such a frame is never silently behind the watermark. Bounding to occlusions onto interior
+  // beats or their reach is a future O(tail) refinement; folding the watermark forward +
+  // cold-on-invalidation is the correct, monoid-agnostic floor.
+  const occlusionStamps = soc.all()
+    .filter((b) => soc.get(b.slug + "~q")?.object === "q-occludes")
+    .map((b) => b.witnessed ?? 0);
+  const cursor = Math.max(0, ...interior.map(witnessedOf), ...occlusionStamps);
+
+  // a usable cache requires that NOTHING invalidating landed past it — only pure append.
+  // If an occlusion landed after cache.cursor, the cache's folded portion may be stale, so we
+  // cannot trust the ⊕ shortcut: fall to the cold re-scan. Append-only growth stays O(tail).
+  const invalidatedSinceCache = cache !== undefined
+    && occlusionStamps.some((t: number) => t > cache.cursor);
+
+  // COLD path: no usable cache, or invalidation behind the bound → fold the whole interior.
+  if (!cache || !combine || cache.cursor > cursor || invalidatedSinceCache) {
+    const summary = interior.reduce((acc, b) => fold.step(acc, b, soc), fold.empty);
+    return { once, end: theEnd, interior, summary, cursor };
+  }
+
+  // WARM path: fold only the tail (beats whose frame post-dates the cache cursor) and ⊕.
+  // This is the O(tail) win AND the verify law: fold(all) == fold(cache) ⊕ fold(tail).
+  const tail = interior.filter((b) => witnessedOf(b) > cache.cursor);
+  const tailSummary = tail.reduce((acc, b) => fold.step(acc, b, soc), fold.empty);
+  const summary = combine(cache.summary, tailSummary);
+  return { once, end: theEnd, interior, summary, cursor };
+}
+
 // ── LORE — the conjugate of the Gist. "This is the Lore behind it." ────────────
 // A Gist seals what's IN FRONT of a story (its interval, told short — you read the
 // surface instead of the telling). A Lore seals what's BEHIND it (the settled
@@ -388,7 +494,7 @@ export interface Lore {
 export function loreOf(soc: Society, beat: string): Lore {
   const established = isEstablished(soc, beat);
   const groundedBy = prehensionsOnto(soc, beat, "q-grounding")
-    .filter((p) => !isSuperseded(soc, p.slug))
+    .filter((p) => !isOccluded(soc, p.slug))
     .map((p) => p.subject!)
     .filter(Boolean);
   const at = soc.get(beat)?.witnessed ?? 0;
@@ -449,4 +555,314 @@ export function listStory(soc: Society, params: ListStoryParams): Node {
     render: (slug) => renderItem(soc, slug),
   });
   return container;
+}
+
+// ── REIFY — make a told-short card an ACTUAL story-as-story. ────────────────────
+// A card is a Story told short. Reifying it gives it BOUNDS: an End beat (the duration's
+// far edge) and a q-lure from the beat to that End — the exact triple that makes isStory
+// true. After reify, a View Card reads it as a Frame: the interior is whatever falls in
+// intervalOf(beat, end) by betweenness. This is the only write reify makes, and it's
+// append-only — the Once is the beat itself; the End and the lure are laid beside it.
+// (No domain here: pure Once/End/betweenness grammar. A view's reify button presses this.)
+export function reify(soc: Society, beat: string): void {
+  const end = `${beat}-end`;
+  soc.lay({ slug: end, content: `…The End of ${beat} — its duration's far edge (always further in).`, subject: null, object: null });
+  soc.layP(`${beat}-lure`, `${beat} lures toward its End`, beat, end, "q-lure");
+}
+
+// ── VIEW CARD STORY — "a card, and if it contains cards, it renders like one." ──
+// The single unit of the reading surface. A beat shows as a Card — UNLESS it is itself a
+// Story (it bounds a non-empty interval between its Once/End), in which case it renders as
+// a Frame (the rail of its interior). Containment is READ, never stored: isStory(beat) is
+// true iff the beat bounds an interval (membership is betweenness). This is the recursive
+// reading primitive — frameStory already nests one level via the same switch.
+//   leaf beat  → cardStory
+//   story beat → frameStory (its interior rail)
+export interface ViewCardParams {
+  slug: string;
+  standpoint?: string;
+  /** drill-in: open a beat as its own story view (the caller routes). */
+  onOpen?: (slug: string) => void;
+  /** reify: make this told-short card an actual story (lay its End + duration + between).
+   *  Given, the card shows a "reify" affordance. The caller re-renders after. */
+  onReify?: (slug: string) => void;
+}
+
+export function viewCardStory(soc: Society, params: ViewCardParams): Node {
+  const { slug, standpoint: sp, onOpen, onReify } = params;
+  const common = {
+    ...(sp !== undefined ? { standpoint: sp } : {}),
+    ...(onOpen ? { onOpen } : {}),
+    ...(onReify ? { onReify } : {}),
+  };
+  if (isStory(soc, slug)) {
+    // already a story — tell it long (no reify affordance; it's already bounded).
+    const { onReify: _drop, ...frameCommon } = common as typeof common & { onReify?: unknown };
+    void _drop;
+    return frameStory(soc, { once: slug, ...frameCommon });
+  }
+  return cardStory(soc, { slug, ...common });
+}
+
+// ── BOARD STORY — "a board is a row of Lists, each over its own slice." ─────────
+// The flat structure under EVERY board screen (Trello columns, a sprint board, a kanban):
+// a row of columns, each a listStory over a caller-supplied slice. scher knows NOTHING
+// about which columns exist — the domain lives entirely in the slice functions the caller
+// passes (e.g. {name:'Doing', slice: s => beatsInMode(s,'doing')}). That keeps boardStory
+// domain-free: a board IS a row of listStorys (the missing primitive, now present).
+// Each member renders through `item` (default: a View Card — so a story-beat in a column
+// unfolds as its interior frame, one level, by the same betweenness read).
+export interface BoardColumn {
+  /** the column heading. */
+  name: string;
+  /** the slice: given the society, the ordered beat-slugs in this column. */
+  slice: (s: Society) => string[];
+}
+
+export interface BoardStoryParams {
+  columns: BoardColumn[];
+  /** per-item render (default: a View Card — leaf→card, story→frame). */
+  item?: (soc: Society, slug: string) => Node;
+  standpoint?: string;
+  class?: string;
+}
+
+export function boardStory(soc: Society, params: BoardStoryParams): Node {
+  const board = el("div", { class: `story-board ${params.class ?? ""}` });
+  const sp = params.standpoint;
+  const renderItem = params.item ?? ((s: Society, slug: string) =>
+    viewCardStory(s, sp !== undefined ? { slug, standpoint: sp } : { slug }));
+
+  for (const col of params.columns) {
+    const column = el("div", { class: "board-column" });
+    // the heading carries a live count — a reading of the slice, re-derived on append.
+    const heading = project(
+      reading(soc, (s) => col.slice(s).length),
+      (n) => {
+        const h = el("div", { class: "board-column-head" });
+        h.appendChild(el("div", { class: "board-column-name" }, col.name));
+        h.appendChild(el("div", { class: "board-column-count" }, String(n)));
+        return h;
+      },
+    ).node;
+    column.appendChild(heading);
+    // the column body IS a listStory over this column's slice.
+    column.appendChild(listStory(soc, {
+      slice: col.slice,
+      item: renderItem,
+      ...(sp !== undefined ? { standpoint: sp } : {}),
+      class: "board-column-list",
+    }));
+    board.appendChild(column);
+  }
+  return board;
+}
+
+// ── DROP STORY — "a drop is a reading." ────────────────────────────────────────
+// The most imperative gesture in any UI — drag A onto B — collapses into ONE thing:
+// the drop LAYS a beat, and the view RE-DERIVES from the canon. There is NO imperative
+// drag-state: no HOT card, no stashed __dragA, no DOM bloom kept in memory. You drop, a
+// beat lands, every reading re-reads. That is the whole process-ontology thesis made into
+// a toy: the substance-flavoured interaction (move this thing onto that thing) becomes a
+// pure write-then-read, append-only.
+//
+// A bucket is a way A may relate to B. Two kinds, and the difference IS the law:
+//   • kind:'edge'       — lay a LATERAL prehension A --quality--> B (layP). depends-on, etc.
+//   • kind:'membership' — lay NOTHING lateral; place A so it sits BETWEEN B's Once/End.
+//                         Membership is betweenness, NEVER a stored containment edge — so
+//                         the caller supplies HOW A is repositioned (grammar-specific), and
+//                         the interval re-reads via intervalOf. (the settled gen3 law.)
+export interface DropBucket {
+  key: string;
+  label: string;
+  /** a one-line gloss of what this relation means (shown as the option's title). */
+  sub?: string;
+  kind: "edge" | "membership";
+  /** edge-kind only: the quality of the lateral prehension laid A --quality--> B. */
+  quality?: Quality;
+  /** membership-kind only: place A inside B's interval. The caller owns the betweenness
+   *  mechanics (e.g. lay a positioning edge between B's Once and End); dropStory itself
+   *  lays NOTHING for membership — it only invokes place(). No stored containment. */
+  place?: (soc: Society, a: string, b: string) => void;
+}
+
+export interface DropStoryParams {
+  /** the dragged beat A — the draggable handle (optional; each target is also draggable). */
+  source?: string;
+  /** the candidate targets B. Each becomes a drop zone offering the buckets. */
+  targets: string[];
+  buckets: DropBucket[];
+  /** how to render each target card (default: a View Card — leaf→card, story→frame). */
+  item?: (soc: Society, slug: string) => Node;
+}
+
+/** dropStory: a lane of targets, each a drop-zone that, on drop of A, blooms a small
+ *  picker of buckets; choosing one LAYS the chosen relation. The relations on each target
+ *  RE-DERIVE from the canon — drop, and the board re-reads itself. Zero imperative
+ *  drag-state: each card is itself a story (viewCardStory) that re-reads its own relations
+ *  when the society appends, so the drop only ever LAYS — the re-derivation is the cards'
+ *  own, by construction. Returns the lane node. */
+export function dropStory(soc: Society, params: DropStoryParams): Node {
+  const drawCard = params.item ?? ((s: Society, slug: string) => viewCardStory(s, { slug }));
+  const lane = el("div", { class: "drop-lane" });
+
+  // fire() is the WHOLE write surface: one beat (edge) or one caller-owned place()
+  // (membership) per drop — nothing else. This is the dropStory thesis in three lines.
+  const fire = (bucket: DropBucket, a: string, b: string) => {
+    if (a === b) return;                          // a card can't relate to itself
+    if (bucket.kind === "edge" && bucket.quality) {
+      // lay the lateral edge; idempotent by slug. The view re-derives — nothing else to do.
+      soc.layP(`${a}-${bucket.key}-${b}`, `${a} ${bucket.label} ${b}`, a, b, bucket.quality);
+    } else if (bucket.kind === "membership" && bucket.place) {
+      bucket.place(soc, a, b);                     // betweenness, caller-owned; NO stored edge
+    }
+  };
+
+  for (const target of params.targets) {
+    const card = drawCard(soc, target) as HTMLElement;
+    card.setAttribute("draggable", "true");
+    on(card, "dragstart", (e) => (e as DragEvent).dataTransfer?.setData("text/plain", target));
+    on(card, "dragover", (e) => e.preventDefault());   // allow drop
+    on(card, "drop", (e) => {
+      e.preventDefault();
+      const a = (e as DragEvent).dataTransfer?.getData("text/plain");
+      if (!a || a === target) return;
+      // the buckets bloom as a small picker; choosing one fires the lay. The picker is a
+      // reading of "a drag is hovering here", not stored state — it lives only for this drop.
+      const picker = el("div", { class: "drop-picker" });
+      for (const bucket of params.buckets) {
+        const opt = el("button", {
+          class: `drop-bucket drop-${bucket.kind}`,
+          attrs: { title: bucket.sub ?? "" },
+          on: { click: (ev) => { ev.stopPropagation(); fire(bucket, a, target); picker.remove(); } },
+        }, bucket.label);
+        picker.appendChild(opt);
+      }
+      card.appendChild(picker);
+    });
+    lane.appendChild(card);
+  }
+  return lane;
+}
+
+/** the standard relate (A onto B): Depends-On (a lateral edge) / Sub-Beat-Of (membership).
+ *  Sub-beat-of is membership — the caller passes `place` to position A in B's interval,
+ *  because betweenness is caller-owned grammar, never a stored containment edge. */
+export function relateBuckets(place: (soc: Society, a: string, b: string) => void): DropBucket[] {
+  return [
+    { key: "depends-on", label: "Depends On", sub: "A needs B (lateral edge)", kind: "edge", quality: "q-depends-on" },
+    { key: "sub-beat", label: "Sub-Beat Of", sub: "A is PART of B — membership = betweenness, not a stored edge", kind: "membership", place },
+  ];
+}
+
+// ── COMPOSER STORY — the conjugate of the Button. ──────────────────────────────
+// buttonStory's press lays a FIXED beat; composerStory's submit lays a beat carrying the
+// user's TEXT. It is the only UI write besides a button: an input bound to a lay-fn. The
+// field holds no canonical state — its text is a transient draft until submit, which calls
+// the caller's submit(soc, text) closure (the closure owns the possibly-multi-beat lay) and
+// then clears the field. Enter or the button both submit; an empty field is inert. `enabled`
+// is a reading of the society, like the button's.
+export interface ComposerStoryParams {
+  /** the submit: LAY the user's text into the society. The closure owns the (possibly
+   *  multi-beat) lay — composerStory only hands it the trimmed text. */
+  submit: (soc: Society, text: string) => void;
+  placeholder?: string;
+  /** the button label (default "Add"). */
+  label?: string;
+  /** enabled — default always; or a reading (e.g. disabled once a frame is sealed). */
+  enabled?: (s: Society) => boolean;
+  class?: string;
+}
+
+export function composerStory(soc: Society, params: ComposerStoryParams): Node {
+  const read = reading(soc, (s) => ({ enabled: params.enabled ? params.enabled(s) : true }));
+
+  return project(read, (v) => {
+    const input = el("input", {
+      class: "composer-input",
+      attrs: {
+        type: "text",
+        placeholder: params.placeholder ?? "",
+        disabled: v.enabled ? undefined : "true",
+      },
+    }) as HTMLInputElement;
+
+    const submit = () => {
+      const text = input.value.trim();
+      if (!text || !v.enabled) return;             // an empty field is inert
+      params.submit(soc, text);                    // the closure owns the lay
+      input.value = "";                            // clear the transient draft
+    };
+
+    on(input, "keydown", (e) => {
+      if ((e as KeyboardEvent).key === "Enter") { e.preventDefault(); submit(); }
+    });
+
+    const btn = el("button", {
+      class: "story-button composer-submit",
+      attrs: { disabled: v.enabled ? undefined : "true" },
+      on: { click: () => submit() },
+    }, params.label ?? "Add") as HTMLButtonElement;
+
+    const box = el("div", { class: `story-composer ${params.class ?? ""}` });
+    box.appendChild(input);
+    box.appendChild(btn);
+    return box;
+  }).node;
+}
+
+// ── REACTION STORY — a buttonStory whose press lays a TYPED prehension by a standpoint. ─
+// buttonStory lays a fixed beat; toggleButtonStory grounds/ungrounds a TARGET. reactionStory
+// is the third member: a press lays a q-feel prehension FROM a standpoint ONTO another's beat,
+// carrying an emoji in its content (the felt response — pathos, not establishment). It is
+// uncheckable like the toggle: press once to react, again to SUPERSEDE your own reaction
+// (append-only undo — your feel stays in ink, the read ignores it). The live state is read
+// per-(standpoint,emoji): does THIS standpoint's non-superseded q-feel of THIS emoji exist?
+// reactionsOn(beat) aggregates everyone's; this button is one reactor's one emoji.
+export interface ReactionStoryParams {
+  /** the beat being reacted to. */
+  target: string;
+  /** the standpoint doing the reacting (the subject of the q-feel). */
+  by: string;
+  /** the emoji this button carries (its felt content). */
+  emoji: string;
+  /** stable slug stem for THIS reactor's reaction (so re-press is supersede-able). */
+  reactSlug?: string;
+  class?: string;
+}
+
+export function reactionStory(soc: Society, params: ReactionStoryParams): Node {
+  const { target, by, emoji } = params;
+  // a deterministic slug for THIS (standpoint, emoji, target) reaction. Idempotent: pressing
+  // again reads the same slug and supersedes it (un-react), never lays a duplicate.
+  const slug = params.reactSlug ?? `feel-${by}-${emoji}-${target}`;
+
+  // LIVE = does this reaction exist AND not superseded? The truth is the read, not a flag.
+  const isLive = (s: Society) => s.has(slug) && !isOccluded(s, slug);
+
+  // the button shows the emoji + the total count of THIS emoji across all reactors (a reading
+  // of reactionsOn), and a "mine" marker when this standpoint's own reaction is live.
+  const read = reading(soc, (s) => ({
+    live: isLive(s),
+    count: reactionsOn(s, target).find((r) => r.emoji === emoji)?.count ?? 0,
+  }));
+
+  return project(read, (v) => {
+    const btn = el("button", {
+      class: `story-button reaction ${v.live ? "mine" : ""} ${params.class ?? ""}`,
+      on: {
+        click: () => {
+          if (!isLive(soc)) {
+            // REACT: lay a q-feel from `by` onto `target`, the emoji as content.
+            soc.layP(slug, emoji, by, target, "q-feel");
+          } else {
+            // UN-REACT = OCCLUDE my own q-feel (2026-06-26: was a self-loop supersede). `by` is the
+            // named occluder. Append-only; the read drops the occluded feel.
+            soc.layP(`occ-${slug}`, `un-react ${emoji}`, by, slug, "q-occludes");
+          }
+        },
+      },
+    }, `${emoji}${v.count ? " " + v.count : ""}`) as HTMLButtonElement;
+    return btn;
+  }).node;
 }

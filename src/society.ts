@@ -16,6 +16,10 @@ import { Cell, type Read } from "./cell.js";
 export interface Beat {
   slug: string;
   content: string;
+  /** the BULLET — a short human headline, distinct from content (the notes). Render this as the
+   *  scannable line; content is the foldable detail. (gen3.beat.title; the title-ratchet requires it
+   *  on new human beats.) Optional: pre-title beats and auto edges have none. */
+  title?: string | null;
   subject: string | null;
   object: string | null;
   /** when the local society witnessed this beat (the client's own db_witnessed). */
@@ -30,7 +34,29 @@ export type Quality =
   | "q-utterance"
   | "q-feel"
   | "q-containment"
-  | "q-shared";
+  | "q-shared"
+  // dependency / assignment / due — the lateral qualities the planning surface lays.
+  // q-depends-on: A waits on B (read both ways: dependsOn / dependentsOf). q-assigned-to:
+  // a card → an actor. q-due: a temporal bound on a card. These are LATERAL prehensions
+  // (object is the related beat/actor, NOT a content node folded into an interval) — never
+  // membership, which stays betweenness. (harvested from the dependency/strain reads.)
+  | "q-depends-on"
+  | "q-assigned-to"
+  | "q-due"
+  // drama resolution — a q-resolves edge runs from drama→story when the drama is settled.
+  | "q-resolves"
+  // gratitude — the positive BACKWARD prehension: a perished occasion taken AS GIFT, opening no
+  // debt. To the past what q-lure is to the future. The receiving-side of the gift economy.
+  | "q-receives"
+  // occlusion — supersession, reframed (2026-06-26). A CURRENT event (superject-forming) casts a
+  // shadow over a prehended member of its OWN society: E --q-occludes--> X. Replaces the incoherent
+  // self-loop supersede ({subject:X,object:X}, no agent, X cancels itself). Occlusion NAMES the
+  // occluding event (subject=E), is STANDPOINT-RELATIVE (the society is the frame — X occluded HERE
+  // stands in full light in another society), and is REVERSIBLE/EMERGENT (un-occlusion = simply no
+  // live member occluding it; no "occlude the occlusion" recursion). Nothing leaves the DB — that is
+  // banishment, a separate ceremony. See OCCLUSION-DESIGN.md / the events-triad: occlude is the
+  // CURRENT tense (safe), banish violates the MEASURED tense (dangerous).
+  | "q-occludes";
 
 /** The mode a beat reads as. Derived, not stored. */
 export type Mode = "established" | "scripted";
@@ -165,19 +191,48 @@ export function prehensionsOnto(soc: Society, beat: string, quality: Quality, as
   );
 }
 
-/** Is a beat superseded, as of a moment? A supersede is a self-pointing beat onto the
- *  thing it cancels. The superseded beat stays in the log; this read just ignores it.
- *  As of an earlier moment, a not-yet-witnessed supersede does not count — so an undo is
- *  itself a point on the trajectory, visible only after it lands. */
-export function isSuperseded(soc: Society, target: string, asOf?: number): boolean {
-  return soc.all().some((b) => b.subject === target && b.object === target && b.slug !== target && visibleAt(b, asOf));
+/** Every prehension reaching OUT of `beat` as its SUBJECT, co-prehending `quality`, as of
+ *  a moment. The mirror of prehensionsOnto: that read sees edges INTO a beat (beat as
+ *  object); this one sees edges FROM a beat (beat as subject). A lateral relation (depends-on,
+ *  assigned-to) is laid A→B, so it is only legible from A's side through a -From read. */
+export function prehensionsFrom(soc: Society, beat: string, quality: Quality, asOf?: number): Beat[] {
+  return soc.all().filter(
+    (b) => b.subject === beat && b.object !== null && visibleAt(b, asOf) && prehendsAs(soc, b.slug, quality, asOf),
+  );
+}
+
+/** Is `target` OCCLUDED within this society, as of a moment? (Supersession, reframed —
+ *  2026-06-26.) A member E of the society casts a q-occludes shadow over the member it
+ *  prehends: E --q-occludes--> target. Unlike the old self-loop supersede, occlusion NAMES
+ *  the occluder (subject=E), so the perished past gains depth (walk target ← q-occludes ← E
+ *  = readable lineage). It is STANDPOINT-RELATIVE: `soc` IS the frame — `target` occluded in
+ *  THIS society stands in full light in another. And it is EMERGENT/REVERSIBLE: un-occlusion
+ *  needs no "occlude the occlusion" recursion — it is simply the absence of a live occluder
+ *  (an occluder that is itself occluded does not count, one level, no cycle-guard needed).
+ *
+ *  As of an earlier moment, a not-yet-witnessed occlusion does not count — so an undo is itself
+ *  a point on the trajectory, visible only after it lands. */
+export function isOccluded(soc: Society, target: string, asOf?: number): boolean {
+  return soc.all().some((b) =>
+    b.object === target && b.subject !== null && b.subject !== target &&
+    visibleAt(b, asOf) && prehendsAs(soc, b.slug, "q-occludes", asOf) &&
+    // emergent un-occlusion: an occluder that is itself occluded casts no shadow (one level).
+    !isOccluder(soc, b.slug, asOf));
+}
+
+/** Is this occlusion-prehension itself occluded (its occluder occluded)? One level only — by
+ *  design there is no deep recursion: un-occlusion is the absence of a LIVE occluder, read fresh. */
+function isOccluder(soc: Society, occludeEdge: string, asOf?: number): boolean {
+  return soc.all().some((b) =>
+    b.object === occludeEdge && b.subject !== null && b.subject !== occludeEdge &&
+    visibleAt(b, asOf) && prehendsAs(soc, b.slug, "q-occludes", asOf));
 }
 
 /** is_established, as of a moment: established iff some non-superseded grounding-prehension
  *  reaches it. Unchecking supersedes the grounding, so this re-reads as scripted; the
  *  grounding and its supersede both remain in the society. */
 export function isEstablished(soc: Society, beat: string, asOf?: number): boolean {
-  return prehensionsOnto(soc, beat, "q-grounding", asOf).some((p) => !isSuperseded(soc, p.slug, asOf));
+  return prehensionsOnto(soc, beat, "q-grounding", asOf).some((p) => !isOccluded(soc, p.slug, asOf));
 }
 
 /** mode_at: the establishment-mode read of a beat, as of a moment (default: now). */
@@ -192,6 +247,62 @@ export function confidence(soc: Society, beat: string, asOf?: number): number {
   const e = prehensionsOnto(soc, beat, "q-exclusion", asOf).length;
   if (g + e === 0) return 0;
   return g / (g + e);
+}
+
+// ── DEPENDENCY / STRAIN READS ──────────────────────────────────────────────────
+// One structural edge — q-depends-on — read in several directions. "blocked" and
+// "parallelizable" are NOT stored flags; they are READINGS of depends-on against
+// establishment (and, like every read here, against a moment via asOf). The law: one
+// edge, many reads; never store the derived. A dep that establishes stops blocking the
+// instant it does, with no write — because blocked was never a fact, only a reading.
+
+/** dependsOn: the beats this one is waiting ON (its blockers) — the q-depends-on edges
+ *  FROM this beat (this beat as subject). Non-superseded, as of a moment. */
+export function dependsOn(soc: Society, beat: string, asOf?: number): string[] {
+  return prehensionsFrom(soc, beat, "q-depends-on", asOf)
+    .filter((p) => !isOccluded(soc, p.slug, asOf))
+    .map((p) => p.object!).filter(Boolean);
+}
+
+/** dependentsOf: the beats waiting on THIS one — the BACKWARD read (this beat as object).
+ *  "who is blocked because of me." The mirror dependsOn couldn't see. */
+export function dependentsOf(soc: Society, beat: string, asOf?: number): string[] {
+  return prehensionsOnto(soc, beat, "q-depends-on", asOf)
+    .filter((p) => !isOccluded(soc, p.slug, asOf))
+    .map((p) => p.subject!).filter(Boolean);
+}
+
+/** blockedOnNow: of this beat's dependencies, the ones NOT yet established — the live
+ *  blockers. Blocked is a reading, not a stored state: a dep that's established no longer
+ *  blocks. Empty ⇒ not blocked. */
+export function blockedOnNow(soc: Society, beat: string, asOf?: number): string[] {
+  return dependsOn(soc, beat, asOf).filter((d) => !isEstablished(soc, d, asOf));
+}
+
+/** isBlocked: the boolean companion — any live (unestablished) dependency remains. */
+export function isBlocked(soc: Society, beat: string, asOf?: number): boolean {
+  return blockedOnNow(soc, beat, asOf).length > 0;
+}
+
+/** parallelizable: not blocked AND not yet established — work that could start right now. */
+export function parallelizable(soc: Society, beat: string, asOf?: number): boolean {
+  return !isBlocked(soc, beat, asOf) && !isEstablished(soc, beat, asOf);
+}
+
+/** whoWaitsOn: alias of dependentsOf in intention — "waiting on me" — kept as a named
+ *  read because the views ask the question in those words. */
+export function whoWaitsOn(soc: Society, beat: string, asOf?: number): string[] {
+  return dependentsOf(soc, beat, asOf);
+}
+
+/** stressOf: a beat's blast-radius — how much waits on it, weighted by the dependents'
+ *  own commitment (established counts most, then blocked, then merely scripted). A
+ *  high-stress beat is one whose slipping hurts a lot of committed work. (the strain
+ *  channel: the algedonic signal made a reading, not a stored alarm.) */
+export function stressOf(soc: Society, beat: string, asOf?: number): { count: number; weight: number; dependents: string[] } {
+  const dependents = dependentsOf(soc, beat, asOf);
+  const weight = dependents.reduce((w, d) => w + (isEstablished(soc, d, asOf) ? 3 : isBlocked(soc, d, asOf) ? 2 : 1), 0);
+  return { count: dependents.length, weight, dependents };
 }
 
 /** grounded_by / excluded_by: WHO grounded/excluded — the subject (frame) of each
@@ -211,6 +322,25 @@ export interface Pathos {
 }
 export function pathosOf(soc: Society, beat: string): Pathos[] {
   const feels = prehensionsOnto(soc, beat, "q-feel");
+  const byEmoji = new Map<string, Pathos>();
+  for (const p of feels) {
+    const emoji = p.content.trim();
+    if (!emoji) continue;
+    const cur = byEmoji.get(emoji) ?? { emoji, count: 0, by: [] };
+    cur.count++;
+    if (p.subject) cur.by.push(p.subject);
+    byEmoji.set(emoji, cur);
+  }
+  return [...byEmoji.values()].sort((a, b) => b.count - a.count);
+}
+
+/** reactionsOn: the q-feel reactions ON a beat, aggregated by emoji — the read paired with
+ *  reactionStory. It is pathosOf with the SUPERSEDE GUARD: an un-react supersedes the q-feel
+ *  beat (a self-loop), so a removed reaction must not linger. (pathosOf is the raw read kept
+ *  for back-compat; reactionsOn is the one a reacting surface should use.) asOf-relative,
+ *  like every read here. */
+export function reactionsOn(soc: Society, beat: string, asOf?: number): Pathos[] {
+  const feels = prehensionsOnto(soc, beat, "q-feel", asOf).filter((p) => !isOccluded(soc, p.slug, asOf));
   const byEmoji = new Map<string, Pathos>();
   for (const p of feels) {
     const emoji = p.content.trim();
@@ -285,4 +415,35 @@ export function distanceToHEA(soc: Society, frameOnce: string, end?: string): { 
   // the End is "realized" when it is itself established (an actual met the HEA).
   const realized = isEstablished(soc, theEnd);
   return { realized, remaining, total: interior.length };
+}
+
+// ── ITHACA-REQUIRED READS (ported from vendored scher copy, promoted into the package) ──
+
+/** assigneesOf: who is assigned to a card — the people on it. Reads the `<card>-asn-<who>` edges
+ *  (object = `actor-<who>`), non-superseded, returns bare names. */
+export function assigneesOf(soc: Society, card: string): string[] {
+  return soc.all()
+    .filter((b) => b.slug.startsWith(card + "-asn-") && !isOccluded(soc, b.slug))
+    .map((b) => (b.object ?? "").replace(/^actor-/, ""))
+    .filter(Boolean);
+}
+
+/** resolutionOf: given a DRAMA slug, the story that settles it — read from the drama's OWN
+ *  side in ONE pass. A drama is resolved iff a non-superseded q-resolves prehension runs
+ *  from it to some story (its object). Returns the story slug, or null if still open. */
+export function resolutionOf(soc: Society, drama: string): string | null {
+  const r = prehensionsFrom(soc, drama, "q-resolves").find((p) => !isOccluded(soc, p.slug));
+  return r?.object ?? null;
+}
+
+/** isResolved: is this drama settled? The boolean companion to resolutionOf. */
+export function isResolved(soc: Society, drama: string): boolean {
+  return resolutionOf(soc, drama) !== null;
+}
+
+/** cleanContent: strip legacy substance-smell from a beat's content on READ.
+ *  Legacy beats stored a "[well]/[better] " prefix in content; new beats store clean.
+ *  Append-only means we can't edit the old content — so we strip on display. */
+export function cleanContent(s: string): string {
+  return s.replace(/^\[(well|better)\] /, "");
 }

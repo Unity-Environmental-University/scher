@@ -191,4 +191,39 @@ describe("Dissent → America → the Constitution 🪶⚖️", () => {
     expect(isOccluded(s, "quaker-seats")).toBe(true);   // their hands: clean (out of the edge)
     expect(harmDrawn).toBe(true);                        // the world: unchanged (the harm, drawn)
   });
+
+  // ── THE DANGLING COVENANT (Hallie: "gee wonder why the indigenous folks out west had cause
+  // against PA...") — the consequence the Tell sets up. PA was GENUINELY the tolerant one: Penn's
+  // treaty with the Lenape, "never sworn and never broken," fair dealing. That's real. Which is
+  // EXACTLY why the betrayal bites harder than the crown's: you can only break faith with someone
+  // you first kept faith with. The Quakers withdrew the frame that HELD the covenant — and the
+  // unopposed war-party ran the Walking Purchase and the land-grabs. So PA's prior prehension OF
+  // the Lenape (the treaty) is left DANGLING: an obligation-edge pointing at a frame that removed
+  // itself. The Lenape's "cause against PA" IS that dangling edge — a betrayal, not an abstention.
+  // (Worse than the founding's GAP: there the edge was never drawn; here it was drawn, relied on,
+  //  then vacated.)
+  it("THE DANGLING COVENANT — withdrawal from a society you were prehended INTO is betrayal, not abstention", () => {
+    const s = new Society();
+    lay(s, "the-lenape-society");
+    lay(s, "frame-penn-quaker");
+    // PA, uniquely, DID prehend the Lenape — a real covenant, fair-dealing, relied upon.
+    s.layP("the-treaty", "Penn's treaty — fair dealing, kept faith", "frame-penn-quaker", "the-lenape-society", "q-grounding");
+    expect(prehensionsOnto(s, "the-lenape-society", "q-grounding").length).toBeGreaterThan(0); // faith kept
+
+    // then the frame that HELD the covenant withdraws (the Tell) — and the covenant is not honored,
+    // not formally broken, just... vacated. The treaty-edge now points from a withdrawn frame.
+    s.layP("occ-penn-frame", "the keepers of the covenant withdraw", "frame-penn-quaker", "frame-penn-quaker-seat", "q-occludes");
+    lay(s, "frame-penn-quaker-seat");
+    s.layP("occ-the-treaty", "the covenant left unhonored as the frame withdrew", "frame-war-party-pa", "the-treaty", "q-occludes");
+    lay(s, "frame-war-party-pa");
+
+    // THE DANGLING COVENANT: the treaty was a REAL prior prehension (kept faith, relied upon) and is
+    // now occluded — not by the Lenape, not mutually dissolved, but vacated by the unopposed successor.
+    // That is the structural shape of "cause against PA": a covenant drawn, relied on, then abandoned.
+    expect(s.has("the-treaty")).toBe(true);              // the promise was real — it is IN the canon, prior.
+    expect(isOccluded(s, "the-treaty")).toBe(true);       // and now unhonored — vacated, not fulfilled.
+    // the bite, named: this is WORSE than the founding's never-drawn GAP. There: no edge, no faith.
+    // Here: an edge drawn, faith kept, then withdrawn. You can only betray where you first kept faith.
+    // The grammar distinguishes abstention (never prehended) from BETRAYAL (prehended, then occluded).
+  });
 });

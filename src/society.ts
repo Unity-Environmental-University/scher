@@ -56,7 +56,14 @@ export type Quality =
   // live member occluding it; no "occlude the occlusion" recursion). Nothing leaves the DB — that is
   // banishment, a separate ceremony. See OCCLUSION-DESIGN.md / the events-triad: occlude is the
   // CURRENT tense (safe), banish violates the MEASURED tense (dangerous).
-  | "q-occludes";
+  | "q-occludes"
+  // succession (2026-06-26, Hallie: "we may need to include succession in our felt qualities").
+  // The fifth grammar-word, finally seeded: heir --q-succeeds--> parent — editing as commit on a
+  // line. A bare read of the line resolves to HEAD (the tip of the q-succeeds chain); the parent
+  // stays immutable, an honored ancestor (NOT replaced — that was the deadnaming supersession we
+  // removed). A schism is two heirs succeeding one parent (a fork); a reunion is one heir succeeding
+  // two (a merge). We modeled this with q-utterance as a stand-in until now; it earns its own quality.
+  | "q-succeeds";
 
 /** The mode a beat reads as. Derived, not stored. */
 export type Mode = "established" | "scripted";

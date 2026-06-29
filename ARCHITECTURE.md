@@ -78,3 +78,43 @@ green surfaced a latent clock-monotonicity bug (explicit seed stamps didn't adva
 auto-stamp clock, so `asOf` reads could lie). A substance test would never have found
 it. The witnessing-axis reads (`asOf`) are the first of several the harness is meant to
 drive out; standpoint-relative reads (`from?`) and satisfaction/settledness come next.
+
+## "Frame" means three different things — and none of them is a user
+
+The word *frame* is overloaded across the public surface. Hold the distinction, because
+conflating them is how a consumer accidentally couples this library to an auth provider:
+
+1. **Reference frame** (`frames.ts`) — a reader's timezone/locale, a delta from the
+   system default. Pure see-data: `timeFrame(userZone?)`, `localeFrame(userLocale?)`. No
+   identity, ever.
+2. **Standpoint** (occlusion, `society.ts`) — an **event reading from where it sits**. A
+   frame is event-as-standpoint: the occasion (the **subject** of a prehension — `frame
+   --q-grounding--> beat`, `E --q-occludes--> X`) that reads from its own position. A
+   `Society` is not a different kind of thing here: **a society IS an event, read at the
+   scale where its members are also events** — field to its members, standpoint to what
+   prehends it. "Field" and "standpoint" are not two categories; they are which *direction*
+   you read the same occasion. (Hallie, a personal society, is the event of Hallie Larsson.
+   For a documented case of the theory applied, process theology — Whitehead's heirs,
+   Cobb/Griffin/Hartshorne — works the *event of Jesus* this way: an event whose reality is in
+   *how it is prehended*, not in a substance behind the readings — witnessed by the gospel-
+   events, their translations, Paul, Fox, each *from the frame of that reading society*. A worked
+   historical example, nothing more: witness is prehension, frame-relative, no view from nowhere.)
+   So occlusion is standpoint-relative
+   ("occluded HERE, full light THERE") because *here* means *from this event's vantage*, not
+   "in a container." There is **no `Frame` type** — the standpoint is an event (an opaque
+   beat-slug naming an occasion), never a constructed thing.
+3. **`FrameStory`** (`stories.ts`) — an unrelated UI leaf (a Story that visually contains
+   its beats). A naming collision; ignore it here.
+
+The load-bearing rule (named by a clearness committee on the gen4 auth seam, 2026-06-29):
+**a "frame" is a standpoint, never a person.** Authenticating *who* a reader is — verifying
+a token, an LTI/Canvas launch, a JWT — belongs entirely at the *application's* edge, where
+the outside becomes a reading-position. It resolves an identity *into* a standpoint and
+hands the library a standpoint built only of see-concepts. The library must stay auth-blind:
+no JWT, no token, no `deriveFrame(credential)` may ever enter it. The guard is structural,
+not a feature to add — there is no `Frame` type that *could* grow a credential-taking
+constructor, because the standpoint is an **event** (a beat that ingressed and now reads),
+not a thing you build from a token. `deriveFrame` at the app's edge is exactly the *ingression*:
+the outside becomes an occasion, and that occasion is the frame. If you ever find you can't
+name a reading-position without a token, the coupling has already leaked into the library —
+pull it back out to the app.

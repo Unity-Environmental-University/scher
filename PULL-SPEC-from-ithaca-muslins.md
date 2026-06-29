@@ -3,14 +3,14 @@
 Handed over from the ithaca local canon (:8012). Three slow-fire agents reduced 15
 hand-built screens against scher's primitives.
 
-As of scher **0.3.0** the leaves present are: cardStory, frameStory, listStory,
-gistStory/gistOf/freshGistOf, loreStory/loreOf/makeLore, buttonStory, toggleButtonStory,
-modalStory — plus the substrate (cell/derive/batch, el/esc/on/fill, project/projectList/
-standpoint, Society + reads, fact, and the reference frames: timeFrame/localeFrame/makeCanon).
-Verified against src/ on 2026-06-23: NONE of the pulls below exist yet, and `Lore` still has
-no `evidence` field — so the priority list stands unchanged. This is the priority-ordered
-pull list, with a faithfulness criterion for each. Treat as a muslin-of-a-spec: cut it where
-it's wrong.
+> **STATUS, re-checked 2026-06-29:** most of this spec is FULFILLED. `foldGist` (with the
+> `fold(all)==fold(cache)⊕fold(tail)` verify law, tested), `boardStory`, `viewCardStory`,
+> `dropStory`, `relateBuckets`, and `composerStory` all ship in 0.3.0, and ithaca imports
+> them from the package — no fork (`Beat.title` and `DropStoryParams.source` landed too, so
+> the old "fork is load-bearing" worry is closed). **Still open** (the live remainder):
+> `gridStory` (#4), the `partitionStory`/`strain` channel (#6), and the `Lore.evidence`
+> field. Items #1–3 are DONE — left below for lineage. Treat the rest as a muslin-of-a-spec:
+> cut it where it's wrong.
 
 ## Priority order
 

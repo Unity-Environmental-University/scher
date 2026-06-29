@@ -1,0 +1,11 @@
+[package]
+name = "scher-core"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "The pure append-only Society + reads from scher, in Rust. No view layer — the grammar only."
+
+[dependencies]
+
+[dev-dependencies]
+proptest = "1"

@@ -364,3 +364,99 @@ pub fn content_beats(soc: &Society) -> Vec<&Beat> {
         .filter(|b| b.subject.is_none() && !b.slug.ends_with("~q"))
         .collect()
 }
+
+// ── reads pulled in for penelope-gen4 (its interface_contract.rs is the pull-spec) ────────
+// Three reads gen4's /bujo/today slice needs, ported faithfully from society.ts.
+
+/// grounded_by: WHO grounded this beat — the subject (frame) of each grounding prehension.
+/// The because-base: "hea, because a". Mirrors `groundedBy` in society.ts.
+pub fn grounded_by(soc: &Society, beat: &str) -> Vec<String> {
+    prehensions_onto(soc, beat, Q_GROUNDING, None)
+        .iter()
+        .filter_map(|p| p.subject.clone())
+        .collect()
+}
+
+/// interval_of: the beats BETWEEN `once` and `end` — members of a story by betweenness, never a
+/// stored containment. A beat is in the interval iff it is forward-reachable from `once` AND
+/// backward-reachable from `end` over plain edges (object not a `q-*`, slug not `~q`). Mirrors
+/// `intervalOf` in society.ts.
+pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
+    let edges: Vec<&Beat> = soc
+        .all()
+        .filter(|b| {
+            b.subject.is_some()
+                && b.object.is_some()
+                && !b.object.as_deref().unwrap().starts_with("q-")
+                && !b.slug.ends_with("~q")
+        })
+        .collect();
+
+    fn reach(edges: &[&Beat], from: &str, fwd: bool) -> std::collections::HashSet<String> {
+        let mut seen = std::collections::HashSet::new();
+        seen.insert(from.to_string());
+        let mut stack = vec![from.to_string()];
+        while let Some(n) = stack.pop() {
+            for e in edges {
+                let next = if fwd {
+                    if e.subject.as_deref() == Some(&n) { e.object.clone() } else { None }
+                } else if e.object.as_deref() == Some(&n) {
+                    e.subject.clone()
+                } else {
+                    None
+                };
+                if let Some(next) = next {
+                    if seen.insert(next.clone()) {
+                        stack.push(next);
+                    }
+                }
+            }
+        }
+        seen
+    }
+
+    let fwd = reach(&edges, once, true);
+    let bwd = reach(&edges, end, false);
+    fwd.into_iter().filter(|n| bwd.contains(n)).collect()
+}
+
+/// end_of: the End a story lures toward — the object of the story's `q-lure` edge whose object
+/// names an "end". Mirrors `endOf` in society.ts. (Seam for gen4: gen4 retires q-lure — "the lure
+/// is read" — so gen4 will likely pass `end` explicitly to distance_to_hea rather than rely on
+/// this. Ported faithfully to scher's grammar, where q-lure still names the End.)
+pub fn end_of(soc: &Society, story: &str) -> Option<String> {
+    soc.all()
+        .find(|b| {
+            b.subject.as_deref() == Some(story)
+                && b.object.as_deref().is_some_and(|o| o.contains("end"))
+                && prehends_as(soc, &b.slug, "q-lure", None)
+        })
+        .and_then(|b| b.object.clone())
+}
+
+/// distance_to_hea: the HEA as a gradient, READ (not a stored lure). For a story from
+/// `frame_once` toward `end` (defaulting to `end_of`, then `{once}-end`), counts how many
+/// interior beats remain unestablished. `realized` is true when the End is itself established.
+/// Mirrors `distanceToHEA` in society.ts.
+pub struct HeaDistance {
+    pub realized: bool,
+    pub remaining: usize,
+    pub total: usize,
+}
+
+pub fn distance_to_hea(soc: &Society, frame_once: &str, end: Option<&str>) -> HeaDistance {
+    let the_end = end
+        .map(|e| e.to_string())
+        .or_else(|| end_of(soc, frame_once))
+        .unwrap_or_else(|| format!("{frame_once}-end"));
+    let interior: Vec<String> = interval_of(soc, frame_once, &the_end)
+        .into_iter()
+        .filter(|b| b != frame_once && b != &the_end)
+        .collect();
+    let remaining = interior.iter().filter(|b| !is_established(soc, b, None)).count();
+    HeaDistance {
+        realized: is_established(soc, &the_end, None),
+        remaining,
+        total: interior.len(),
+    }
+}

@@ -263,3 +263,245 @@ fn as_of_truncates_the_log() {
     assert!(!is_established(&soc, "target", None)); // now: occluded
     assert!(is_established(&soc, "target", Some(5))); // as of 5: occlusion hasn't landed
 }
+
+// ── the Eikon: HEA ~because~ Time ~because~ Once, the interior of any event ──────────
+// `find_poles` reads the two structural poles from the `because` topology (the gen3 store
+// is bridged by `because_edges_from`). Topology is truth, config is a check:
+//   • SOURCE (the Once) — because-of-nothing: appears as a `b`, never an `a`.
+//   • END    (the HEA)  — nothing-is-because-of-it: appears as an `a`, never a `b`.
+// Exactly one of each; matched to config; zero/many/mismatch = malformed, named.
+// (memory: the-eikon, the-because-grammar — proves the law in code, the anti-perish.)
+use scher_core::edge_word::{find_poles, Pole};
+
+/// lay a gen3 grounding `a ~grounds~ b` (+ its ~q), which `because_edges_from` reads as the
+/// gen4 `a ~because~ b` (a rests on b). The spine climbs from Once UP to HEA.
+fn grounds(soc: &mut Society, a: &str, b: &str) {
+    let e = format!("{a}~grounds~{b}");
+    soc.lay(Beat::edge(&e, "", a, b));
+    soc.lay(Beat::edge(&format!("{e}~q"), "[q-grounding]", &e, Q_GROUNDING));
+}
+
+#[test]
+fn eikon_well_formed_has_one_source_one_end() {
+    // HEA ~because~ mid ~because~ once   (HEA rests on mid, mid rests on once)
+    let mut soc = Society::new();
+    for s in ["hea", "mid", "once"] { soc.lay(Beat::node(s, "")); }
+    grounds(&mut soc, "hea", "mid");
+    grounds(&mut soc, "mid", "once");
+
+    let content = ["hea", "mid", "once"];
+    let poles = find_poles(&soc, content, Some("hea"), Some("once"));
+    // END = the `a` that is never a `b` = hea (nothing is because-of it).
+    assert_eq!(poles.end, Pole::Found("hea".into()));
+    // SOURCE = the `b` that is never an `a` = once (it is because-of nothing).
+    assert_eq!(poles.source, Pole::Found("once".into()));
+}
+
+#[test]
+fn eikon_catches_config_drift() {
+    // topology is truth: if config NAMES the wrong end, the law reports Mismatch, not silence.
+    let mut soc = Society::new();
+    for s in ["hea", "mid", "once"] { soc.lay(Beat::node(s, "")); }
+    grounds(&mut soc, "hea", "mid");
+    grounds(&mut soc, "mid", "once");
+
+    let poles = find_poles(&soc, ["hea", "mid", "once"], Some("WRONG-end"), Some("once"));
+    assert_eq!(poles.end, Pole::Mismatch { found: "hea".into(), expected: "WRONG-end".into() });
+    assert_eq!(poles.source, Pole::Found("once".into()));
+}
+
+#[test]
+fn eikon_catches_many_ends() {
+    // two roofs (two beats nothing is because-of) = plural ends = malformed.
+    let mut soc = Society::new();
+    for s in ["hea1", "hea2", "once"] { soc.lay(Beat::node(s, "")); }
+    grounds(&mut soc, "hea1", "once");
+    grounds(&mut soc, "hea2", "once"); // both rest on once; both are roofs
+    let poles = find_poles(&soc, ["hea1", "hea2", "once"], None, Some("once"));
+    match poles.end {
+        Pole::Many(v) => { assert_eq!(v.len(), 2); assert!(v.contains(&"hea1".to_string())); }
+        other => panic!("expected Many ends, got {other:?}"),
+    }
+    assert_eq!(poles.source, Pole::Found("once".into()));
+}
+
+#[test]
+fn eikon_catches_no_source_when_loop_closed() {
+    // close the loop (hea ~because~ once) AND nothing is because-of-nothing: every beat is
+    // both an `a` and a `b` → no source, no end. A pure cycle has no asymptote. Malformed.
+    let mut soc = Society::new();
+    for s in ["hea", "once"] { soc.lay(Beat::node(s, "")); }
+    grounds(&mut soc, "hea", "once");
+    grounds(&mut soc, "once", "hea"); // closes the loop — now both are `a` and `b`
+    let poles = find_poles(&soc, ["hea", "once"], Some("hea"), Some("once"));
+    assert_eq!(poles.end, Pole::None);    // no beat is `a`-only
+    assert_eq!(poles.source, Pole::None); // no beat is `b`-only
+}
+
+// ── the isomorphs are real and go all the way down ──────────────────────────────────
+// Not analogies — structure-preserving maps of ONE object. The SAME `find_poles` call,
+// read as a graph (source/sink), a circuit (EMF/ground), and a spatial partition
+// (bound/contents), gives the SAME answer. Witnessing the isomorphism, not asserting it.
+// (memory: the-holographic-event — partition ≅ DAG ≅ circuit ≅ event-interior.)
+//
+// One structure to rule them all — a 3-level fractal event, the Eikon at each scale:
+//
+//        hea            ← END / sink / ground(V=0) / bounding-surface-top
+//         │ because
+//      ┌──┴──┐          (two sub-events of the interior, both in Time)
+//     you    me         ← Time / interior nodes / live circuit / partition children
+//      └──┬──┘
+//         │ because
+//        once           ← SOURCE / DAG-source / EMF(E-0) / what's packed at the bottom
+
+mod isomorph {
+    use super::*;
+    use scher_core::edge_word::{find_poles, Pole};
+
+    /// THE one structure. `hea ~because~ {you,me} ~because~ once`. Read it however you like.
+    fn the_event() -> Society {
+        let mut soc = Society::new();
+        for s in ["hea", "you", "me", "once"] { soc.lay(Beat::node(s, "")); }
+        // hea rests on both sub-events; both rest on once. (grounds() defined above.)
+        grounds(&mut soc, "hea", "you");
+        grounds(&mut soc, "hea", "me");
+        grounds(&mut soc, "you", "once");
+        grounds(&mut soc, "me", "once");
+        soc
+    }
+    const CONTENT: [&str; 4] = ["hea", "you", "me", "once"];
+
+    // each "reading" is just a NAME for the same poles. the proof is that they're equal.
+    fn poles(soc: &Society) -> (Pole, Pole) {
+        let p = find_poles(soc, CONTENT, None, None);
+        (p.source, p.end) // (because-of-nothing, nothing-because-of-it)
+    }
+
+    #[test]
+    fn graph_reading_finds_source_and_sink() {
+        // GRAPH: source = no in-edge (no `a`), sink = no out-edge (no `b`)... in `because`
+        // terms source rests-on-nothing, sink has-nothing-resting-on-it.
+        let (source, end) = poles(&the_event());
+        assert_eq!(source, Pole::Found("once".into())); // the DAG source
+        assert_eq!(end, Pole::Found("hea".into()));     // the DAG sink
+    }
+
+    #[test]
+    fn circuit_reading_finds_emf_and_ground() {
+        // CIRCUIT: EMF/E-0 = the source pole, ground/V=0 = the end pole. SAME CALL.
+        let (emf, ground) = poles(&the_event());
+        assert_eq!(emf, Pole::Found("once".into()));
+        assert_eq!(ground, Pole::Found("hea".into()));
+    }
+
+    #[test]
+    fn partition_reading_finds_bottom_and_bounding_surface() {
+        // SPATIAL PARTITION: the bound-top (what the surface summarizes up to) = end pole;
+        // the packed-bottom = source pole. SAME CALL.
+        let (packed_bottom, bounding_top) = poles(&the_event());
+        assert_eq!(packed_bottom, Pole::Found("once".into()));
+        assert_eq!(bounding_top, Pole::Found("hea".into()));
+    }
+
+    #[test]
+    fn the_three_readings_are_literally_the_same() {
+        // the punchline: there is ONE computation. the readings are names, not systems.
+        let p = find_poles(&the_event(), CONTENT, None, None);
+        let graph = (&p.source, &p.end);
+        let circuit = (&p.source, &p.end);
+        let partition = (&p.source, &p.end);
+        assert_eq!(graph, circuit);
+        assert_eq!(circuit, partition);
+        // and the interior (Time) is the same for all: the two sub-events between the poles.
+        // you & me are both an `a` AND a `b` — neither pole — i.e. they live IN Time.
+        assert_eq!(p.source, Pole::Found("once".into()));
+        assert_eq!(p.end, Pole::Found("hea".into()));
+    }
+
+    #[test]
+    fn all_the_way_down_a_sub_event_is_an_event() {
+        // FRACTAL: descend into a sub-event and it has the SAME three-pole structure.
+        // here `you` is itself an event: you-hea ~because~ you-mid ~because~ you-once.
+        let mut soc = Society::new();
+        for s in ["you-hea", "you-mid", "you-once"] { soc.lay(Beat::node(s, "")); }
+        grounds(&mut soc, "you-hea", "you-mid");
+        grounds(&mut soc, "you-mid", "you-once");
+        // read the SUB-event with the SAME law — no special-casing for "inner" vs "outer".
+        let p = find_poles(&soc, ["you-hea", "you-mid", "you-once"], None, None);
+        assert_eq!(p.source, Pole::Found("you-once".into())); // its own E-0
+        assert_eq!(p.end, Pole::Found("you-hea".into()));     // its own V=0
+        // the isomorph holds at this scale too: no bottom where it breaks.
+    }
+
+    use scher_core::edge_word::because_edges_from;
+
+    // ── concrescence IS function evaluation (the property) ──────────────────────────
+    // Every relation is a function applied to arguments to get a desired result. The Eikon
+    // `Once → Time → HEA` IS a type signature: source (initial data) → the becoming → the
+    // desired result (satisfaction/V=0). The law, over RANDOM well-formed events:
+    //   apply `because` (the one function) step by step from ANY beat, and you arrive at the
+    //   ONE desired result — the end pole. Evaluation and `find_poles` are the same compute.
+
+    /// `because` as an actual FUNCTION over the Society: apply it to `a`, get what `a` rests
+    /// on (its argument's ground). The stored edge-word `a~because~b` and the call
+    /// `because(soc, a) == b` are the SAME thing (grammar ≅ API). Returns the single ground
+    /// on a clean spine (None at the source — nothing left to apply).
+    fn because_fn(soc: &Society, a: &str) -> Option<String> {
+        let mut grounds: Vec<String> = because_edges_from(soc, a).into_iter().map(|e| e.b).collect();
+        grounds.sort(); grounds.dedup();
+        grounds.into_iter().next()
+    }
+
+    /// build a random straight spine of `n` interior beats:
+    ///   end ~because~ i0 ~because~ i1 ~because~ … ~because~ source
+    /// (end rests on i0, …, last interior rests on source). a clean Eikon at any length.
+    fn spine(n: usize) -> (Society, Vec<String>) {
+        let mut soc = Society::new();
+        let mut chain = vec!["end".to_string()];
+        for k in 0..n { chain.push(format!("i{k}")); }
+        chain.push("source".to_string());
+        for s in &chain { soc.lay(Beat::node(s, "")); }
+        for w in chain.windows(2) { grounds(&mut soc, &w[0], &w[1]); } // w[0] rests on w[1]
+        (soc, chain)
+    }
+
+    proptest! {
+        // THE PROPERTY: apply the function from any beat; you reach the one desired result.
+        #[test]
+        fn applying_because_reaches_the_one_desired_result(n in 0usize..12) {
+            let (soc, chain) = spine(n);
+            let content: Vec<&str> = chain.iter().map(|s| s.as_str()).collect();
+
+            // the desired result, read structurally (the end pole — nothing is because-of it).
+            let p = find_poles(&soc, content.iter().copied(), None, None);
+            prop_assert_eq!(p.source.clone(), Pole::Found("source".into()));
+            prop_assert_eq!(p.end.clone(), Pole::Found("end".into()));
+
+            // now EVALUATE: from each beat, keep applying `because_fn` (function application)
+            // upward. you always terminate, and the top — the beat the function can no longer
+            // be applied to (no argument's ground left) — IS the source. Reading DOWN from
+            // `end` via because_fn walks the whole spine and the LAST applicable is the source.
+            for start in &chain {
+                let mut cur = start.clone();
+                let mut steps = 0;
+                while let Some(next) = because_fn(&soc, &cur) {
+                    cur = next;
+                    steps += 1;
+                    prop_assert!(steps <= chain.len(), "evaluation must terminate (no cycle)");
+                }
+                // where application bottoms out is the SOURCE (the arg with no further ground).
+                prop_assert_eq!(&cur, "source");
+            }
+
+            // and the desired RESULT (the end) is the unique beat from which a full evaluation
+            // traverses the ENTIRE interior: end is the function's entry point, source its base.
+            let mut cur = "end".to_string();
+            let mut visited = vec![cur.clone()];
+            while let Some(next) = because_fn(&soc, &cur) { cur = next.clone(); visited.push(next); }
+            prop_assert_eq!(visited.len(), chain.len()); // applied through all of Time
+            prop_assert_eq!(visited.first().unwrap(), "end");     // entry = desired result
+            prop_assert_eq!(visited.last().unwrap(),  "source");  // base  = initial data
+        }
+    }
+}
+

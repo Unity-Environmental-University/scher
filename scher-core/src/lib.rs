@@ -16,6 +16,10 @@
 
 use std::collections::HashMap;
 
+// the gen4 edge grammar (one verb: `because`). A pure string⇄struct module, proved inverse.
+// Not yet wired into Society — it exists so reads stop slug-searching `{slug}~q`.
+pub mod edge_word;
+
 // Qualities are passed as `&str` — the reads only ever compare for equality, and an unknown
 // quality is simply one no read matches (the same openness the TS `Quality` string union has
 // at runtime, with no enum to edit when the grammar grows a word). The known words used by the

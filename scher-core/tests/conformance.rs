@@ -505,3 +505,44 @@ mod isomorph {
     }
 }
 
+
+// ── anti-time: retrograde causality is the GENERAL case, not a special one ───────────
+// Hyperion's Shrike & Moneta move backward through time — an event whose `because` points
+// at its own (clock-)future. HYPOTHESIS (from "Once is frame-relative" + otter-centaur =
+// causal set theory): `because` reads the RESTING-ORDER, not the clock, so a retrograde edge
+// just extends the spine — it doesn't break the grammar. Causality is the partial order, not
+// the time coordinate. Strip the clock and retrograde causation is ordinary causation.
+// (kalpa/hyperion; memory: otter-centaur-is-causal-set-theory)
+mod anti_time {
+    use super::*;
+    use scher_core::edge_word::{find_poles, Pole};
+
+    #[test]
+    fn retrograde_edge_is_just_a_spine_extension() {
+        // Kassad-frame forward: meets ~because~ battle. Moneta-frame retrograde: a FUTURE
+        // tomb-event rests on the meeting. The two coexist as one clean DAG, no cycle.
+        let mut soc = Society::new();
+        for s in ["kassad-battle", "kassad-meets-moneta", "moneta-future-tomb"] { soc.lay(Beat::node(s, "")); }
+        grounds(&mut soc, "kassad-meets-moneta", "kassad-battle");      // forward
+        grounds(&mut soc, "moneta-future-tomb", "kassad-meets-moneta"); // retrograde (anti-time)
+        let p = find_poles(&soc, ["kassad-battle", "kassad-meets-moneta", "moneta-future-tomb"], None, None);
+        // the retrograde edge extended the spine; the clock-future event is the structural END.
+        assert_eq!(p.end, Pole::Found("moneta-future-tomb".into()));
+        assert_eq!(p.source, Pole::Found("kassad-battle".into()));
+    }
+
+    #[test]
+    fn closed_causal_loop_is_the_paradox_and_smacks() {
+        // The Time Tombs CAUSE THEIR OWN OPENING (the pilgrimage's outcome reaches back to
+        // cause the sending). A genuine bootstrap cycle: tomb rests on opening, opening rests
+        // on tomb. Every beat is both an `a` and a `b` → no source, no end → malformed. The
+        // grammar does NOT absorb a true paradox silently — the law smacks (Pole::None).
+        let mut soc = Society::new();
+        for s in ["the-tomb", "the-opening"] { soc.lay(Beat::node(s, "")); }
+        grounds(&mut soc, "the-tomb", "the-opening");
+        grounds(&mut soc, "the-opening", "the-tomb"); // the bootstrap — closes the causal loop
+        let p = find_poles(&soc, ["the-tomb", "the-opening"], None, None);
+        assert_eq!(p.end, Pole::None);    // no terminal — paradox
+        assert_eq!(p.source, Pole::None); // no source — paradox
+    }
+}

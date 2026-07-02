@@ -23,7 +23,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { Society, prehensionsFrom, type Beat } from "../src/society.js";
+import { Society, prehensionsFrom, type EventRow } from "../src/society.js";
 
 const V0 = "the-bodhisattva-vow-v0";        // the floor / the Mirage's limit-point
 const MIRAGE = "the-mirage-of-objectivity"; // the horizon every why aims at

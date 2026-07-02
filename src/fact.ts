@@ -25,7 +25,7 @@ import {
   isOccluded,
   confidence as readConfidence,
   prehensionsOnto,
-  type Beat,
+  type EventRow,
 } from "./society.js";
 
 /** A Fact: a positivist handle over the ESTABLISHMENT of a target beat. get()/set()
@@ -44,7 +44,7 @@ export interface Fact {
   confidence(): number;
   /** the seam, on demand: every grounding/supersede beat ever laid for this fact.
    *  The plumbing is hidden by default, never erased — ask and it's all here. */
-  history(): Beat[];
+  history(): EventRow[];
   /** the target beat slug this fact is about (read-only; for composition). */
   readonly target: string;
 }

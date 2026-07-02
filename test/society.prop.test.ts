@@ -20,13 +20,13 @@ import {
   isEstablished,
   isOccluded,
   contentBeats,
-  type Beat,
+  type EventRow,
 } from "../src/society.js";
 
 // ── generators (build histories the way the model actually gets used) ──────────
 
 /** a content beat: a node, subject/object null. */
-const contentBeatArb = (slug: string): fc.Arbitrary<Beat> =>
+const contentBeatArb = (slug: string): fc.Arbitrary<EventRow> =>
   fc.record({
     slug: fc.constant(slug),
     content: fc.string(),
@@ -41,7 +41,7 @@ const slugsArb = fc.uniqueArray(
 );
 
 /** an arbitrary history: a list of beats to lay, possibly with duplicates. */
-const historyArb: fc.Arbitrary<Beat[]> = slugsArb.chain((slugs) =>
+const historyArb: fc.Arbitrary<EventRow[]> = slugsArb.chain((slugs) =>
   fc.array(
     fc.constantFrom(...slugs).chain(contentBeatArb),
     { minLength: 0, maxLength: 20 },
@@ -137,7 +137,7 @@ describe("Society — append-only laws", () => {
         const soc = new Society();
         for (const b of history) soc.lay(b);
         // the surviving beat for each slug is the FIRST one laid (ON CONFLICT DO NOTHING)
-        const firstBySlug = new Map<string, Beat>();
+        const firstBySlug = new Map<string, EventRow>();
         for (const b of history) if (!firstBySlug.has(b.slug)) firstBySlug.set(b.slug, b);
         for (const [slug, first] of firstBySlug) {
           expect(soc.get(slug)?.content).toBe(first.content);
@@ -154,7 +154,7 @@ describe("Society — reads are functions of the SET of beats, not the order", (
   const sceneArb = fc
     .uniqueArray(fc.string({ minLength: 1, maxLength: 4 }), { minLength: 1, maxLength: 4 })
     .chain((targets) => {
-      const beats: Beat[] = targets.map((t) => ({ slug: t, content: t, subject: null, object: null }));
+      const beats: EventRow[] = targets.map((t) => ({ slug: t, content: t, subject: null, object: null }));
       // a pool of grounding & exclusion prehensions onto random targets, from random frames
       const prehensionArb = fc.record({
         target: fc.constantFrom(...targets),
@@ -163,7 +163,7 @@ describe("Society — reads are functions of the SET of beats, not the order", (
         n: fc.nat({ max: 999 }),
       });
       return fc.array(prehensionArb, { minLength: 0, maxLength: 12 }).map((prehensions) => {
-        const all: Beat[] = [...beats];
+        const all: EventRow[] = [...beats];
         prehensions.forEach((p, i) => {
           const slug = `p${i}-${p.kind}`;
           all.push({ slug, content: `${p.frame}->${p.target}`, subject: p.frame, object: p.target });

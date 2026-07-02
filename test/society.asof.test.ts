@@ -13,9 +13,9 @@
 
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
-import { Society, modeAt, confidence, type Beat } from "../src/society.js";
+import { Society, modeAt, confidence, type EventRow } from "../src/society.js";
 
-const SEED: Beat[] = [
+const SEED: EventRow[] = [
   { slug: "task", content: "a task", subject: null, object: null, witnessed: 1 },
   { slug: "alice", content: "alice", subject: null, object: null, witnessed: 2 },
 ];

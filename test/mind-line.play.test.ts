@@ -20,7 +20,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { Society, prehensionsFrom, isOccluded, type Beat } from "../src/society.js";
+import { Society, prehensionsFrom, isOccluded, type EventRow } from "../src/society.js";
 
 const V0 = "the-bodhisattva-vow-v0";
 const MIRAGE = "the-mirage-of-objectivity";

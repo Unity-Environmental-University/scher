@@ -14,7 +14,7 @@
 
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
-import { Society, type Beat } from "../src/society.js";
+import { Society, type EventRow } from "../src/society.js";
 import { fact } from "../src/fact.js";
 
 const TARGET = "the-task";
@@ -24,7 +24,7 @@ function freshSociety(): Society {
   return new Society([
     { slug: TARGET, content: "a task", subject: null, object: null },
     { slug: FRAME, content: "the actor", subject: null, object: null },
-  ] as Beat[]);
+  ] as EventRow[]);
 }
 
 describe("Fact — the laminar surface stays honest", () => {

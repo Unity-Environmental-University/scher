@@ -13,7 +13,7 @@ import { Cell, type Read } from "./cell.js";
 
 /** A beat. With subject+object it is a prehension (an edge). A quality beat (slug
  *  ending '~q', object a q-*) carries mode. */
-export interface Beat {
+export interface EventRow {
   slug: string;
   content: string;
   /** the BULLET — a short human headline, distinct from content (the notes). Render this as the
@@ -96,19 +96,19 @@ export function assertNotMembershipContainment(slug: string, quality: Quality): 
 /** An append-only society of beats. The only write is lay(). `rev` rises on every
  *  append; a Cell over the society subscribes to it and re-reads when it changes. */
 export class Society {
-  readonly #beats = new Map<string, Beat>();
+  readonly #beats = new Map<string, EventRow>();
   /** rev bumps on every genuine append; Cells subscribe to it to know to re-read. */
   readonly rev: Cell<number>;
   #clock = 0;
 
-  constructor(seed: ReadonlyArray<Beat> = []) {
+  constructor(seed: ReadonlyArray<EventRow> = []) {
     this.rev = new Cell(0);
     for (const b of seed) this.#insert(b);
   }
 
   // the one write. lay() of an existing slug is inert (ON CONFLICT DO NOTHING).
   // Beats are never overwritten; to undo, supersede with a new beat.
-  #insert(b: Beat): boolean {
+  #insert(b: EventRow): boolean {
     if (this.#beats.has(b.slug)) return false;
     // The witnessing clock is monotone across BOTH explicit stamps and auto-stamps:
     // an explicitly-witnessed beat advances the clock so a later auto-stamp never
@@ -121,7 +121,7 @@ export class Society {
 
   /** Lay a beat into the society (the only write). Returns true if it was a genuine
    *  append (new slug), false if inert (slug already present). */
-  lay(b: Beat): boolean {
+  lay(b: EventRow): boolean {
     const appended = this.#insert(b);
     if (appended) this.rev.set(this.rev.get() + 1);
     return appended;
@@ -137,18 +137,18 @@ export class Society {
   }
 
   /** Bulk-lay (e.g. a fetched canon, or a seed package). One rev bump for the batch. */
-  layAll(beats: ReadonlyArray<Beat>): void {
+  layAll(beats: ReadonlyArray<EventRow>): void {
     let any = false;
     for (const b of beats) any = this.#insert(b) || any;
     if (any) this.rev.set(this.rev.get() + 1);
   }
 
-  get(slug: string): Beat | undefined {
+  get(slug: string): EventRow | undefined {
     return this.#beats.get(slug);
   }
 
   /** All beats (a snapshot; do not mutate). */
-  all(): Beat[] {
+  all(): EventRow[] {
     return [...this.#beats.values()];
   }
 
@@ -178,7 +178,7 @@ export class Society {
 // meaning" literal — every read has an `@{time}`.
 
 /** Was beat `b` witnessed at-or-before moment `asOf`? (undefined ⇒ always visible.) */
-function visibleAt(b: Beat, asOf?: number): boolean {
+function visibleAt(b: EventRow, asOf?: number): boolean {
   return asOf === undefined || (b.witnessed ?? 0) <= asOf;
 }
 
@@ -192,7 +192,7 @@ export function prehendsAs(soc: Society, pslug: string, quality: Quality, asOf?:
 
 /** Every prehension reaching `beat` as object, co-prehending `quality`, as of a moment.
  *  Returns the prehension beats (whose `subject` is the frame/standpoint that laid it). */
-export function prehensionsOnto(soc: Society, beat: string, quality: Quality, asOf?: number): Beat[] {
+export function prehensionsOnto(soc: Society, beat: string, quality: Quality, asOf?: number): EventRow[] {
   return soc.all().filter(
     (b) => b.object === beat && b.subject !== null && visibleAt(b, asOf) && prehendsAs(soc, b.slug, quality, asOf),
   );
@@ -202,7 +202,7 @@ export function prehensionsOnto(soc: Society, beat: string, quality: Quality, as
  *  a moment. The mirror of prehensionsOnto: that read sees edges INTO a beat (beat as
  *  object); this one sees edges FROM a beat (beat as subject). A lateral relation (depends-on,
  *  assigned-to) is laid A→B, so it is only legible from A's side through a -From read. */
-export function prehensionsFrom(soc: Society, beat: string, quality: Quality, asOf?: number): Beat[] {
+export function prehensionsFrom(soc: Society, beat: string, quality: Quality, asOf?: number): EventRow[] {
   return soc.all().filter(
     (b) => b.subject === beat && b.object !== null && visibleAt(b, asOf) && prehendsAs(soc, b.slug, quality, asOf),
   );
@@ -368,7 +368,7 @@ export function isStory(soc: Society, beat: string): boolean {
 }
 
 /** content beats: subject===null and not a '~q' mode-beat — the nodes, not the edges. */
-export function contentBeats(soc: Society): Beat[] {
+export function contentBeats(soc: Society): EventRow[] {
   return soc.all().filter((b) => b.subject === null && !b.slug.endsWith("~q"));
 }
 

@@ -13,9 +13,9 @@
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
 import { trajectory } from "./support/trajectory.js";
-import { type Beat } from "../src/society.js";
+import { type EventRow } from "../src/society.js";
 
-const SEED: Beat[] = [
+const SEED: EventRow[] = [
   { slug: "task", content: "a task", subject: null, object: null },
   { slug: "alice", content: "alice", subject: null, object: null },
   { slug: "bob", content: "bob", subject: null, object: null },

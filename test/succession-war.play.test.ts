@@ -20,7 +20,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { Society, isOccluded, prehensionsOnto, type Beat } from "../src/society.js";
+import { Society, isOccluded, prehensionsOnto, type EventRow } from "../src/society.js";
 
 // ── the q-succeeds toy model (bare prehension onto your own prior, no new quality yet) ──
 // A version-beat `v` succeeds its parent `p`: an edge `<v>-succ` with subject=v, object=p.

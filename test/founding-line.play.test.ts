@@ -15,7 +15,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { Society, isOccluded, prehensionsOnto, type Beat } from "../src/society.js";
+import { Society, isOccluded, prehensionsOnto, type EventRow } from "../src/society.js";
 
 function lay(s: Society, slug: string) { if (!s.has(slug)) s.lay({ slug, content: slug, subject: null, object: null }); }
 function succeeds(s: Society, heir: string, parent: string) {

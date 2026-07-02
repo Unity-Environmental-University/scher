@@ -31,9 +31,9 @@ pub const Q_OCCLUDES: &str = "q-occludes";
 pub const Q_DEPENDS_ON: &str = "q-depends-on";
 
 /// A beat. With subject+object it is a prehension (an edge). A quality beat (slug ending
-/// `~q`, object a `q-*`) carries mode. Mirrors the `Beat` interface in society.ts.
+/// `~q`, object a `q-*`) carries mode. Mirrors the `EventRow` interface in society.ts.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Beat {
+pub struct EventRow {
     pub slug: String,
     pub content: String,
     /// the BULLET — a short human headline, distinct from content. Optional.
@@ -45,10 +45,10 @@ pub struct Beat {
     pub witnessed: Option<u64>,
 }
 
-impl Beat {
+impl EventRow {
     /// A content beat (a node): subject and object null.
     pub fn node(slug: &str, content: &str) -> Self {
-        Beat {
+        EventRow {
             slug: slug.into(),
             content: content.into(),
             title: None,
@@ -60,7 +60,7 @@ impl Beat {
 
     /// A prehension (an edge) from `subject` to `object`.
     pub fn edge(slug: &str, content: &str, subject: &str, object: &str) -> Self {
-        Beat {
+        EventRow {
             slug: slug.into(),
             content: content.into(),
             title: None,
@@ -81,7 +81,7 @@ impl Beat {
 /// append. Beats are never overwritten — to undo, occlude with a new beat.
 #[derive(Clone, Debug, Default)]
 pub struct Society {
-    beats: HashMap<String, Beat>,
+    rows: HashMap<String, EventRow>,
     rev: u64,
     clock: u64,
 }
@@ -92,7 +92,7 @@ impl Society {
     }
 
     /// Seed a society from a slice of beats (constructor-equivalent to `new Society(seed)`).
-    pub fn seeded(seed: &[Beat]) -> Self {
+    pub fn seeded(seed: &[EventRow]) -> Self {
         let mut s = Society::new();
         for b in seed {
             s.insert(b.clone());
@@ -104,19 +104,19 @@ impl Society {
     // never overwritten. The witnessing clock is monotone across BOTH explicit stamps and
     // auto-stamps: an explicitly-witnessed beat advances the clock so a later auto-stamp
     // never reuses or precedes a moment already witnessed.
-    fn insert(&mut self, mut b: Beat) -> bool {
-        if self.beats.contains_key(&b.slug) {
+    fn insert(&mut self, mut b: EventRow) -> bool {
+        if self.rows.contains_key(&b.slug) {
             return false;
         }
         let witnessed = b.witnessed.unwrap_or(self.clock + 1);
         self.clock = self.clock.max(witnessed);
         b.witnessed = Some(witnessed);
-        self.beats.insert(b.slug.clone(), b);
+        self.rows.insert(b.slug.clone(), b);
         true
     }
 
     /// Lay a beat (the only write). Returns true on a genuine append, false if inert.
-    pub fn lay(&mut self, b: Beat) -> bool {
+    pub fn lay(&mut self, b: EventRow) -> bool {
         let appended = self.insert(b);
         if appended {
             self.rev += 1;
@@ -134,17 +134,17 @@ impl Society {
         object: &str,
         quality: &str,
     ) -> bool {
-        let a = self.lay(Beat::edge(slug, content, subject, object));
+        let a = self.lay(EventRow::edge(slug, content, subject, object));
         let q_slug = format!("{slug}~q");
         let q_content = format!("{content} [{quality}]");
-        let q = self.lay(Beat::edge(&q_slug, &q_content, slug, quality));
+        let q = self.lay(EventRow::edge(&q_slug, &q_content, slug, quality));
         a || q
     }
 
     /// Bulk-lay; one rev bump for the batch (matches `layAll`).
-    pub fn lay_all(&mut self, beats: &[Beat]) {
+    pub fn lay_all(&mut self, rows: &[EventRow]) {
         let mut any = false;
-        for b in beats {
+        for b in rows {
             any = self.insert(b.clone()) || any;
         }
         if any {
@@ -152,21 +152,21 @@ impl Society {
         }
     }
 
-    pub fn get(&self, slug: &str) -> Option<&Beat> {
-        self.beats.get(slug)
+    pub fn get(&self, slug: &str) -> Option<&EventRow> {
+        self.rows.get(slug)
     }
 
     /// All beats (a snapshot; iteration order is unspecified, like a Map's values()).
-    pub fn all(&self) -> impl Iterator<Item = &Beat> {
-        self.beats.values()
+    pub fn all(&self) -> impl Iterator<Item = &EventRow> {
+        self.rows.values()
     }
 
     pub fn has(&self, slug: &str) -> bool {
-        self.beats.contains_key(slug)
+        self.rows.contains_key(slug)
     }
 
     pub fn size(&self) -> usize {
-        self.beats.len()
+        self.rows.len()
     }
 
     pub fn rev(&self) -> u64 {
@@ -179,7 +179,7 @@ impl Society {
 // beats witnessed at-or-before t. `None` means "now" — no filter.
 
 /// Was beat `b` witnessed at-or-before moment `as_of`? (None ⇒ always visible.)
-fn visible_at(b: &Beat, as_of: Option<u64>) -> bool {
+fn visible_at(b: &EventRow, as_of: Option<u64>) -> bool {
     match as_of {
         None => true,
         Some(t) => b.witnessed.unwrap_or(0) <= t,
@@ -196,17 +196,17 @@ pub fn prehends_as(soc: &Society, pslug: &str, quality: &str, as_of: Option<u64>
     }
 }
 
-/// Every prehension reaching `beat` as object, co-prehending `quality`, as of a moment.
+/// Every prehension reaching `row` as object, co-prehending `quality`, as of a moment.
 /// Returns the prehension beats (whose `subject` is the frame that laid it).
 pub fn prehensions_onto<'a>(
     soc: &'a Society,
-    beat: &str,
+    row: &str,
     quality: &str,
     as_of: Option<u64>,
-) -> Vec<&'a Beat> {
+) -> Vec<&'a EventRow> {
     soc.all()
         .filter(|b| {
-            b.object.as_deref() == Some(beat)
+            b.object.as_deref() == Some(row)
                 && b.subject.is_some()
                 && visible_at(b, as_of)
                 && prehends_as(soc, &b.slug, quality, as_of)
@@ -214,17 +214,17 @@ pub fn prehensions_onto<'a>(
         .collect()
 }
 
-/// Every prehension reaching OUT of `beat` as its SUBJECT, co-prehending `quality`. The
+/// Every prehension reaching OUT of `row` as its SUBJECT, co-prehending `quality`. The
 /// mirror of `prehensions_onto`: edges FROM a beat, legible only from the subject's side.
 pub fn prehensions_from<'a>(
     soc: &'a Society,
-    beat: &str,
+    row: &str,
     quality: &str,
     as_of: Option<u64>,
-) -> Vec<&'a Beat> {
+) -> Vec<&'a EventRow> {
     soc.all()
         .filter(|b| {
-            b.subject.as_deref() == Some(beat)
+            b.subject.as_deref() == Some(row)
                 && b.object.is_some()
                 && visible_at(b, as_of)
                 && prehends_as(soc, &b.slug, quality, as_of)
@@ -262,8 +262,8 @@ pub fn is_occluded(soc: &Society, target: &str, as_of: Option<u64>) -> bool {
 
 /// is_established, as of a moment: established iff some non-occluded grounding-prehension
 /// reaches it.
-pub fn is_established(soc: &Society, beat: &str, as_of: Option<u64>) -> bool {
-    prehensions_onto(soc, beat, Q_GROUNDING, as_of)
+pub fn is_established(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
+    prehensions_onto(soc, row, Q_GROUNDING, as_of)
         .iter()
         .any(|p| !is_occluded(soc, &p.slug, as_of))
 }
@@ -276,8 +276,8 @@ pub enum Mode {
 }
 
 /// mode_at: the establishment-mode read of a beat, as of a moment.
-pub fn mode_at(soc: &Society, beat: &str, as_of: Option<u64>) -> Mode {
-    if is_established(soc, beat, as_of) {
+pub fn mode_at(soc: &Society, row: &str, as_of: Option<u64>) -> Mode {
+    if is_established(soc, row, as_of) {
         Mode::Established
     } else {
         Mode::Scripted
@@ -287,9 +287,9 @@ pub fn mode_at(soc: &Society, beat: &str, as_of: Option<u64>) -> Mode {
 /// confidence: groundings / (groundings + exclusions), in [0,1]. Every prehension counts 1.
 /// (Faithful to society.ts: counts ALL groundings/exclusions, not only non-occluded ones —
 /// occlusion gates establishment, not the confidence ratio.)
-pub fn confidence(soc: &Society, beat: &str, as_of: Option<u64>) -> f64 {
-    let g = prehensions_onto(soc, beat, Q_GROUNDING, as_of).len();
-    let e = prehensions_onto(soc, beat, Q_EXCLUSION, as_of).len();
+pub fn confidence(soc: &Society, row: &str, as_of: Option<u64>) -> f64 {
+    let g = prehensions_onto(soc, row, Q_GROUNDING, as_of).len();
+    let e = prehensions_onto(soc, row, Q_EXCLUSION, as_of).len();
     if g + e == 0 {
         return 0.0;
     }
@@ -301,8 +301,8 @@ pub fn confidence(soc: &Society, beat: &str, as_of: Option<u64>) -> f64 {
 
 /// dependsOn: the beats this one is waiting ON (its blockers) — non-occluded q-depends-on
 /// edges FROM this beat.
-pub fn depends_on(soc: &Society, beat: &str, as_of: Option<u64>) -> Vec<String> {
-    prehensions_from(soc, beat, Q_DEPENDS_ON, as_of)
+pub fn depends_on(soc: &Society, row: &str, as_of: Option<u64>) -> Vec<String> {
+    prehensions_from(soc, row, Q_DEPENDS_ON, as_of)
         .iter()
         .filter(|p| !is_occluded(soc, &p.slug, as_of))
         .filter_map(|p| p.object.clone())
@@ -310,8 +310,8 @@ pub fn depends_on(soc: &Society, beat: &str, as_of: Option<u64>) -> Vec<String> 
 }
 
 /// dependentsOf: the beats waiting on THIS one — the backward read (this beat as object).
-pub fn dependents_of(soc: &Society, beat: &str, as_of: Option<u64>) -> Vec<String> {
-    prehensions_onto(soc, beat, Q_DEPENDS_ON, as_of)
+pub fn dependents_of(soc: &Society, row: &str, as_of: Option<u64>) -> Vec<String> {
+    prehensions_onto(soc, row, Q_DEPENDS_ON, as_of)
         .iter()
         .filter(|p| !is_occluded(soc, &p.slug, as_of))
         .filter_map(|p| p.subject.clone())
@@ -319,21 +319,21 @@ pub fn dependents_of(soc: &Society, beat: &str, as_of: Option<u64>) -> Vec<Strin
 }
 
 /// blockedOnNow: of this beat's dependencies, the ones NOT yet established — the live blockers.
-pub fn blocked_on_now(soc: &Society, beat: &str, as_of: Option<u64>) -> Vec<String> {
-    depends_on(soc, beat, as_of)
+pub fn blocked_on_now(soc: &Society, row: &str, as_of: Option<u64>) -> Vec<String> {
+    depends_on(soc, row, as_of)
         .into_iter()
         .filter(|d| !is_established(soc, d, as_of))
         .collect()
 }
 
 /// isBlocked: any live (unestablished) dependency remains.
-pub fn is_blocked(soc: &Society, beat: &str, as_of: Option<u64>) -> bool {
-    !blocked_on_now(soc, beat, as_of).is_empty()
+pub fn is_blocked(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
+    !blocked_on_now(soc, row, as_of).is_empty()
 }
 
 /// parallelizable: not blocked AND not yet established — work that could start right now.
-pub fn parallelizable(soc: &Society, beat: &str, as_of: Option<u64>) -> bool {
-    !is_blocked(soc, beat, as_of) && !is_established(soc, beat, as_of)
+pub fn parallelizable(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
+    !is_blocked(soc, row, as_of) && !is_established(soc, row, as_of)
 }
 
 /// stressOf: a beat's blast-radius — how much waits on it, weighted by the dependents' own
@@ -344,8 +344,8 @@ pub struct Stress {
     pub dependents: Vec<String>,
 }
 
-pub fn stress_of(soc: &Society, beat: &str, as_of: Option<u64>) -> Stress {
-    let dependents = dependents_of(soc, beat, as_of);
+pub fn stress_of(soc: &Society, row: &str, as_of: Option<u64>) -> Stress {
+    let dependents = dependents_of(soc, row, as_of);
     let weight = dependents.iter().fold(0u64, |w, d| {
         w + if is_established(soc, d, as_of) {
             3
@@ -363,7 +363,7 @@ pub fn stress_of(soc: &Society, beat: &str, as_of: Option<u64>) -> Stress {
 }
 
 /// contentBeats: exactly the nodes (subject null, slug not ending `~q`).
-pub fn content_beats(soc: &Society) -> Vec<&Beat> {
+pub fn content_beats(soc: &Society) -> Vec<&EventRow> {
     soc.all()
         .filter(|b| b.subject.is_none() && !b.slug.ends_with("~q"))
         .collect()
@@ -374,8 +374,8 @@ pub fn content_beats(soc: &Society) -> Vec<&Beat> {
 
 /// grounded_by: WHO grounded this beat — the subject (frame) of each grounding prehension.
 /// The because-base: "hea, because a". Mirrors `groundedBy` in society.ts.
-pub fn grounded_by(soc: &Society, beat: &str) -> Vec<String> {
-    prehensions_onto(soc, beat, Q_GROUNDING, None)
+pub fn grounded_by(soc: &Society, row: &str) -> Vec<String> {
+    prehensions_onto(soc, row, Q_GROUNDING, None)
         .iter()
         .filter_map(|p| p.subject.clone())
         .collect()
@@ -386,7 +386,7 @@ pub fn grounded_by(soc: &Society, beat: &str) -> Vec<String> {
 /// backward-reachable from `end` over plain edges (object not a `q-*`, slug not `~q`). Mirrors
 /// `intervalOf` in society.ts.
 pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
-    let edges: Vec<&Beat> = soc
+    let edges: Vec<&EventRow> = soc
         .all()
         .filter(|b| {
             b.subject.is_some()
@@ -396,7 +396,7 @@ pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
         })
         .collect();
 
-    fn reach(edges: &[&Beat], from: &str, fwd: bool) -> std::collections::HashSet<String> {
+    fn reach(edges: &[&EventRow], from: &str, fwd: bool) -> std::collections::HashSet<String> {
         let mut seen = std::collections::HashSet::new();
         seen.insert(from.to_string());
         let mut stack = vec![from.to_string()];

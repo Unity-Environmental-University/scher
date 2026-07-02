@@ -21,7 +21,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { Society, isOccluded, type Beat } from "../src/society.js";
+import { Society, isOccluded, type EventRow } from "../src/society.js";
 
 function lay(s: Society, slug: string) { s.lay({ slug, content: slug, subject: null, object: null }); }
 /** a monarch SUCCEEDS their predecessor (commit on the crown-branch). */

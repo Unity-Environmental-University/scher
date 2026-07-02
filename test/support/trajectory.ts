@@ -24,7 +24,7 @@
 import {
   Society,
   modeAt,
-  type Beat,
+  type EventRow,
   type Mode,
   type Quality,
 } from "../../src/society.js";
@@ -32,7 +32,7 @@ import {
 /** One recorded step of becoming: the beats laid, and the clock AFTER they landed. */
 interface Step {
   /** the beats this step appended (a step may lay >1, e.g. a prehension + its ~q). */
-  beats: Beat[];
+  beats: EventRow[];
   /** the max witnessed-clock value present in the society after this step. */
   at: number;
   /** a human label for the step (for changesOnlyAt assertions). */
@@ -40,18 +40,18 @@ interface Step {
 }
 
 export class Trajectory {
-  readonly #seed: Beat[];
+  readonly #seed: EventRow[];
   readonly #steps: Step[] = [];
   /** the live society — the endpoint, built by replaying every step in order. */
   readonly soc: Society;
 
-  constructor(seed: ReadonlyArray<Beat> = []) {
+  constructor(seed: ReadonlyArray<EventRow> = []) {
     this.#seed = [...seed];
     this.soc = new Society(seed);
   }
 
   /** Lay a content beat (or any raw beat), recording the witnessing moment. */
-  lay(b: Beat, label = b.slug): this {
+  lay(b: EventRow, label = b.slug): this {
     const appended = this.soc.lay(b);
     if (appended) this.#steps.push({ beats: [b], at: this.#maxWitnessed(), label });
     return this;
@@ -69,7 +69,7 @@ export class Trajectory {
 
   /** Supersede a beat (append-only undo): a self-pointing beat onto it. */
   supersede(slug: string, label?: string): this {
-    const sup: Beat = { slug: `sup-${slug}-${this.#steps.length}`, content: `supersedes ${slug}`, subject: slug, object: slug };
+    const sup: EventRow = { slug: `sup-${slug}-${this.#steps.length}`, content: `supersedes ${slug}`, subject: slug, object: slug };
     const appended = this.soc.lay(sup);
     if (appended) this.#steps.push({ beats: [sup], at: this.#maxWitnessed(), label: label ?? `supersede ${slug}` });
     return this;
@@ -164,6 +164,6 @@ export class Trajectory {
 }
 
 /** Start a trajectory from an optional seed. */
-export function trajectory(seed?: ReadonlyArray<Beat>): Trajectory {
+export function trajectory(seed?: ReadonlyArray<EventRow>): Trajectory {
   return new Trajectory(seed);
 }

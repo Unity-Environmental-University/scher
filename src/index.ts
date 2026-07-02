@@ -72,7 +72,7 @@ export {
   endOf,
   contentBeats,
   authorOf,
-  type Beat,
+  type EventRow,
   type Quality,
   type Mode,
   type Pathos,

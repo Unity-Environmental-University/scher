@@ -20,10 +20,10 @@
 
 import { describe, it, expect } from "vitest";
 import fc from "fast-check";
-import { Society, isOccluded, isEstablished, type Beat } from "../src/society.js";
+import { Society, isOccluded, isEstablished, type EventRow } from "../src/society.js";
 
 // ── helpers: build occlusion the canonical way ──────────────────────────────────
-function soc(seed: Beat[] = []): Society { return new Society(seed); }
+function soc(seed: EventRow[] = []): Society { return new Society(seed); }
 function node(s: Society, slug: string) { s.lay({ slug, content: slug, subject: null, object: null }); }
 /** a NAMED occluder E casts q-occludes over the member `target` it prehends. */
 function occlude(s: Society, slug: string, target: string, occluder = "ev-occ") {
@@ -99,13 +99,13 @@ describe("occlusion — property tests over arbitrary histories", () => {
   // PROPERTY B: occlusion is order-independent — the read is a pure filter over the log,
   // so laying the same beats in any permutation gives the same isOccluded answer.
   it("isOccluded is permutation-invariant (read is a pure function of the SET of beats)", () => {
-    const beats: Beat[] = [
+    const beats: EventRow[] = [
       { slug: "a", content: "a", subject: null, object: null },
       { slug: "evA", content: "evA", subject: null, object: null },
       { slug: "occ-a", content: "occ a", subject: "evA", object: "a" },
       { slug: "occ-a~q", content: "[q-occludes]", subject: "occ-a", object: "q-occludes" },
     ];
-    const answerFor = (order: Beat[]) => {
+    const answerFor = (order: EventRow[]) => {
       const s = new Society();
       for (const b of order) s.lay(b);
       return isOccluded(s, "a");

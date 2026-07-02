@@ -26,12 +26,12 @@ fn slugs() -> impl Strategy<Value = Vec<String>> {
 }
 
 /// a history: beats drawn (with repeats) from a slug pool — the `historyArb` shape.
-fn history() -> impl Strategy<Value = Vec<Beat>> {
+fn history() -> impl Strategy<Value = Vec<EventRow>> {
     slugs().prop_flat_map(|pool| {
         prop::collection::vec(
             (0..pool.len(), ".*").prop_map({
                 let pool = pool.clone();
-                move |(i, content): (usize, String)| Beat::node(&pool[i], &content)
+                move |(i, content): (usize, String)| EventRow::node(&pool[i], &content)
             }),
             0..=20,
         )
@@ -83,7 +83,7 @@ proptest! {
     fn first_write_wins(hist in history()) {
         let mut soc = Society::new();
         for b in &hist { soc.lay(b.clone()); }
-        let mut first: std::collections::HashMap<&String, &Beat> = std::collections::HashMap::new();
+        let mut first: std::collections::HashMap<&String, &EventRow> = std::collections::HashMap::new();
         for b in &hist { first.entry(&b.slug).or_insert(b); }
         for (slug, b) in first {
             prop_assert_eq!(soc.get(slug).map(|g| &g.content), Some(&b.content));
@@ -100,7 +100,7 @@ proptest! {
         let mut auto_slugs: Vec<String> = Vec::new();
         for (slug, w) in &specs {
             let was_new = !soc.has(slug);
-            let beat = match w { Some(t) => Beat::node(slug, slug).with_witnessed(*t), None => Beat::node(slug, slug) };
+            let beat = match w { Some(t) => EventRow::node(slug, slug).with_witnessed(*t), None => EventRow::node(slug, slug) };
             soc.lay(beat);
             if was_new && w.is_none() { auto_slugs.push(slug.clone()); }
         }
@@ -139,7 +139,7 @@ fn scene() -> impl Strategy<Value = (Vec<String>, Vec<Prehension>)> {
 }
 
 fn build_scene(targets: &[String], prehensions: &[Prehension], order: &[usize]) -> Society {
-    let mut beats: Vec<Beat> = targets.iter().map(|t| Beat::node(t, t)).collect();
+    let mut beats: Vec<EventRow> = targets.iter().map(|t| EventRow::node(t, t)).collect();
     for (i, p) in prehensions.iter().enumerate() {
         let kind = if p.grounding {
             Q_GROUNDING
@@ -148,13 +148,13 @@ fn build_scene(targets: &[String], prehensions: &[Prehension], order: &[usize]) 
         };
         let slug = format!("p{i}-{kind}");
         let tgt = &targets[p.target];
-        beats.push(Beat::edge(
+        beats.push(EventRow::edge(
             &slug,
             &format!("{}->{}", p.frame, tgt),
             &p.frame,
             tgt,
         ));
-        beats.push(Beat::edge(
+        beats.push(EventRow::edge(
             &format!("{slug}~q"),
             &format!("[{kind}]"),
             &slug,
@@ -196,7 +196,7 @@ proptest! {
     #[test]
     fn emergent_un_occlusion(target in "[a-z]{1,5}", occ in "[a-z]{1,5}", reveal in "[a-z]{1,5}") {
         prop_assume!(target != occ && occ != reveal && target != reveal);
-        let mut s = Society::seeded(&[Beat::node(&target, &target)]);
+        let mut s = Society::seeded(&[EventRow::node(&target, &target)]);
         // a named event occludes the target
         s.lay_p(&occ, "occludes", "ev", &target, Q_OCCLUDES);
         prop_assert!(is_occluded(&s, &target, None));
@@ -205,7 +205,7 @@ proptest! {
         prop_assert!(!is_occluded(&s, &target, None));
 
         // a self-loop {subject==object} is NOT occlusion
-        let mut s2 = Society::seeded(&[Beat::node(&target, &target)]);
+        let mut s2 = Society::seeded(&[EventRow::node(&target, &target)]);
         s2.lay_p("loop", "self", &target, &target, Q_OCCLUDES);
         prop_assert!(!is_occluded(&s2, &target, None));
     }
@@ -215,7 +215,7 @@ proptest! {
 
 #[test]
 fn occlude_hides_then_self_is_not_occluded() {
-    let mut s = Society::seeded(&[Beat::node("a", "a")]);
+    let mut s = Society::seeded(&[EventRow::node("a", "a")]);
     assert!(!is_occluded(&s, "a", None));
     s.lay_p("ev-occ", "E occludes a", "E", "a", Q_OCCLUDES);
     assert!(is_occluded(&s, "a", None));
@@ -225,9 +225,9 @@ fn occlude_hides_then_self_is_not_occluded() {
 #[test]
 fn occlusion_is_society_scoped() {
     // the frame IS the society: x occluded HERE stands in full light in another society.
-    let mut s1 = Society::seeded(&[Beat::node("x", "x")]);
+    let mut s1 = Society::seeded(&[EventRow::node("x", "x")]);
     s1.lay_p("occ-x", "occludes x", "E", "x", Q_OCCLUDES);
-    let s2 = Society::seeded(&[Beat::node("x", "x")]);
+    let s2 = Society::seeded(&[EventRow::node("x", "x")]);
     assert!(is_occluded(&s1, "x", None));
     assert!(!is_occluded(&s2, "x", None));
 }
@@ -236,7 +236,7 @@ fn occlusion_is_society_scoped() {
 fn undo_is_an_append_not_an_erasure() {
     // TS society.prop: "superseding a grounding flips establishment to false but keeps both
     // beats in the log" — reframed to occlusion, the live grammar.
-    let mut soc = Society::seeded(&[Beat::node("target", "target")]);
+    let mut soc = Society::seeded(&[EventRow::node("target", "target")]);
     soc.lay_p("g0", "frame grounds", "frame", "target", Q_GROUNDING);
     assert!(is_established(&soc, "target", None));
     let size_after_ground = soc.size();
@@ -253,13 +253,13 @@ fn as_of_truncates_the_log() {
     // an occlusion not yet witnessed does not count: as of an earlier moment the target is
     // still established. (the witnessing axis — society.ts asOf.)
     let mut soc = Society::new();
-    soc.lay(Beat::node("target", "target").with_witnessed(1));
-    soc.lay(Beat::edge("g0", "grounds", "frame", "target").with_witnessed(2));
-    soc.lay(Beat::edge("g0~q", "[q-grounding]", "g0", Q_GROUNDING).with_witnessed(3));
+    soc.lay(EventRow::node("target", "target").with_witnessed(1));
+    soc.lay(EventRow::edge("g0", "grounds", "frame", "target").with_witnessed(2));
+    soc.lay(EventRow::edge("g0~q", "[q-grounding]", "g0", Q_GROUNDING).with_witnessed(3));
     assert!(is_established(&soc, "target", None));
     // occlude at moment 10
-    soc.lay(Beat::edge("occ", "occludes", "frame", "g0").with_witnessed(10));
-    soc.lay(Beat::edge("occ~q", "[q-occludes]", "occ", Q_OCCLUDES).with_witnessed(11));
+    soc.lay(EventRow::edge("occ", "occludes", "frame", "g0").with_witnessed(10));
+    soc.lay(EventRow::edge("occ~q", "[q-occludes]", "occ", Q_OCCLUDES).with_witnessed(11));
     assert!(!is_established(&soc, "target", None)); // now: occluded
     assert!(is_established(&soc, "target", Some(5))); // as of 5: occlusion hasn't landed
 }
@@ -277,15 +277,15 @@ use scher_core::edge_word::{find_poles, Pole};
 /// gen4 `a ~because~ b` (a rests on b). The spine climbs from Once UP to HEA.
 fn grounds(soc: &mut Society, a: &str, b: &str) {
     let e = format!("{a}~grounds~{b}");
-    soc.lay(Beat::edge(&e, "", a, b));
-    soc.lay(Beat::edge(&format!("{e}~q"), "[q-grounding]", &e, Q_GROUNDING));
+    soc.lay(EventRow::edge(&e, "", a, b));
+    soc.lay(EventRow::edge(&format!("{e}~q"), "[q-grounding]", &e, Q_GROUNDING));
 }
 
 #[test]
 fn eikon_well_formed_has_one_source_one_end() {
     // HEA ~because~ mid ~because~ once   (HEA rests on mid, mid rests on once)
     let mut soc = Society::new();
-    for s in ["hea", "mid", "once"] { soc.lay(Beat::node(s, "")); }
+    for s in ["hea", "mid", "once"] { soc.lay(EventRow::node(s, "")); }
     grounds(&mut soc, "hea", "mid");
     grounds(&mut soc, "mid", "once");
 
@@ -301,7 +301,7 @@ fn eikon_well_formed_has_one_source_one_end() {
 fn eikon_catches_config_drift() {
     // topology is truth: if config NAMES the wrong end, the law reports Mismatch, not silence.
     let mut soc = Society::new();
-    for s in ["hea", "mid", "once"] { soc.lay(Beat::node(s, "")); }
+    for s in ["hea", "mid", "once"] { soc.lay(EventRow::node(s, "")); }
     grounds(&mut soc, "hea", "mid");
     grounds(&mut soc, "mid", "once");
 
@@ -314,7 +314,7 @@ fn eikon_catches_config_drift() {
 fn eikon_catches_many_ends() {
     // two roofs (two beats nothing is because-of) = plural ends = malformed.
     let mut soc = Society::new();
-    for s in ["hea1", "hea2", "once"] { soc.lay(Beat::node(s, "")); }
+    for s in ["hea1", "hea2", "once"] { soc.lay(EventRow::node(s, "")); }
     grounds(&mut soc, "hea1", "once");
     grounds(&mut soc, "hea2", "once"); // both rest on once; both are roofs
     let poles = find_poles(&soc, ["hea1", "hea2", "once"], None, Some("once"));
@@ -330,7 +330,7 @@ fn eikon_catches_no_source_when_loop_closed() {
     // close the loop (hea ~because~ once) AND nothing is because-of-nothing: every beat is
     // both an `a` and a `b` → no source, no end. A pure cycle has no asymptote. Malformed.
     let mut soc = Society::new();
-    for s in ["hea", "once"] { soc.lay(Beat::node(s, "")); }
+    for s in ["hea", "once"] { soc.lay(EventRow::node(s, "")); }
     grounds(&mut soc, "hea", "once");
     grounds(&mut soc, "once", "hea"); // closes the loop — now both are `a` and `b`
     let poles = find_poles(&soc, ["hea", "once"], Some("hea"), Some("once"));
@@ -361,7 +361,7 @@ mod isomorph {
     /// THE one structure. `hea ~because~ {you,me} ~because~ once`. Read it however you like.
     fn the_event() -> Society {
         let mut soc = Society::new();
-        for s in ["hea", "you", "me", "once"] { soc.lay(Beat::node(s, "")); }
+        for s in ["hea", "you", "me", "once"] { soc.lay(EventRow::node(s, "")); }
         // hea rests on both sub-events; both rest on once. (grounds() defined above.)
         grounds(&mut soc, "hea", "you");
         grounds(&mut soc, "hea", "me");
@@ -423,7 +423,7 @@ mod isomorph {
         // FRACTAL: descend into a sub-event and it has the SAME three-pole structure.
         // here `you` is itself an event: you-hea ~because~ you-mid ~because~ you-once.
         let mut soc = Society::new();
-        for s in ["you-hea", "you-mid", "you-once"] { soc.lay(Beat::node(s, "")); }
+        for s in ["you-hea", "you-mid", "you-once"] { soc.lay(EventRow::node(s, "")); }
         grounds(&mut soc, "you-hea", "you-mid");
         grounds(&mut soc, "you-mid", "you-once");
         // read the SUB-event with the SAME law — no special-casing for "inner" vs "outer".
@@ -460,7 +460,7 @@ mod isomorph {
         let mut chain = vec!["end".to_string()];
         for k in 0..n { chain.push(format!("i{k}")); }
         chain.push("source".to_string());
-        for s in &chain { soc.lay(Beat::node(s, "")); }
+        for s in &chain { soc.lay(EventRow::node(s, "")); }
         for w in chain.windows(2) { grounds(&mut soc, &w[0], &w[1]); } // w[0] rests on w[1]
         (soc, chain)
     }
@@ -522,7 +522,7 @@ mod anti_time {
         // Kassad-frame forward: meets ~because~ battle. Moneta-frame retrograde: a FUTURE
         // tomb-event rests on the meeting. The two coexist as one clean DAG, no cycle.
         let mut soc = Society::new();
-        for s in ["kassad-battle", "kassad-meets-moneta", "moneta-future-tomb"] { soc.lay(Beat::node(s, "")); }
+        for s in ["kassad-battle", "kassad-meets-moneta", "moneta-future-tomb"] { soc.lay(EventRow::node(s, "")); }
         grounds(&mut soc, "kassad-meets-moneta", "kassad-battle");      // forward
         grounds(&mut soc, "moneta-future-tomb", "kassad-meets-moneta"); // retrograde (anti-time)
         let p = find_poles(&soc, ["kassad-battle", "kassad-meets-moneta", "moneta-future-tomb"], None, None);
@@ -538,7 +538,7 @@ mod anti_time {
         // on tomb. Every beat is both an `a` and a `b` → no source, no end → malformed. The
         // grammar does NOT absorb a true paradox silently — the law smacks (Pole::None).
         let mut soc = Society::new();
-        for s in ["the-tomb", "the-opening"] { soc.lay(Beat::node(s, "")); }
+        for s in ["the-tomb", "the-opening"] { soc.lay(EventRow::node(s, "")); }
         grounds(&mut soc, "the-tomb", "the-opening");
         grounds(&mut soc, "the-opening", "the-tomb"); // the bootstrap — closes the causal loop
         let p = find_poles(&soc, ["the-tomb", "the-opening"], None, None);

@@ -108,7 +108,10 @@ impl Society {
         if self.rows.contains_key(&b.slug) {
             return false;
         }
+        // TODO(socratic): why `clock + 1` instead of `clock` when no explicit witnessed is given — does each auto-stamp need daylight from the previous, or is incrementing a safety margin?
+        // ANSWERED(walk 2026-07-02): daylight — each auto-stamp gets a moment strictly later than everything already seen, so successive un-witnessed lays stay ordered; only explicit witnesses may tie. — code fact (the clock ratchets via max on the next line)
         let witnessed = b.witnessed.unwrap_or(self.clock + 1);
+        // TODO(socratic): `.max()` here ratchets the clock forward; could an out-of-order explicit witness (earlier than current clock) break assumptions about monotone time, or is that guard alone insufficient?
         self.clock = self.clock.max(witnessed);
         b.witnessed = Some(witnessed);
         self.rows.insert(b.slug.clone(), b);
@@ -118,6 +121,8 @@ impl Society {
     /// Lay a beat (the only write). Returns true on a genuine append, false if inert.
     pub fn lay(&mut self, b: EventRow) -> bool {
         let appended = self.insert(b);
+        // TODO(socratic): why bump rev only on genuine append, not on attempted lay of duplicate — is rev a count of "state-change moments" or "moment someone asked to write", and do readers need rev stable until something actually writes?
+        // ANSWERED(walk 2026-07-02): rev counts state-change moments — lay of an existing slug is inert under the append-only law, so readers can trust rev unchanged means nothing appended. — see walk plan §A (append-only law)
         if appended {
             self.rev += 1;
         }
@@ -126,6 +131,7 @@ impl Society {
 
     /// Lay a prehension co-prehending a quality: the edge and its `~q` mode-beat. Mirrors
     /// `layP`. Returns true if either the edge or its `~q` was a genuine append.
+    // TODO(socratic): if the edge already exists but its `~q` doesn't (or vice versa), lay_p welds a fresh mode onto an old prehension — should re-laying with a DIFFERENT quality really return true while leaving the original quality standing, with no read to notice the disagreement?
     pub fn lay_p(
         &mut self,
         slug: &str,
@@ -145,6 +151,7 @@ impl Society {
     pub fn lay_all(&mut self, rows: &[EventRow]) {
         let mut any = false;
         for b in rows {
+            // TODO(socratic): iterating with `||` accumulates—is the order-independence of "did any row append" intentional (first-wins vs last-wins shouldn't matter), and does discarding per-row appended status lose information a caller might need?
             any = self.insert(b.clone()) || any;
         }
         if any {
@@ -179,6 +186,9 @@ impl Society {
 // beats witnessed at-or-before t. `None` means "now" — no filter.
 
 /// Was beat `b` witnessed at-or-before moment `as_of`? (None ⇒ always visible.)
+// TODO(socratic): an un-witnessed beat defaults to 0 here, i.e. visible from every moment — but `lay` promises witnessed is always Some after insert, so which frame produces the None this arm quietly forgives, and should a beat no moment witnessed really be visible AS OF every past?
+// TODO(socratic): the post-insert promise means unwrap_or(0) only triggers if a beat wasn't laid via Society — are direct EventRow reads from external sources (snapshots, forks, replicated state) part of the model, or is Society the only gate?
+// ANSWERED(walk 2026-07-02): Society is the only gate in this crate — insert back-fills witnessed, so the None arm is unreachable through the gate and forgives only hand-built rows in tests. — see walk plan §A (grammar facts) / lib.rs insert
 fn visible_at(b: &EventRow, as_of: Option<u64>) -> bool {
     match as_of {
         None => true,
@@ -188,9 +198,11 @@ fn visible_at(b: &EventRow, as_of: Option<u64>) -> bool {
 
 /// Does prehension P co-prehend the given quality, as of a moment? Both the prehension and
 /// its `~q` mode-beat must be visible — a grounding doesn't count before its quality landed.
+// TODO(socratic): scher's CLAUDE.md says "opaque slugs, no string-matching" — yet every quality read here derives meaning from the `{slug}~q` naming convention; if edge_word exists so reads "stop slug-searching", why is the smuggled-substance path still the load-bearing one?
 pub fn prehends_as(soc: &Society, pslug: &str, quality: &str, as_of: Option<u64>) -> bool {
     let q_slug = format!("{pslug}~q");
     match soc.get(&q_slug) {
+        // TODO(socratic): the quality read checks both that the `~q` beat's object matches the given quality AND that the `~q` beat is visible — but shouldn't visibility of the PREHENSION (pslug itself) also gate whether it counts, or is "both visible" the right boundary?
         Some(q) => q.object.as_deref() == Some(quality) && visible_at(q, as_of),
         None => false,
     }
@@ -207,6 +219,8 @@ pub fn prehensions_onto<'a>(
     soc.all()
         .filter(|b| {
             b.object.as_deref() == Some(row)
+                // TODO(socratic): why insist subject.is_some() — would a beat with no subject (a content beat) ever land here by accident, or is the check defensive against a grammar that forbids headless edges?
+                // ANSWERED(walk 2026-07-02): definitional, not defensive — in the grammar an edge always carries both subject and object; a node is (None, None). The check selects edges. — see walk plan §A (grammar facts)
                 && b.subject.is_some()
                 && visible_at(b, as_of)
                 && prehends_as(soc, &b.slug, quality, as_of)
@@ -225,6 +239,8 @@ pub fn prehensions_from<'a>(
     soc.all()
         .filter(|b| {
             b.subject.as_deref() == Some(row)
+                // TODO(socratic): why require object.is_some() — could an edge have no object (a subject-only beat), or is the grammar such that edges always have both?
+                // ANSWERED(walk 2026-07-02): the grammar is such that edges always have both — a node is (None, None); there is no subject-only shape. — see walk plan §A (grammar facts)
                 && b.object.is_some()
                 && visible_at(b, as_of)
                 && prehends_as(soc, &b.slug, quality, as_of)
@@ -234,10 +250,13 @@ pub fn prehensions_from<'a>(
 
 /// Is this occlusion-prehension itself occluded (its occluder occluded)? One level only —
 /// un-occlusion is the absence of a LIVE occluder, read fresh; no deep recursion.
+// TODO(socratic): "one level only" means an occluder whose own occluder is occluded still casts no shadow — is the depth-1 cutoff a claim of the metaphysics (un-occlusion is absence of a LIVE occluder, read fresh) or a convenience that silently diverges from "live" at chains of length three?
 fn is_occluder(soc: &Society, occlude_edge: &str, as_of: Option<u64>) -> bool {
     soc.all().any(|b| {
         b.object.as_deref() == Some(occlude_edge)
             && b.subject.is_some()
+            // TODO(socratic): the self-loop check `!= Some(occlude_edge)` rejects an edge occluding itself — but does the grammar elsewhere forbid self-loops, or is this the only place guarding against them, or is guarding here incomplete if a malformed edge could appear?
+            // ANSWERED(walk 2026-07-02): the grammar has no self-occluding shape (an occlusion edge's subject names ANOTHER edge); this check just keeps the read total if a malformed row appears — edges always carry both subject and object. — see walk plan §A (grammar facts)
             && b.subject.as_deref() != Some(occlude_edge)
             && visible_at(b, as_of)
             && prehends_as(soc, &b.slug, Q_OCCLUDES, as_of)
@@ -256,6 +275,7 @@ pub fn is_occluded(soc: &Society, target: &str, as_of: Option<u64>) -> bool {
             && b.subject.as_deref() != Some(target)
             && visible_at(b, as_of)
             && prehends_as(soc, &b.slug, Q_OCCLUDES, as_of)
+            // TODO(socratic): an occlusion edge beats all comers if is_occluder(soc, b.slug) is false — but should the read ask "is ANY non-self-occluding edge occluding target" or "is THIS EDGE the active occluder", and does `.any()` short-circuit on the first non-occluded shadow or report all?
             && !is_occluder(soc, &b.slug, as_of)
     })
 }
@@ -265,6 +285,7 @@ pub fn is_occluded(soc: &Society, target: &str, as_of: Option<u64>) -> bool {
 pub fn is_established(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
     prehensions_onto(soc, row, Q_GROUNDING, as_of)
         .iter()
+        // TODO(socratic): the read asks "is any grounding edge itself non-occluded" — but shouldn't it also check "is the GROUNDED beat (row) itself non-occluded", or is establishment defined by the prehension's shadow, not the beat's?
         .any(|p| !is_occluded(soc, &p.slug, as_of))
 }
 
@@ -274,6 +295,9 @@ pub enum Mode {
     Established,
     Scripted,
 }
+
+// TODO(socratic): Mode is binary — but could a beat be neither (no grounding, no script), or is every beat that fails is_established classified Scripted by default?
+// ANSWERED(walk 2026-07-02): yes — everything not established reads Scripted; the binary is the mechanism floor, and doneness proper is the frame-relative read because(Now, event), never a stored property. — see doneness-is-because-now.md / ruling 5
 
 /// mode_at: the establishment-mode read of a beat, as of a moment.
 pub fn mode_at(soc: &Society, row: &str, as_of: Option<u64>) -> Mode {
@@ -290,6 +314,7 @@ pub fn mode_at(soc: &Society, row: &str, as_of: Option<u64>) -> Mode {
 pub fn confidence(soc: &Society, row: &str, as_of: Option<u64>) -> f64 {
     let g = prehensions_onto(soc, row, Q_GROUNDING, as_of).len();
     let e = prehensions_onto(soc, row, Q_EXCLUSION, as_of).len();
+    // TODO(socratic): confidence counts every grounding and exclusion, even occluded ones — is an occluded grounding still a vote for belief, or should occlusion silence it from this ratio?
     if g + e == 0 {
         return 0.0;
     }
@@ -305,6 +330,8 @@ pub fn depends_on(soc: &Society, row: &str, as_of: Option<u64>) -> Vec<String> {
     prehensions_from(soc, row, Q_DEPENDS_ON, as_of)
         .iter()
         .filter(|p| !is_occluded(soc, &p.slug, as_of))
+        // TODO(socratic): filter_map(|p| p.object.clone()) assumes every dependency edge has an object set; is that guaranteed by the grammar, or should a None-object edge be an error?
+        // ANSWERED(walk 2026-07-02): guaranteed by the grammar — edges always carry both subject and object; filter_map is just the type-level unwrap of that fact. — see walk plan §A (grammar facts)
         .filter_map(|p| p.object.clone())
         .collect()
 }
@@ -314,6 +341,8 @@ pub fn dependents_of(soc: &Society, row: &str, as_of: Option<u64>) -> Vec<String
     prehensions_onto(soc, row, Q_DEPENDS_ON, as_of)
         .iter()
         .filter(|p| !is_occluded(soc, &p.slug, as_of))
+        // TODO(socratic): filter_map(|p| p.subject.clone()) assumes every dependency edge's subject is Some; if prehensions_onto already filters subject.is_some(), is the map redundant or does filter_map guard against a change to the grammar?
+        // ANSWERED(walk 2026-07-02): redundant with prehensions_onto's filter — the same grammar fact (edges have both ends) unwrapped at the type level, not extra defense. — see walk plan §A (grammar facts)
         .filter_map(|p| p.subject.clone())
         .collect()
 }
@@ -322,6 +351,8 @@ pub fn dependents_of(soc: &Society, row: &str, as_of: Option<u64>) -> Vec<String
 pub fn blocked_on_now(soc: &Society, row: &str, as_of: Option<u64>) -> Vec<String> {
     depends_on(soc, row, as_of)
         .into_iter()
+        // TODO(socratic): filtering by "not established" assumes a beat is either Established or live-blocking; is a Scripted beat (not established, no grounding but also not explicitly grounded) considered a blocker?
+        // ANSWERED(walk 2026-07-02): yes — a Scripted dependency blocks; established/scripted is the mechanism floor, and the doneness read layered on it is because(Now), story-NOW default. — see doneness-is-because-now.md / ruling 5
         .filter(|d| !is_established(soc, d, as_of))
         .collect()
 }
@@ -344,6 +375,8 @@ pub struct Stress {
     pub dependents: Vec<String>,
 }
 
+// TODO(socratic): Stress weight is 3/2/1 for Established/blocked/Scripted — why those numbers, and does "weight" mean "priority" or "cost to lose", and should occluded dependents count toward stress?
+
 pub fn stress_of(soc: &Society, row: &str, as_of: Option<u64>) -> Stress {
     let dependents = dependents_of(soc, row, as_of);
     let weight = dependents.iter().fold(0u64, |w, d| {
@@ -352,6 +385,7 @@ pub fn stress_of(soc: &Society, row: &str, as_of: Option<u64>) -> Stress {
         } else if is_blocked(soc, d, as_of) {
             2
         } else {
+            // TODO(socratic): the fallback weight for Scripted is 1 — but could a beat be occluded, and should an occluded dependent weigh 0?
             1
         }
     });
@@ -366,6 +400,8 @@ pub fn stress_of(soc: &Society, row: &str, as_of: Option<u64>) -> Stress {
 pub fn content_beats(soc: &Society) -> Vec<&EventRow> {
     soc.all()
         .filter(|b| b.subject.is_none() && !b.slug.ends_with("~q"))
+        // TODO(socratic): content_beats filters by subject.is_none() to find nodes, but could a beat have a null subject by accident, or is the grammar such that every content beat has exactly subject=None?
+        // ANSWERED(walk 2026-07-02): the grammar — a content beat (node) is exactly (subject=None, object=None) by construction; edges always have both. No accidental halves. — see walk plan §A (grammar facts)
         .collect()
 }
 
@@ -377,6 +413,8 @@ pub fn content_beats(soc: &Society) -> Vec<&EventRow> {
 pub fn grounded_by(soc: &Society, row: &str) -> Vec<String> {
     prehensions_onto(soc, row, Q_GROUNDING, None)
         .iter()
+        // TODO(socratic): filter_map assumes every grounding prehension has a subject; prehensions_onto already checked subject.is_some(), so is this map just a safety or does it defend against a grammar change?
+        // ANSWERED(walk 2026-07-02): just the type-level unwrap of the same grammar fact prehensions_onto already filtered on (edges have both ends). — see walk plan §A (grammar facts)
         .filter_map(|p| p.subject.clone())
         .collect()
 }
@@ -389,8 +427,11 @@ pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
     let edges: Vec<&EventRow> = soc
         .all()
         .filter(|b| {
+            // TODO(socratic): interval edges must have both subject and object — what makes an edge with only one "plain"?
+            // ANSWERED(walk 2026-07-02): an edge with only one end doesn't exist in the grammar (nodes are None,None); "plain" = both ends present, object not q-*, slug not ~q. Membership is this betweenness walk, never a stored containment edge — ~holds~ is settled-dead. — see clearness-holds-is-settled-debt.md
             b.subject.is_some()
                 && b.object.is_some()
+                // TODO(socratic): excluding objects starting with "q-" filters quality beats; but should the filter also exclude other meta edges, or is this the right boundary?
                 && !b.object.as_deref().unwrap().starts_with("q-")
                 && !b.slug.ends_with("~q")
         })
@@ -402,6 +443,8 @@ pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
         let mut stack = vec![from.to_string()];
         while let Some(n) = stack.pop() {
             for e in edges {
+                // TODO(socratic): fwd=true walks forward (subject→object), fwd=false walks backward (object→subject) — but does "forward-reachable from once" mean subject→object or object→subject, and which direction is the story's "natural" flow?
+                // ANSWERED(walk 2026-07-02): fwd steps subject→object, bwd the reverse; the interval is the fwd(once) ∩ bwd(end) intersection, so the read is order-free set reachability between the poles — the poles ARE the story, the interior is read, never stored. — see event-is-the-bounding-sphere.md (R3)
                 let next = if fwd {
                     if e.subject.as_deref() == Some(&n) { e.object.clone() } else { None }
                 } else if e.object.as_deref() == Some(&n) {
@@ -410,6 +453,7 @@ pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
                     None
                 };
                 if let Some(next) = next {
+                    // TODO(socratic): seen.insert() returns false if `next` was already in the set — so the stack skips revisiting; is the reachability graph acyclic, or does loop-avoidance silently hide cycles?
                     if seen.insert(next.clone()) {
                         stack.push(next);
                     }
@@ -421,6 +465,8 @@ pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
 
     let fwd = reach(&edges, once, true);
     let bwd = reach(&edges, end, false);
+    // TODO(socratic): intersection of forward-reachable and backward-reachable sets gives the interval — but is this symmetric, or could a beat be reachable fwd from `once` but not bwd from `end` (unreachable end), and should the interval include `once` and `end` themselves?
+    // ANSWERED(walk 2026-07-02): a beat reachable from once but not reaching end lies outside the sphere — betweenness IS the intersection, by design. Both seed sets include their own start, so the poles appear here; readers that want only the interior (canon_of) filter them out — poles are boundary, interior is read. — see event-is-the-bounding-sphere.md (R3)
     fwd.into_iter().filter(|n| bwd.contains(n)).collect()
 }
 
@@ -428,8 +474,10 @@ pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
 /// names an "end". Mirrors `endOf` in society.ts. (Seam for gen4: gen4 retires q-lure — "the lure
 /// is read" — so gen4 will likely pass `end` explicitly to distance_to_hea rather than rely on
 /// this. Ported faithfully to scher's grammar, where q-lure still names the End.)
+// TODO(socratic): `o.contains("end")` will crown "weekend-review" or "backend-cleanup" as a story's End — is a substring of a slug really where the metaphysics wants "what an End IS" to live, and does `soc.all().find(...)` on an unordered map even pick a stable End when two q-lure edges match?
 pub fn end_of(soc: &Society, story: &str) -> Option<String> {
     soc.all()
+        // TODO(socratic): find() returns the first match in an unordered map — what defines "first", and if two q-lure edges match, should end_of pick one deterministically or error?
         .find(|b| {
             b.subject.as_deref() == Some(story)
                 && b.object.as_deref().is_some_and(|o| o.contains("end"))
@@ -451,10 +499,13 @@ pub struct HeaDistance {
 pub fn distance_to_hea(soc: &Society, frame_once: &str, end: Option<&str>) -> HeaDistance {
     let the_end = end
         .map(|e| e.to_string())
+        // TODO(socratic): the fallback chain tries explicit end, then end_of(), then literal "{once}-end" — if none exist, the function happily uses a nonexistent End; should it error, or is reading a phantom-end an acceptable fact?
         .or_else(|| end_of(soc, frame_once))
         .unwrap_or_else(|| format!("{frame_once}-end"));
     let interior: Vec<String> = interval_of(soc, frame_once, &the_end)
         .into_iter()
+        // TODO(socratic): filtering to exclude `once` and `the_end` — but does interval_of() include them already, and if the interval is empty after filtering, is that a valid story with zero interior beats?
+        // ANSWERED(walk 2026-07-02): yes on both — interval_of's seed sets include the poles, so this filter strips them; and an empty interior is a valid extended event (an empty day and a point event differ only in pole-separation). — see event-is-the-bounding-sphere.md (R3)
         .filter(|b| b != frame_once && b != &the_end)
         .collect();
     let remaining = interior.iter().filter(|b| !is_established(soc, b, None)).count();

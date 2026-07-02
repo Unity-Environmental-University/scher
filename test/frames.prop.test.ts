@@ -49,6 +49,49 @@ describe("clockLabel — purity", () => {
     );
   });
 
+  it("omitting the locale reads exactly as a blank locale frame (back-compat: inheritance)", () => {
+    const blankLocale = fc.constantFrom(undefined, null, "", "   ");
+    const anyWhen = fc.oneof(
+      fc.constant("2026-07-02"), // bare calendar date
+      fc.constant("2026-07-02T15:30:00Z"), // full instant
+      fc.constant("Weds AM"), // hand-written
+    );
+    fc.assert(
+      fc.property(anyWhen, blankLocale, (when, loc) => {
+        // the two-arg call (the pre-locale signature) and a blank locale frame are the SAME read
+        expect(clockLabel(when, "UTC", loc)).toBe(clockLabel(when, "UTC"));
+      }),
+    );
+  });
+
+  it("an established locale frame changes the weekday/month WORDS (the other half of the frame)", () => {
+    // 2026-07-02 is a Thursday; check both branches (calendar date + instant).
+    fc.assert(
+      fc.property(fc.constantFrom("2026-07-02", "2026-07-02T12:00:00Z"), (when) => {
+        const en = clockLabel(when, "UTC", "en-US");
+        const fr = clockLabel(when, "UTC", "fr-FR");
+        const de = clockLabel(when, "UTC", "de-DE");
+        expect(en).toMatch(/Thu/); // Thursday, July — English words
+        expect(fr).toMatch(/jeu/i); // jeudi, juillet — French words
+        expect(de).toMatch(/Do/); // Donnerstag, Juli — German words
+        expect(fr).not.toBe(en);
+      }),
+    );
+  });
+
+  it("locale changes the words, never the calendar date (a date still never zone-shifts)", () => {
+    const isoDate = fc
+      .date({ min: new Date(Date.UTC(1970, 0, 1)), max: new Date(Date.UTC(2100, 0, 1)), noInvalidDate: true })
+      .map((d) => d.toISOString().slice(0, 10));
+    fc.assert(
+      fc.property(isoDate, fc.constantFrom("en-US", "fr-FR", "ja-JP"), (when, loc) => {
+        const day = Number(when.slice(8, 10));
+        // the day-of-month survives every locale's wording
+        expect(clockLabel(when, null, loc)).toContain(String(day));
+      }),
+    );
+  });
+
   it("a non-date hand-written string passes through untouched", () => {
     const handwritten = fc.string().filter((s) => !/^\d{4}-\d{2}-\d{2}/.test(s) && Number.isNaN(Date.parse(s)));
     fc.assert(

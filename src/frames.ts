@@ -28,7 +28,9 @@
 
 // ── TIME AS A FRAME ────────────────────────────────────────────────────────────
 
+// TODO(socratic): I call this "the objective frame," but it is captured once at module load — if the process migrates zones (or a test stubs Intl after import), is a frozen snapshot still objective, or is it just the frame of whoever imported me first?
 /** The objective frame: the system's machine timezone. Every reader deltas from it. */
+// TODO(socratic): Is "UTC" the right fallback if we can't read the zone — or is picking any zone when we're blind a violation of the frame's principle (a frame IS the reader's standpoint, and we have none)?
 export const SYSTEM_ZONE: string = (() => {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -38,6 +40,7 @@ export const SYSTEM_ZONE: string = (() => {
 })();
 
 /** A reader's frame for time: their zone if established, else the system's (inherited). */
+// TODO(socratic): Why pass userZone through trim() — are leading/trailing spaces meaningful input (should we reject them), or accidental noise (should trim happen at the boundary where userZone enters)?
 export function timeFrame(userZone?: string | null): string {
   return userZone && userZone.trim() ? userZone.trim() : SYSTEM_ZONE;
 }
@@ -47,39 +50,47 @@ export function timeFrame(userZone?: string | null): string {
  *  - a bare ISO date (YYYY-MM-DD) is a calendar date — parsed LOCAL, never zone-shifts
  *  - a full instant is read THROUGH the reader's frame (their zone, or the system's)
  */
-export function clockLabel(when: string, userZone?: string | null): string {
+// TODO(socratic): now that I take BOTH userZone and userLocale, they arrive as two loose optionals — should a reader's frame be one value (zone+locale together) rather than two parameters a caller can half-pass, recreating the half-frame this signature just repaired?
+export function clockLabel(when: string, userZone?: string | null, userLocale?: string | null): string {
   // bare calendar date — the common case. Parse the parts as a LOCAL date: no day-shift.
   const isoDate = when.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (isoDate) {
     const [, y, m, d] = isoDate;
-    return labelOf(new Date(Number(y), Number(m) - 1, Number(d)));
+    // TODO(socratic): new Date(year, month, day) in JS is always LOCAL — but does labelOf then read the same date in ANOTHER zone if the caller passed userZone?  (the calendar date was parsed local to the machine, but then labelOf ignores userZone entirely — is that the contract, or a bug)?
+    return labelOf(new Date(Number(y), Number(m) - 1, Number(d)), userLocale);
   }
+  // TODO(socratic): my "hand-written strings pass through" promise rests on Date.parse returning NaN — but Date.parse is famously lenient ("March 5", "2026/06/17" parse in many engines), so which hand-written labels get silently hijacked into the instant branch and re-worded in someone's zone?
   // a full instant (has time/offset) — read it in the reader's frame via Intl.
   const t = Date.parse(when);
   if (!Number.isNaN(t)) {
     const zone = timeFrame(userZone);
+    const locale = localeFrame(userLocale);
     try {
-      const day = new Intl.DateTimeFormat(undefined, { weekday: "short", timeZone: zone }).format(t);
-      const date = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", timeZone: zone }).format(t);
+      // TODO(socratic): Why call Intl twice (once for weekday, once for date) instead of a single format call with both options?
+      const day = new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: zone }).format(t);
+      const date = new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", timeZone: zone }).format(t);
       return `${day} ${date}`;
     } catch {
-      return labelOf(new Date(t));
+      // TODO(socratic): If Intl formatting fails, we fall back to labelOf — which doesn't know the userZone; is this the contract, or should the fallback honor the frame somehow?
+      return labelOf(new Date(t), userLocale);
     }
   }
   // already-plain hand-written string ("Weds AM") passes through.
   return when;
 }
 
-function labelOf(d: Date): string {
-  // plain register: short weekday + month + day. Locale words, frame-correct date.
-  const day = d.toLocaleDateString(undefined, { weekday: "short" });
-  const date = d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+function labelOf(d: Date, userLocale?: string | null): string {
+  // plain register: short weekday + month + day. The READER'S locale words, frame-correct date.
+  const locale = localeFrame(userLocale);
+  const day = d.toLocaleDateString(locale, { weekday: "short" });
+  const date = d.toLocaleDateString(locale, { month: "short", day: "numeric" });
   return `${day} ${date}`;
 }
 
 // ── LOCALE AS A FRAME ────────────────────────────────────────────────────────────
 
 /** The objective frame: the system's locale. Every reader deltas from it. */
+// TODO(socratic): Is "en" the right fallback if we can't read the locale — or is it assuming English-language readers when we're blind, the same tension as SYSTEM_ZONE defaulting to UTC?
 export const SYSTEM_LOCALE: string = (() => {
   try {
     return new Intl.DateTimeFormat().resolvedOptions().locale;
@@ -89,6 +100,7 @@ export const SYSTEM_LOCALE: string = (() => {
 })();
 
 /** A reader's locale frame: theirs if established, else the system's (inherited). */
+// TODO(socratic): Same as timeFrame — should trim() happen here, or at the boundary where userLocale is created?
 export function localeFrame(userLocale?: string | null): string {
   return userLocale && userLocale.trim() ? userLocale.trim() : SYSTEM_LOCALE;
 }
@@ -115,9 +127,12 @@ export interface Canons<Id extends string> {
  */
 export function makeCanon<Id extends string>(canons: Canons<Id>): (id: Id, userLocale?: string | null) => string {
   const { base, deltas } = canons;
+  // TODO(socratic): Why does makeCanon take the whole Canons structure and return a closure, rather than being a pure function that takes (canons, id, userLocale)?  The closure bakes in the canons — is that a performance win (closure over data), a design win (each canon is its own reader-function), or just shape-matching the caller's site?
   return (id: Id, userLocale?: string | null): string => {
     const loc = localeFrame(userLocale);
+    // TODO(socratic): I collapse the whole BCP-47 tag to its first subtag — "zh-Hant" and "zh-Hans" both become "zh", and "es-MX" can never carry its own delta even if a caller supplies one; is a one-hop delta-from-base a frame, or did I quietly decide locales have no depth?
     const lang = loc.split("-")[0] ?? loc; // "es-MX" -> "es"
+    // TODO(socratic): The fallback chain is deltas?.[lang]?.[id] ?? base[id] — what if id is missing from base?  (The type signature says base is "must be total over Id," but we don't validate that at runtime — what does a missing key in the base canon mean)?
     return deltas?.[lang]?.[id] ?? base[id];
   };
 }

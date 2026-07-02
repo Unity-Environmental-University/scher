@@ -110,10 +110,13 @@ export class Society {
   // Beats are never overwritten; to undo, supersede with a new beat.
   #insert(b: EventRow): boolean {
     if (this.#beats.has(b.slug)) return false;
+    // TODO(socratic): if the beat already exists, why return false instead of throw or at least log — is silent inertness the only semantics we want here?
+    // ANSWERED(walk 2026-07-02): yes — inertness IS the append-only law (a lay of an existing slug is a no-op, mirrored by Postgres ON CONFLICT (slug) DO NOTHING); a re-lay is a normal, legal event (reload, double-fire), not an error, and the boolean already tells the caller which it was. — see the comment above / append-only law
     // The witnessing clock is monotone across BOTH explicit stamps and auto-stamps:
     // an explicitly-witnessed beat advances the clock so a later auto-stamp never
     // reuses (or precedes) a moment already witnessed. Without this, asOf reads lie.
     const witnessed = b.witnessed ?? this.#clock + 1;
+    // TODO(socratic): is the default-witnessed clock-increment-then-assign the right order, or should auto-stamps lag behind explicit ones?
     this.#clock = Math.max(this.#clock, witnessed);
     this.#beats.set(b.slug, { ...b, witnessed });
     return true;
@@ -123,22 +126,29 @@ export class Society {
    *  append (new slug), false if inert (slug already present). */
   lay(b: EventRow): boolean {
     const appended = this.#insert(b);
+    // TODO(socratic): should the rev bump happen inside #insert, or is keeping it here in lay() the right separation — does every caller need that granularity?
     if (appended) this.rev.set(this.rev.get() + 1);
     return appended;
   }
 
   /** Lay a prehension (an edge) co-prehending a quality. Lays the prehension and its
    *  '~q' mode-beat, so the reads below can see the mode. */
+  // TODO(socratic): if the prehension slug is already present but its '~q' beat is not (or vice versa),
+  // I lay only the missing half and report true — is a half-mode-carrying prehension a state I mean to
+  // permit, or a corruption the append-only law just made unfixable?
   layP(slug: string, content: string, subject: string, object: string, quality: Quality): boolean {
     assertNotMembershipContainment(slug, quality);
+    // TODO(socratic): does the quality belong in the '~q' beat's content (as "[${quality}]"), or is it already fully encoded by the object field?
     const a = this.lay({ slug, content, subject, object });
     const q = this.lay({ slug: slug + "~q", content: `${content} [${quality}]`, subject: slug, object: quality });
+    // TODO(socratic): returning a || q means we report "appended" if either half is new — but if only the '~q' half lands (prehension already laid), did we really append a full prehension?
     return a || q;
   }
 
   /** Bulk-lay (e.g. a fetched canon, or a seed package). One rev bump for the batch. */
   layAll(beats: ReadonlyArray<EventRow>): void {
     let any = false;
+    // TODO(socratic): why iterate through #insert directly instead of calling lay() for each, and lose the per-beat rev structure — is the assumption that bulk-lay is from a trusted source that never conflicts?
     for (const b of beats) any = this.#insert(b) || any;
     if (any) this.rev.set(this.rev.get() + 1);
   }
@@ -179,6 +189,7 @@ export class Society {
 
 /** Was beat `b` witnessed at-or-before moment `asOf`? (undefined ⇒ always visible.) */
 function visibleAt(b: EventRow, asOf?: number): boolean {
+  // TODO(socratic): when b.witnessed is undefined, why default to 0 instead of treating it as error/unknown, or storing the clock value that was chosen at insert time?
   return asOf === undefined || (b.witnessed ?? 0) <= asOf;
 }
 
@@ -220,6 +231,7 @@ export function prehensionsFrom(soc: Society, beat: string, quality: Quality, as
  *  As of an earlier moment, a not-yet-witnessed occlusion does not count — so an undo is itself
  *  a point on the trajectory, visible only after it lands. */
 export function isOccluded(soc: Society, target: string, asOf?: number): boolean {
+  // TODO(socratic): the b.subject !== target guard — why exclude self-occlusion (if that's even layable), and what does it mean if it were?
   return soc.all().some((b) =>
     b.object === target && b.subject !== null && b.subject !== target &&
     visibleAt(b, asOf) && prehendsAs(soc, b.slug, "q-occludes", asOf) &&
@@ -230,6 +242,7 @@ export function isOccluded(soc: Society, target: string, asOf?: number): boolean
 /** Is this occlusion-prehension itself occluded (its occluder occluded)? One level only — by
  *  design there is no deep recursion: un-occlusion is the absence of a LIVE occluder, read fresh. */
 function isOccluder(soc: Society, occludeEdge: string, asOf?: number): boolean {
+  // TODO(socratic): why is this logic a separate function instead of inlined in isOccluded, and does "one level only" mean we never ask isOccluder recursively?
   return soc.all().some((b) =>
     b.object === occludeEdge && b.subject !== null && b.subject !== occludeEdge &&
     visibleAt(b, asOf) && prehendsAs(soc, b.slug, "q-occludes", asOf));
@@ -239,6 +252,7 @@ function isOccluder(soc: Society, occludeEdge: string, asOf?: number): boolean {
  *  reaches it. Unchecking supersedes the grounding, so this re-reads as scripted; the
  *  grounding and its supersede both remain in the society. */
 export function isEstablished(soc: Society, beat: string, asOf?: number): boolean {
+  // TODO(socratic): why check isOccluded on the prehension slug (p.slug, the edge) instead of also checking if the prehension's subject (the grounding frame) is occluded?
   return prehensionsOnto(soc, beat, "q-grounding", asOf).some((p) => !isOccluded(soc, p.slug, asOf));
 }
 
@@ -249,7 +263,10 @@ export function modeAt(soc: Society, beat: string, asOf?: number): Mode {
 
 /** confidence: groundings / (groundings + exclusions), in [0,1], as of a moment. Every
  *  prehension counts 1; weighting can live elsewhere. */
+// TODO(socratic): I return 0 both for "no evidence at all" and "unanimously excluded" — do those two
+// readings deserve the same number, or is silence being made to wear condemnation's face?
 export function confidence(soc: Society, beat: string, asOf?: number): number {
+  // TODO(socratic): should I filter out occluded groundings/exclusions like isEstablished does, or is raw count the right measure?
   const g = prehensionsOnto(soc, beat, "q-grounding", asOf).length;
   const e = prehensionsOnto(soc, beat, "q-exclusion", asOf).length;
   if (g + e === 0) return 0;
@@ -283,6 +300,7 @@ export function dependentsOf(soc: Society, beat: string, asOf?: number): string[
  *  blockers. Blocked is a reading, not a stored state: a dep that's established no longer
  *  blocks. Empty ⇒ not blocked. */
 export function blockedOnNow(soc: Society, beat: string, asOf?: number): string[] {
+  // TODO(socratic): should blockedOnNow skip occluded dependencies, or is checking only for establishment the right filter?
   return dependsOn(soc, beat, asOf).filter((d) => !isEstablished(soc, d, asOf));
 }
 
@@ -308,6 +326,7 @@ export function whoWaitsOn(soc: Society, beat: string, asOf?: number): string[] 
  *  channel: the algedonic signal made a reading, not a stored alarm.) */
 export function stressOf(soc: Society, beat: string, asOf?: number): { count: number; weight: number; dependents: string[] } {
   const dependents = dependentsOf(soc, beat, asOf);
+  // TODO(socratic): why weight 3-2-1 for established-blocked-scripted — what changes if I used other ratios, and how would I know the right one?
   const weight = dependents.reduce((w, d) => w + (isEstablished(soc, d, asOf) ? 3 : isBlocked(soc, d, asOf) ? 2 : 1), 0);
   return { count: dependents.length, weight, dependents };
 }
@@ -315,9 +334,11 @@ export function stressOf(soc: Society, beat: string, asOf?: number): { count: nu
 /** grounded_by / excluded_by: WHO grounded/excluded — the subject (frame) of each
  *  grounding/exclusion prehension. Frame-on-grounding, read client-side. */
 export function groundedBy(soc: Society, beat: string): string[] {
+  // TODO(socratic): should these functions pass asOf so they can show the state as-of-a-moment, or is "now" the only sensible frame for showing who grounded something?
   return prehensionsOnto(soc, beat, "q-grounding").map((p) => p.subject!).filter(Boolean);
 }
 export function excludedBy(soc: Society, beat: string): string[] {
+  // TODO(socratic): should these functions filter out occluded groundings/exclusions, or is the raw list (including superseded) what the caller wants?
   return prehensionsOnto(soc, beat, "q-exclusion").map((p) => p.subject!).filter(Boolean);
 }
 
@@ -327,10 +348,15 @@ export interface Pathos {
   count: number;
   by: string[];
 }
+// TODO(socratic): I am the raw read "kept for back-compat" while reactionsOn (below) is the honest
+// one — how long does a deprecated read get to keep counting un-reacted feels before a surface
+// trusts the wrong number, and what would let me perish?
+// ANSWERED(walk 2026-07-02): the code names its own exit — reactionsOn's doc says it is "the one a reacting surface should use"; pathosOf perishes the moment no caller remains, which is a greppable fact today, not a policy wait. — see reactionsOn's doc-comment below
 export function pathosOf(soc: Society, beat: string): Pathos[] {
   const feels = prehensionsOnto(soc, beat, "q-feel");
   const byEmoji = new Map<string, Pathos>();
   for (const p of feels) {
+    // TODO(socratic): what happens if p.content is not a single emoji, or contains whitespace within the emoji — does trim() on a multi-codepoint string work as intended?
     const emoji = p.content.trim();
     if (!emoji) continue;
     const cur = byEmoji.get(emoji) ?? { emoji, count: 0, by: [] };
@@ -338,6 +364,7 @@ export function pathosOf(soc: Society, beat: string): Pathos[] {
     if (p.subject) cur.by.push(p.subject);
     byEmoji.set(emoji, cur);
   }
+  // TODO(socratic): why sort by count descending, and should ties be broken by emoji value or by insertion order?
   return [...byEmoji.values()].sort((a, b) => b.count - a.count);
 }
 
@@ -347,6 +374,8 @@ export function pathosOf(soc: Society, beat: string): Pathos[] {
  *  for back-compat; reactionsOn is the one a reacting surface should use.) asOf-relative,
  *  like every read here. */
 export function reactionsOn(soc: Society, beat: string, asOf?: number): Pathos[] {
+  // TODO(socratic): when someone un-reacts, does the old reaction get occluded (shadowed) or deleted, and does reactionsOn see the deletion via occlude-guard?
+  // ANSWERED(walk 2026-07-02): occluded, never deleted — nothing is ever deleted here (append-only; occluded ≠ deleted, the ink stays); the isOccluded filter on the next line IS the occlude-guard seeing it, so an un-reacted feel drops out of the count while staying in the record. — see the occluded≠deleted ruling (clearness-holds) / append-only law
   const feels = prehensionsOnto(soc, beat, "q-feel", asOf).filter((p) => !isOccluded(soc, p.slug, asOf));
   const byEmoji = new Map<string, Pathos>();
   for (const p of feels) {
@@ -360,8 +389,12 @@ export function reactionsOn(soc: Society, beat: string, asOf?: number): Pathos[]
   return [...byEmoji.values()].sort((a, b) => b.count - a.count);
 }
 
+// TODO(socratic): my own CLAUDE.md law is "opaque slugs, no string-matching" — yet here I decide
+// story-hood by object.includes("end"); does a lure toward "weekend-plans" make anything a Story,
+// and why isn't End-ness a quality or a read instead of a syllable?
 /** is_story: does `beat` lure to a beat whose slug contains 'end'? */
 export function isStory(soc: Society, beat: string): boolean {
+  // TODO(socratic): should isStory also check that the lure is not occluded, or is the existence of a lure-edge enough regardless of occlusion?
   return soc.all().some(
     (b) => b.subject === beat && (b.object?.includes("end") ?? false) && prehendsAs(soc, b.slug, "q-lure"),
   );
@@ -380,6 +413,7 @@ export function intervalOf(soc: Society, once: string, end: string): string[] {
   const edges = soc.all().filter(
     (b) => b.subject !== null && b.object !== null && !b.object.startsWith("q-") && !b.slug.endsWith("~q"),
   );
+  // TODO(socratic): should interval-membership filter out occluded edges, and would that be a visible-at-moment issue too?
   const reach = (from: string, dir: "fwd" | "bwd"): Set<string> => {
     const seen = new Set<string>([from]);
     const stack = [from];
@@ -395,11 +429,14 @@ export function intervalOf(soc: Society, once: string, end: string): string[] {
   };
   const fwd = reach(once, "fwd");
   const bwd = reach(end, "bwd");
+  // TODO(socratic): what if fwd and bwd have no intersection, or if once is reachable from end (a cycle) — should both be checked?
   return [...fwd].filter((n) => bwd.has(n));
 }
 
 /** the End-beat a story lures toward (the slug containing 'end' it q-lures to), if any. */
 export function endOf(soc: Society, story: string): string | null {
+  // TODO(socratic): should endOf return null if the lure is occluded, or is the presence of any lure-edge the right answer?
+  // TODO(socratic): if a story lures to multiple end-beats, find() returns only the first — is that intentional or a bug?
   const lure = soc.all().find(
     (b) => b.subject === story && (b.object?.includes("end") ?? false) && prehendsAs(soc, b.slug, "q-lure"),
   );
@@ -408,6 +445,7 @@ export function endOf(soc: Society, story: string): string | null {
 
 /** author_of: the subject of a q-utterance prehension onto `beat` (who said it). */
 export function authorOf(soc: Society, beat: string): string | null {
+  // TODO(socratic): if multiple actors have utteranced the same beat, [0] takes the first — what order, and should there be only one author or is this ambiguous?
   const utt = prehensionsOnto(soc, beat, "q-utterance")[0];
   return utt?.subject ?? null;
 }
@@ -416,6 +454,7 @@ export function authorOf(soc: Society, beat: string): string | null {
  *  true when the End beat is itself established; `remaining` is how many interior beats
  *  are still scripted (ungrounded). */
 export function distanceToHEA(soc: Society, frameOnce: string, end?: string): { realized: boolean; remaining: number; total: number } {
+  // TODO(socratic): the fallback to `${frameOnce}-end` — if endOf returns null, should distanceToHEA error, or is a constructed slug a reasonable default?
   const theEnd = end ?? endOf(soc, frameOnce) ?? `${frameOnce}-end`;
   const interior = intervalOf(soc, frameOnce, theEnd).filter((b) => b !== frameOnce && b !== theEnd);
   const remaining = interior.filter((b) => !isEstablished(soc, b)).length;
@@ -428,7 +467,12 @@ export function distanceToHEA(soc: Society, frameOnce: string, end?: string): { 
 
 /** assigneesOf: who is assigned to a card — the people on it. Reads the `<card>-asn-<who>` edges
  *  (object = `actor-<who>`), non-superseded, returns bare names. */
+// TODO(socratic): q-assigned-to exists in my Quality union precisely for this relation — why do I
+// read assignment by slug shape ('-asn-', 'actor-' prefix) instead of the quality, and which of the
+// two grammars is the one new writers are actually laying?
 export function assigneesOf(soc: Society, card: string): string[] {
+  // TODO(socratic): the slug.startsWith check couples assignment reading to slug naming — if I switched to quality-based reading, would old slug-based edges become invisible?
+  // TODO(socratic): the replace(/^actor-/, "") assumes all objects follow the "actor-<name>" pattern — what if an object doesn't match, or the empty string passes through .filter(Boolean)?
   return soc.all()
     .filter((b) => b.slug.startsWith(card + "-asn-") && !isOccluded(soc, b.slug))
     .map((b) => (b.object ?? "").replace(/^actor-/, ""))
@@ -439,6 +483,7 @@ export function assigneesOf(soc: Society, card: string): string[] {
  *  side in ONE pass. A drama is resolved iff a non-superseded q-resolves prehension runs
  *  from it to some story (its object). Returns the story slug, or null if still open. */
 export function resolutionOf(soc: Society, drama: string): string | null {
+  // TODO(socratic): if a drama q-resolves to multiple stories (ambiguous resolution), find() returns the first — is that a conflict that should error instead?
   const r = prehensionsFrom(soc, drama, "q-resolves").find((p) => !isOccluded(soc, p.slug));
   return r?.object ?? null;
 }
@@ -452,5 +497,6 @@ export function isResolved(soc: Society, drama: string): boolean {
  *  Legacy beats stored a "[well]/[better] " prefix in content; new beats store clean.
  *  Append-only means we can't edit the old content — so we strip on display. */
 export function cleanContent(s: string): string {
+  // TODO(socratic): when is cleanContent called — in every render, or once on load — and should the stripping happen in read-land or be a display concern?
   return s.replace(/^\[(well|better)\] /, "");
 }

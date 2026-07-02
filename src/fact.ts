@@ -47,6 +47,7 @@ export interface Fact {
   history(): EventRow[];
   /** the target beat slug this fact is about (read-only; for composition). */
   readonly target: string;
+  // TODO(socratic): should Fact expose the grounding frame (opts.by), or keep it opaque so the caller can't forge writes as a different frame?
 }
 
 export interface FactOptions {
@@ -54,6 +55,7 @@ export interface FactOptions {
   by: string;
   /** slug prefix for this fact's groundings (defaults to `f-${target}`). */
   prefix?: string;
+  // TODO(socratic): should FactOptions validate that opts.by exists in the society at construction time, or is late-binding (undefined frame = silent no-op) acceptable?
 }
 
 /** Build a Fact over a target beat's establishment. This is the positivist wrapper:
@@ -63,13 +65,19 @@ export function fact(soc: Society, target: string, opts: FactOptions): Fact {
   const prefix = opts.prefix ?? `f-${target}`;
   let nth = 0;
 
+  // TODO(socratic): why bake target into the prefix — if a fact migrates targets or is re-keyed, does `f-${target}` still anchor the history meaningfully?
+  // TODO(socratic): if reads are frame-relative, whose frame is get() reading — is "the truth, now" an honest name for a frameless isEstablished, or is opts.by quietly not a standpoint here at all?
   const get = () => isEstablished(soc, target);
 
   const self: Fact = {
     target,
     read: derive(() => isEstablished(soc, target), [soc.rev]),
     get,
+    // TODO(socratic): readConfidence reads the full target — does confidence() bleach away which frames are grounding vs which are excluding, or is it a scoped read through opts.by's lens?
     confidence: () => readConfidence(soc, target),
+    // TODO(socratic): scher's one discipline is "opaque slugs, no string-matching" — so what is startsWith(prefix) doing here, and does the `sup-${prefix}` clause still match anything now that un-ground lays `occ-` beats instead of supersedes?
+    // TODO(socratic): history() rebuilds the full slug-match on every call — should this be cached/derived, or is the append-only guarantee light enough that recomputing beats the coupling cost?
+    // TODO(socratic): the three filter clauses (prehensionsOnto match + sup- prefix + fact prefix) — do they cover every beat this fact could have laid, or is there a fourth kind of beat (e.g., corrective, forensic, meta) that falls through?
     history: () =>
       soc.all().filter(
         (b) =>
@@ -79,14 +87,18 @@ export function fact(soc: Society, target: string, opts: FactOptions): Fact {
       ),
     set(value: boolean) {
       const live = get();
+      // TODO(socratic): should intent-idempotent short-circuit check opts.by's frame — i.e., is "no needless append" absolute, or should it be "no needless append FROM THIS FRAME"?
       if (value === live) return; // intent-idempotent — no needless append
       if (value) {
+        // TODO(socratic): nth lives in this closure, not in the society — if two Facts (or two sessions) share a prefix, doesn't the second one re-lay `${prefix}-0` and resurrect exactly the born-superseded collision this line claims to kill?
         // GROUND: always a FRESH slug → never born-superseded (kills the desync bug).
+        // TODO(socratic): why does this line lay directly to the society (soc.layP) rather than going through any Fact-owned beat-creation surface — does that choice make the nth counter necessary for slug freshness, or is it a hygiene detail?
         soc.layP(`${prefix}-${nth++}`, `${opts.by} grounds ${target}`, opts.by, target, "q-grounding");
       } else {
         // UN-GROUND = OCCLUDE every live grounding (2026-06-26: was a self-loop supersede, which
         // the freeze 409s and isOccluded no longer reads). The actor (opts.by) is the named occluder
         // — records WHO un-grounded, and is reversible. Append-only; groundings stay in ink.
+        // TODO(socratic): set(false) occludes EVERY live grounding onto target, not just this fact's — should opts.by be able to silently un-ground what other frames laid, and is `occ-${g.slug}` safe when a slug can only be laid once but a grounding can be occluded, un-occluded, and need occluding again?
         for (const g of prehensionsOnto(soc, target, "q-grounding").filter((p) => !isOccluded(soc, p.slug))) {
           soc.layP(`occ-${g.slug}`, `${opts.by} un-grounds ${g.slug}`, opts.by, g.slug, "q-occludes");
         }

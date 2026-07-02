@@ -47,6 +47,8 @@ export interface CardStoryParams {
   /** optional: drill-in. Given, the card becomes clickable — open this beat as its own
    *  story view. The card doesn't decide what "open" means; the caller routes. */
   onOpen?: (slug: string) => void;
+  // TODO(socratic): onReify is accepted here and threaded through viewCardStory, yet cardStory's render never shows a reify affordance — is this a promise the card silently drops, and should the param exist at all until the face exists?
+  // TODO(socratic): why is standpoint optional here but optional again in CardStoryParams — isn't the param interface the already-optional place, so the ? in the rendering is redundant?
   /** optional: reify this told-short card into an actual story (lay End + lure). */
   onReify?: (slug: string) => void;
 }
@@ -56,6 +58,7 @@ export function cardStory(soc: Society, params: CardStoryParams): Node {
   // the card is a projection of a reading: (content, mode, pathos) of this beat.
   const read = reading(soc, (s) => {
     const beat = s.get(slug);
+    // TODO(socratic): why does modeAt return something that needs `as Mode` cast — is the query's return type too wide, or is modeAt sometimes returning a non-Mode value that should be caught?
     return {
       content: beat?.content ?? `(no beat: ${slug})`,
       mode: modeAt(s, slug) as Mode,
@@ -72,6 +75,7 @@ export function cardStory(soc: Society, params: CardStoryParams): Node {
     if (params.onOpen) on(card, "click", () => params.onOpen!(slug));
     card.appendChild(el("div", { class: "slug" }, slug));
     card.appendChild(el("div", { class: "content" }, v.content));
+    // TODO(socratic): why are there only two branches (established vs scripted) when Mode may have more values — is this a contract that modeAt guarantees only these two, or is the else-case handling multiple modes differently?
     card.appendChild(
       el("div", { class: `mode ${v.mode}` },
         v.mode === "established"
@@ -104,6 +108,7 @@ export interface ButtonStoryParams {
 }
 
 export function buttonStory(soc: Society, params: ButtonStoryParams): Node {
+  // TODO(socratic): why does buttonStory default enabled to true, while enabled-checking still happens at click time — is the default meant to be defensive fallback or is the button always enabled by construction?
   const read = reading(soc, (s) => ({
     label: typeof params.label === "function" ? params.label(s) : params.label,
     enabled: params.enabled ? params.enabled(s) : true,
@@ -114,6 +119,7 @@ export function buttonStory(soc: Society, params: ButtonStoryParams): Node {
       class: `story-button ${params.class ?? ""}`,
       attrs: { disabled: v.enabled ? undefined : "true" },
     }, v.label) as HTMLButtonElement;
+    // TODO(socratic): why gate the click handler on v.enabled instead of letting the disabled attr work and checking at press-time, like toggleButtonStory does?
     if (v.enabled) on(btn, "click", () => params.press(soc));  // press = lay a beat
     return btn;
   }).node;
@@ -140,6 +146,8 @@ export interface ToggleButtonStoryParams {
 export function toggleButtonStory(soc: Society, params: ToggleButtonStoryParams): Node {
   const { target, by, groundSlug } = params;
 
+  // TODO(socratic): the comment says "this fixes the one-loop bug" but why was reading a FIXED slug the bug — what makes a fixed slug desync and does nth++ guarantee freshness even across multiple toggles of the same target?
+  // ANSWERED(walk 2026-07-02): the append-only law is why — a slug can only be laid ONCE (re-lay is inert), so re-grounding must mint a fresh slug each cycle, and any read pinned to one fixed slug goes stale after the first occlude/re-ground; reading the TARGET's establishment (below) is slug-free and never desyncs. nth++ freshness has its own open bug at fix-list #8. — see append-only law / walk plan B#8
   // LIVE = does the TARGET have any non-superseded grounding? (the truth, not a single
   // slug's state). This is what fixes the one-loop bug: each re-ground uses a FRESH slug,
   // so reading a fixed slug desyncs after one cycle. Read the establishment of the target.
@@ -156,6 +164,7 @@ export function toggleButtonStory(soc: Society, params: ToggleButtonStoryParams)
               : (params.labelUnchecked ?? "☐ check = ground")) as HTMLButtonElement;
 
     on(btn, "click", () => {
+      // TODO(socratic): liveNow is re-read from scratch at click time, but why — could the projection have staled between render and click, or is this defending against some edge case in the batching/revision system?
       // re-read live AT CLICK TIME (don't trust the captured v — defensive against any
       // stale projection). The society is the source of truth.
       const liveNow = isEstablished(soc, target);
@@ -163,6 +172,7 @@ export function toggleButtonStory(soc: Society, params: ToggleButtonStoryParams)
         // CHECK: lay a fresh-slugged grounding (always new → never born-superseded).
         soc.layP(`${groundSlug}-${nth++}`, `${by} grounds ${target}`, by, target, "q-grounding");
       } else {
+        // TODO(socratic): why occlude ALL live groundings instead of just the most recent one — does every grounding participate equally in establishment, or are there scenarios where one grounding alone drives the mode?
         // UNCHECK = OCCLUDE every live grounding onto the target (2026-06-26: was a self-loop
         // supersede the freeze 409s / isOccluded ignores). `by` is the named occluder. Append-only:
         // the groundings stay in ink, the read ignores them. The society count RISES on undo.
@@ -202,6 +212,7 @@ export function modalStory(soc: Society, params: ModalStoryParams): { openButton
     // close = OCCLUDE the open-beat (append-only; 2026-06-26: was a self-loop supersede). The
     // ui-seat is the named occluder. re-open later lays a fresh open-beat.
     if (isOpen(soc)) {
+      // TODO(socratic): counting `occ-${openSlug}` prefixes is string-matching a slug for meaning — the exact smuggling QUERIES.md forbids; why not read prehensionsOnto(soc, openSlug, "q-occludes").length instead of parsing names?
       const n = soc.all().filter((b) => b.slug.startsWith(`occ-${openSlug}`)).length;
       if (!soc.has("modal-ui")) soc.lay({ slug: "modal-ui", content: "modal ui seat", subject: null, object: null });
       soc.layP(`occ-${openSlug}-${n}`, `closes modal ${params.id}`, "modal-ui", openSlug, "q-occludes");
@@ -260,6 +271,7 @@ export function frameStory(soc: Society, params: FrameStoryParams, depth = 0): N
 
   const read = reading(soc, (s) => {
     const end = params.end ?? endOf(s, once) ?? `${once}-end`;
+    // TODO(socratic): why three fallbacks (params.end, endOf, hardcoded once-end) — are they ordered by preference (preferred to least preferred), or do they reflect three different cases?
     // the interior = the interval minus the lips themselves
     const interior = intervalOf(s, once, end).filter((b) => b !== once && b !== end);
     return { end, interior, onceBeat: s.get(once), endBeat: s.get(end) };
@@ -277,11 +289,13 @@ export function frameStory(soc: Society, params: FrameStoryParams, depth = 0): N
 
     // ── INTERIOR — the body (held inside the jaws, indented past the spine) ──
     const body = el("div", { class: "frame-body" });
+    // TODO(socratic): cardParams builds an object conditionally — why not always include standpoint (even if undefined) and let the card ignore it, rather than building two different shapes?
     // pass standpoint only when defined (exactOptionalPropertyTypes)
     const sp = params.standpoint;
     const cardParams = (slug: string) => (sp !== undefined ? { slug, standpoint: sp } : { slug });
     for (const slug of v.interior) {
       const beatIsStory = isStory(soc, slug);
+      // TODO(socratic): depth < 1 means depth 0 gets recursion but depth 1+ doesn't — but why is 1 the cap instead of allowing more levels, and what does "unreadable" look like in practice?
       if (beatIsStory && depth < 1) {
         // ONE LEVEL of recursion: nest a sub-frame for this interior story.
         body.appendChild(frameStory(soc, sp !== undefined ? { once: slug, standpoint: sp } : { once: slug }, depth + 1));
@@ -335,6 +349,7 @@ export interface Gist {
 export function gistOf(soc: Society, once: string, end?: string): Gist {
   const theEnd = end ?? endOf(soc, once) ?? `${once}-end`;
   const interior = intervalOf(soc, once, theEnd).filter((b) => b !== once && b !== theEnd);
+  // TODO(socratic): why include boundary's witnessed-time in the freeze but foldGist explicitly excludes it (with the comment about not advancing the watermark past interior beats) — are the two doing different things on purpose?
   // freeze clock = max witnessed among the boundary+interior (the gist's "given time").
   const witnessedOf = (s: string) => soc.get(s)?.witnessed ?? 0;
   const at = Math.max(witnessedOf(once), witnessedOf(theEnd), ...interior.map(witnessedOf), 0);
@@ -346,10 +361,11 @@ export function gistOf(soc: Society, once: string, end?: string): Gist {
  *  beat behind the bound post-dates the original freeze. (The horizon evaporates →
  *  the consumer can choose to re-gist by re-reading.) Returns a Read<Gist>. */
 export function freshGistOf(soc: Society, once: string, end?: string): Read<Gist> {
-  // capture the freeze at construction; re-derive marks stale if the interval grew/changed.
+  // TODO(socratic): "fresh" here means frozen-at-construction-forever — stale never clears and the summary shown is the OLD freeze's shape with `...now` spread over it; is a Gist that can only ever announce its own death (never re-seal) what the name promises, and does an occlusion behind the bound (membership unchanged, `at` unchanged) even register as stale?
   const frozen = gistOf(soc, once, end);
   return reading(soc, (s) => {
     const now = gistOf(s, once, end);
+    // TODO(socratic): grew checks membership change (length or content), but moved checks at > frozen.at — why not use now.at !== frozen.at to catch both direction and magnitude changes?
     // stale iff a new interior beat appeared, or any interior witnessed-time exceeds the freeze.
     const grew = now.interior.length !== frozen.interior.length
       || now.interior.some((b) => !frozen.interior.includes(b));
@@ -430,6 +446,7 @@ export function foldGist<T>(
   const theEnd = end ?? endOf(soc, once) ?? `${once}-end`;
   const interior = intervalOf(soc, once, theEnd).filter((b) => b !== once && b !== theEnd);
   const witnessedOf = (s: string) => soc.get(s)?.witnessed ?? 0;
+  // TODO(socratic): the watermark is computed as max(interior + occlusions), but why fold occlusion's witnessed time and not the interior beat's membership-change time — are they guaranteeing the same clock?
   // the cursor = the max witnessed-stamp among the INTERIOR (the beats the monoid folds),
   // NOT the boundary. The boundary (once/end) often pre-exists at a high stamp and does
   // not participate in the summary; folding it into the cursor would push the watermark
@@ -445,6 +462,7 @@ export function foldGist<T>(
   // so such a frame is never silently behind the watermark. Bounding to occlusions onto interior
   // beats or their reach is a future O(tail) refinement; folding the watermark forward +
   // cold-on-invalidation is the correct, monoid-agnostic floor.
+  // TODO(socratic): this scans the WHOLE society for ANY occlusion anywhere (and via `b.slug + "~q"`, another slug-parse) — so one unrelated uncheck elsewhere cold-scans every foldGist forever; is the promised O(tail) actually reachable while the watermark is global rather than bounded to this interval's reach?
   const occlusionStamps = soc.all()
     .filter((b) => soc.get(b.slug + "~q")?.object === "q-occludes")
     .map((b) => b.witnessed ?? 0);
@@ -506,6 +524,8 @@ export function loreOf(soc: Society, beat: string): Lore {
  *  a future story's Once can prehend. Returns the lore-beat slug, or null if the beat
  *  isn't established (you cannot make Lore of an ungrounded thing). */
 export function makeLore(soc: Society, beat: string, by: string): string | null {
+  // TODO(socratic): what happens if makeLore is called twice on the same beat — does the second lay overwrite the first's lore slug, or is the idempotency in the caller's hands?
+  // ANSWERED(walk 2026-07-02): neither overwrite nor caller's burden — `lore-${beat}` is a stable slug, and a lay of an existing slug is INERT (append-only law: nothing is ever overwritten), so a second makeLore is a no-op end to end; idempotency lives in the society itself. — see Society::lay / append-only law
   if (!isEstablished(soc, beat)) return null;  // only settled facts become Lore
   const loreSlug = `lore-${beat}`;
   soc.lay({ slug: loreSlug, content: `Lore: ${soc.get(beat)?.content ?? beat} (canonized background)`, subject: null, object: null });
@@ -548,6 +568,7 @@ export interface ListStoryParams {
 export function listStory(soc: Society, params: ListStoryParams): Node {
   const container = el("div", { class: `story-list ${params.class ?? ""}` });
   const read = reading(soc, (s) => params.slice(s));
+  // TODO(socratic): renderItem conditionally includes standpoint to match frameStory's cardParams pattern — is there a reason these two can't both always pass standpoint (even if undefined) and let the downstream ignore it?
   const renderItem = params.item ?? ((s: Society, slug: string) =>
     cardStory(s, params.standpoint !== undefined ? { slug, standpoint: params.standpoint } : { slug }));
   projectList(read, container, {
@@ -590,12 +611,14 @@ export interface ViewCardParams {
 
 export function viewCardStory(soc: Society, params: ViewCardParams): Node {
   const { slug, standpoint: sp, onOpen, onReify } = params;
+  // TODO(socratic): why build common conditionally instead of always passing the optionals (even if undefined) to cardStory and frameStory — does passing undefined break something?
   const common = {
     ...(sp !== undefined ? { standpoint: sp } : {}),
     ...(onOpen ? { onOpen } : {}),
     ...(onReify ? { onReify } : {}),
   };
   if (isStory(soc, slug)) {
+    // TODO(socratic): dropping onReify from frameCommon makes sense (can't reify a story that's already bounded), but why omit it with _drop + void instead of just not passing it?
     // already a story — tell it long (no reify affordance; it's already bounded).
     const { onReify: _drop, ...frameCommon } = common as typeof common & { onReify?: unknown };
     void _drop;
@@ -630,11 +653,13 @@ export interface BoardStoryParams {
 export function boardStory(soc: Society, params: BoardStoryParams): Node {
   const board = el("div", { class: `story-board ${params.class ?? ""}` });
   const sp = params.standpoint;
+  // TODO(socratic): why does boardStory pass standpoint conditionally to viewCardStory (matching listStory), but what if both could unconditionally pass all optionals?
   const renderItem = params.item ?? ((s: Society, slug: string) =>
     viewCardStory(s, sp !== undefined ? { slug, standpoint: sp } : { slug }));
 
   for (const col of params.columns) {
     const column = el("div", { class: "board-column" });
+    // TODO(socratic): why count the slice length in a separate reading/project instead of inside the listStory's reading, where it's already computed?
     // the heading carries a live count — a reading of the slice, re-derived on append.
     const heading = project(
       reading(soc, (s) => col.slice(s).length),
@@ -706,10 +731,12 @@ export function dropStory(soc: Society, params: DropStoryParams): Node {
   const drawCard = params.item ?? ((s: Society, slug: string) => viewCardStory(s, { slug }));
   const lane = el("div", { class: "drop-lane" });
 
+  // TODO(socratic): why check a === b in fire, when a comes from the dragged card and b from the drop target — can the UI allow dragging a card onto itself?
   // fire() is the WHOLE write surface: one beat (edge) or one caller-owned place()
   // (membership) per drop — nothing else. This is the dropStory thesis in three lines.
   const fire = (bucket: DropBucket, a: string, b: string) => {
     if (a === b) return;                          // a card can't relate to itself
+    // TODO(socratic): layP's slug format (a-key-b) is deterministic, so a second drop with the same bucket onto the same target will be idempotent — but is that the intended behavior, or should each drop lay a new edge?
     if (bucket.kind === "edge" && bucket.quality) {
       // lay the lateral edge; idempotent by slug. The view re-derives — nothing else to do.
       soc.layP(`${a}-${bucket.key}-${b}`, `${a} ${bucket.label} ${b}`, a, b, bucket.quality);
@@ -726,6 +753,7 @@ export function dropStory(soc: Society, params: DropStoryParams): Node {
     on(card, "drop", (e) => {
       e.preventDefault();
       const a = (e as DragEvent).dataTransfer?.getData("text/plain");
+      // TODO(socratic): the check !a || a === target happens here, but a is only set if dragstart fired on a card — is there a way the dragstart could fail and a be missing, or is the !a check purely defensive?
       if (!a || a === target) return;
       // the buckets bloom as a small picker; choosing one fires the lay. The picker is a
       // reading of "a drag is hovering here", not stored state — it lives only for this drop.
@@ -789,8 +817,11 @@ export function composerStory(soc: Society, params: ComposerStoryParams): Node {
 
     const submit = () => {
       const text = input.value.trim();
+      // TODO(socratic): should submit re-read enabled from the society instead of trusting the captured v.enabled (which may have staled since projection), or does the input's disabled attr prevent firing until re-projection?
+      // TODO(socratic): toggleButtonStory re-reads the society AT CLICK TIME because "don't trust the captured v" — so why does submit trust this captured v.enabled, when the frame could seal between projection and Enter?
       if (!text || !v.enabled) return;             // an empty field is inert
       params.submit(soc, text);                    // the closure owns the lay
+      // TODO(socratic): clearing the input happens synchronously after submit, but what if params.submit batches an async lay — does the clear fire before or after the batch?
       input.value = "";                            // clear the transient draft
     };
 
@@ -833,6 +864,7 @@ export interface ReactionStoryParams {
 
 export function reactionStory(soc: Society, params: ReactionStoryParams): Node {
   const { target, by, emoji } = params;
+  // TODO(socratic): the default reactSlug template uses by + emoji + target, but what if the same emotion should be layered (multiple reactions per emoji per standpoint), or is one-per-standpoint-per-emoji the rule?
   // a deterministic slug for THIS (standpoint, emoji, target) reaction. Idempotent: pressing
   // again reads the same slug and supersedes it (un-react), never lays a duplicate.
   const slug = params.reactSlug ?? `feel-${by}-${emoji}-${target}`;
@@ -840,6 +872,7 @@ export function reactionStory(soc: Society, params: ReactionStoryParams): Node {
   // LIVE = does this reaction exist AND not superseded? The truth is the read, not a flag.
   const isLive = (s: Society) => s.has(slug) && !isOccluded(s, slug);
 
+  // TODO(socratic): reactionsOn(target) scans all reactions on target, but could there be a more direct read that avoids the find() each time (e.g., prehensionsOnto + filter)?
   // the button shows the emoji + the total count of THIS emoji across all reactors (a reading
   // of reactionsOn), and a "mine" marker when this standpoint's own reaction is live.
   const read = reading(soc, (s) => ({
@@ -852,6 +885,7 @@ export function reactionStory(soc: Society, params: ReactionStoryParams): Node {
       class: `story-button reaction ${v.live ? "mine" : ""} ${params.class ?? ""}`,
       on: {
         click: () => {
+          // TODO(socratic): like toggleButtonStory, this re-reads isLive(soc) at click time — is the pattern that cached projections can stale between render and event, so every toggle/reaction needs to re-check?
           if (!isLive(soc)) {
             // REACT: lay a q-feel from `by` onto `target`, the emoji as content.
             soc.layP(slug, emoji, by, target, "q-feel");

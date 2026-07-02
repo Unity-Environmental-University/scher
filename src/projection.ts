@@ -54,10 +54,12 @@ export type RenderFn<T> = (value: T) => Node;
  *  For a LIST of beats prefer projectList (keyed, minimal churn). Use project() for a
  *  single node whose whole content is a function of one reading (a detail pane, a
  *  status chip, a header). */
+// TODO(socratic): I assume subscribe() delivers the first reading synchronously — if a Read<T> ever defers its first emission, `node` returns undefined typed as Node; is that contract written anywhere but in my hope?
 export function project<T>(read: Read<T>, render: RenderFn<T>): Projection {
   let current: Node;
   let mounted = false;
 
+  // TODO(socratic): why track `mounted` separately instead of checking `current !== undefined`?
   const unsub: Unsubscribe = read.subscribe((value) => {
     const next = render(value);
     if (!mounted) {
@@ -65,6 +67,7 @@ export function project<T>(read: Read<T>, render: RenderFn<T>): Projection {
       mounted = true;
       return;
     }
+    // TODO(socratic): if the old reading isn't in the DOM yet (re-observe fires before mount), I silently drop the swap and only update `current` — does the caller who cached `.node` before mounting ever learn their node is now a stale reading?
     // swap in place: the new reading takes the old reading's spot in the DOM.
     if (current.parentNode) (current as ChildNode).replaceWith(next);
     current = next;
@@ -72,9 +75,11 @@ export function project<T>(read: Read<T>, render: RenderFn<T>): Projection {
 
   return {
     get node(): Node {
+      // TODO(socratic): should we throw here if called before first subscription delivers, or is returning an uninitialized Node expected?
       return current;
     },
     destroy(): void {
+      // TODO(socratic): should destroy() unsubscribe before or after current is accessed one last time by a caller?
       unsub();
     },
   };
@@ -102,6 +107,7 @@ export interface ListOptions<T> {
    *  is kept untouched (no re-render, no churn). Default: never re-render an existing
    *  key in place — i.e. treat the key as the whole identity. Pass a real comparison
    *  (e.g. shallow-equal of the fields the row shows) to get in-place patching. */
+  // TODO(socratic): my default — "never re-render an existing key" — means a row whose datum changed shows the OLD reading forever unless the caller remembers to pass `changed`; is a default that lies quietly about the current value the right default for a library whose thesis is "the view is the current reading"?
   changed?: (prev: T, next: T) => boolean;
 }
 
@@ -143,16 +149,19 @@ export function projectList<T>(
       const k = key(item);
       nextKeys.push(k);
       const prev = tracked.get(k);
+      // TODO(socratic): if `changed` is undefined, we assume the row hasn't changed — should the default instead be to always re-render, honoring "view is current reading"?
       if (prev && (!changed || !changed(prev.item, item))) {
         // reuse the existing node untouched (stable — no reflow, selection kept).
         nextTracked.set(k, { item, node: prev.node });
       } else if (prev) {
+        // TODO(socratic): replaceWith on a changed row destroys its DOM subtree — focus, scroll, an open inline editor (the exact churn feed.ts fought) — so is "re-render" here truly a patch, or just rebuild-the-whole-list scoped down to one row?
         // same key, datum changed: re-render, swap the node in place.
         const node = render(item, k);
         if (prev.node.parentNode) (prev.node as ChildNode).replaceWith(node);
         nextTracked.set(k, { item, node });
       } else {
         // a new row.
+        // TODO(socratic): why render immediately instead of deferring until insertBefore in the ordering phase?
         nextTracked.set(k, { item, node: render(item, k) });
       }
     }
@@ -167,6 +176,7 @@ export function projectList<T>(
     let cursor: Node | null = container.firstChild;
     for (const k of nextKeys) {
       const want = nextTracked.get(k)!.node;
+      // TODO(socratic): is the non-null assertion on nextTracked.get(k)! safe because we only iterate nextKeys which are all in nextTracked, or could the map get modified concurrently?
       if (cursor === want) {
         cursor = cursor.nextSibling;
       } else {
@@ -185,6 +195,7 @@ export function projectList<T>(
     get node(): Node {
       return container;
     },
+    // TODO(socratic): I unsubscribe and forget my tracking, but the row nodes stay in the container — if destroy() means "the projection ends," why do its readings outlive it in the DOM, and who is now responsible for them?
     destroy(): void {
       unsub();
       tracked.clear();
@@ -207,10 +218,12 @@ export interface Standpoint {
 
 /** Bundle a root node with the projections/teardowns it owns into one Standpoint.
  *  destroy() runs every teardown (projections, event off-handles, child standpoints). */
+// TODO(socratic): destroy() runs every teardown every time it's called — nothing marks a standpoint as already-perished, so a second destroy() (host unmount + child cleanup racing) double-runs teardowns; should perishing be idempotent here, as it is everywhere else in the metaphysics?
 export function standpoint(root: Node, owns: ReadonlyArray<{ destroy(): void } | (() => void)>): Standpoint {
   return {
     root,
     destroy(): void {
+      // TODO(socratic): should we reverse the order of teardowns, or does this sequence (insert order, not LIFO) match the construction order?
       for (const o of owns) {
         if (typeof o === "function") o();
         else o.destroy();

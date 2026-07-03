@@ -62,7 +62,10 @@ export {
   parallelizable,
   whoWaitsOn,
   stressOf,
-  isEstablished,
+  isEstablished, // deprecated alias — see groundedForAnyFrame / establishedTo
+  groundedForAnyFrame,
+  reaches,
+  establishedTo,
   modeAt,
   confidence,
   groundedBy,

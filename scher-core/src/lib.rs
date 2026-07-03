@@ -34,6 +34,10 @@ pub mod contraction;
 // consts below) from an open `Quality` that also accepts any other string, which is the honest
 // TS-side match for this file's actual behavior. The known words used by the reads here are
 // named as consts for call-site legibility; the grammar's full set lives in society.ts.
+// N4 (Hallie, 2026-07-03): under the universal-grounding ruling the explicit q-grounding
+// mode-beat is BEGINNING DEPRECATION — every because-edge grounds relative to its laying
+// frame, so the marker trends redundant. Still fully usable until a future roadmap point;
+// reads keep honoring it. New writers should know the stock is scheduled, not eternal.
 pub const Q_GROUNDING: &str = "q-grounding";
 pub const Q_EXCLUSION: &str = "q-exclusion";
 pub const Q_OCCLUDES: &str = "q-occludes";
@@ -289,13 +293,76 @@ pub fn is_occluded(soc: &Society, target: &str, as_of: Option<u64>) -> bool {
     })
 }
 
-/// is_established, as of a moment: established iff some non-occluded grounding-prehension
-/// reaches it.
-pub fn is_established(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
+/// grounded_for_any_frame: the society-standpoint AGGREGATE read — does some un-occluded
+/// grounding-prehension reach this beat, from ANY frame this store carries? Never "the"
+/// frame. (N1, Hallie 2026-07-03: soc IS a frame — this is that frame's own existential
+/// read, honestly named.) Under the every-event-is-done-to/by-its-author ruling this read
+/// trends toward true for every authored event once authorship-establishment lands; its
+/// honest use is occlusion-sensitive display, not doneness. For doneness, read
+/// `established_to` (frame-relative reachability, below). Mirrors society.ts.
+pub fn grounded_for_any_frame(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
     prehensions_onto(soc, row, Q_GROUNDING, as_of)
         .iter()
         // TODO(socratic): the read asks "is any grounding edge itself non-occluded" — but shouldn't it also check "is the GROUNDED beat (row) itself non-occluded", or is establishment defined by the prehension's shadow, not the beat's?
         .any(|p| !is_occluded(soc, &p.slug, as_of))
+}
+
+/// DEPRECATED alias of `grounded_for_any_frame` — same behavior, dishonest name (it reads
+/// as frame-free doneness, which the 2026-07-03 ruling made a malformed question). Migrate
+/// reads that mean "done" to `established_to(reader_now, …)`; reads that mean "grounded for
+/// someone" to `grounded_for_any_frame`. Perishes when no caller remains (the pathosOf
+/// precedent — doc-deprecation only, no `#[deprecated]` attribute, so neighbor builds stay
+/// warning-free through their own migration window). Mirrors society.ts's alias.
+pub fn is_established(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
+    grounded_for_any_frame(soc, row, as_of)
+}
+
+// ── FRAME-RELATIVE ESTABLISHMENT (Hallie's ruling, 2026-07-03: "YES EVERY EVENT IS DONE
+// to/by its author" — establishment is always relative to a standpoint; the frame-free
+// question is malformed, and the old reads survive only as the society's OWN standpoint,
+// per N1). Joint-sitting minutes:
+// penelope-gen4/docs/committees/2026-07-03-q-grounding-joint-sitting.md ──────────────────
+
+/// reaches: is `to` reachable from `from` along un-occluded prehensions co-prehending
+/// `quality`, walking subject→object, as of a moment? The BFS that existed twice
+/// (`interval_of`'s private walk here, `done_to` in gen4-policy) held once — the Now-pole
+/// minutes' gift-channel extraction, landed. `from == to` reaches trivially.
+pub fn reaches(soc: &Society, from: &str, to: &str, quality: &str, as_of: Option<u64>) -> bool {
+    if from == to {
+        return true;
+    }
+    let mut seen = std::collections::HashSet::new();
+    seen.insert(from.to_string());
+    let mut stack = vec![from.to_string()];
+    while let Some(n) = stack.pop() {
+        for p in prehensions_from(soc, &n, quality, as_of) {
+            if is_occluded(soc, &p.slug, as_of) {
+                continue;
+            }
+            let Some(next) = p.object.as_deref() else { continue };
+            if next == to {
+                return true;
+            }
+            if seen.insert(next.to_string()) {
+                stack.push(next.to_string());
+            }
+        }
+    }
+    false
+}
+
+/// established_to: frame-relative establishment — is `row` behind the reader's Now on the
+/// grounding topology? `reader_now` is the reader-event's Now NODE: locating it (gen4's
+/// lazily-minted now-{frame}, or any future scheme) is POLICY and stays outside the kernel —
+/// the kernel takes a node, never a slug convention (opaque-slugs law). The missing-Now
+/// short-circuit ("no Now ⇒ nothing done-to-me") likewise lives with the caller, who knows
+/// whether a Now exists.
+///
+/// DELIBERATELY ABSENT, pending Hallie's F-A ruling: the authorship clause (done to/by its
+/// author from birth). Do not add it here without the ruling — the three-way fork
+/// (forever-done / occurrence-vs-work split / occludable authorship) changes its shape.
+pub fn established_to(soc: &Society, reader_now: &str, row: &str, as_of: Option<u64>) -> bool {
+    reaches(soc, reader_now, row, Q_GROUNDING, as_of)
 }
 
 /// The mode a beat reads as — derived, not stored.

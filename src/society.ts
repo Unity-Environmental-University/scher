@@ -40,6 +40,10 @@ export interface EventRow {
 // typo'd q-groundng on a name the kernel actually reads — while letting new lateral
 // qualities typecheck without editing this file.)
 export type KernelQuality =
+  // N4 (Hallie, 2026-07-03): under the universal-grounding ruling the explicit q-grounding
+  // mode-beat is BEGINNING DEPRECATION — every because-edge grounds relative to its laying
+  // frame, so the marker trends redundant. Still fully usable until a future roadmap point;
+  // reads keep honoring it. New writers should know the stock is scheduled, not eternal.
   | "q-grounding"
   | "q-lure"
   | "q-exclusion"
@@ -243,12 +247,67 @@ function isOccluder(soc: Society, occludeEdge: string, asOf?: number): boolean {
     visibleAt(b, asOf) && prehendsAs(soc, b.slug, "q-occludes", asOf));
 }
 
-/** is_established, as of a moment: established iff some non-superseded grounding-prehension
- *  reaches it. Unchecking supersedes the grounding, so this re-reads as scripted; the
- *  grounding and its supersede both remain in the society. */
-export function isEstablished(soc: Society, beat: string, asOf?: number): boolean {
+/** groundedForAnyFrame: the society-standpoint AGGREGATE read — does some un-occluded
+ *  grounding-prehension reach this beat, from ANY frame this store carries? Never "the"
+ *  frame. (N1, Hallie 2026-07-03: soc IS a frame — this is that frame's own existential
+ *  read, honestly named.) Under the every-event-is-done-to/by-its-author ruling this read
+ *  trends toward true for every authored event once authorship-establishment lands; its
+ *  honest use is occlusion-sensitive display, not doneness. For doneness, read
+ *  establishedTo (frame-relative reachability, below). */
+export function groundedForAnyFrame(soc: Society, beat: string, asOf?: number): boolean {
   // TODO(socratic): why check isOccluded on the prehension slug (p.slug, the edge) instead of also checking if the prehension's subject (the grounding frame) is occluded?
   return prehensionsOnto(soc, beat, "q-grounding", asOf).some((p) => !isOccluded(soc, p.slug, asOf));
+}
+
+/** @deprecated Alias of groundedForAnyFrame — same behavior, dishonest name (it reads as
+ *  frame-free doneness, which the 2026-07-03 ruling made a malformed question). Migrate
+ *  reads that mean "done" to establishedTo(readerNow, …); reads that mean "grounded for
+ *  someone" to groundedForAnyFrame. Perishes when no caller remains (the pathosOf
+ *  precedent: a greppable fact, not a policy wait). */
+export function isEstablished(soc: Society, beat: string, asOf?: number): boolean {
+  return groundedForAnyFrame(soc, beat, asOf);
+}
+
+// ── FRAME-RELATIVE ESTABLISHMENT (Hallie's ruling, 2026-07-03: "YES EVERY EVENT IS DONE
+// to/by its author" — establishment is always relative to a standpoint; the frame-free
+// question is malformed, and the old reads survive only as the society's OWN standpoint,
+// per N1). Joint-sitting minutes: docs/committees/2026-07-03-q-grounding-joint-sitting.md ──
+
+/** reaches: is `to` reachable from `from` along un-occluded prehensions co-prehending
+ *  `quality`, walking subject→object, as of a moment? The BFS that existed twice
+ *  (intervalOf's private walk here, done_to in gen4-policy) held once — the Now-pole
+ *  minutes' gift-channel extraction, landed. `from === to` reaches trivially. */
+export function reaches(soc: Society, from: string, to: string, quality: Quality, asOf?: number): boolean {
+  if (from === to) return true;
+  const seen = new Set<string>([from]);
+  const stack = [from];
+  while (stack.length) {
+    const n = stack.pop()!;
+    for (const p of prehensionsFrom(soc, n, quality, asOf)) {
+      if (isOccluded(soc, p.slug, asOf)) continue;
+      const next = p.object!;
+      if (next === to) return true;
+      if (!seen.has(next)) {
+        seen.add(next);
+        stack.push(next);
+      }
+    }
+  }
+  return false;
+}
+
+/** establishedTo: frame-relative establishment — is `beat` behind the reader's Now on the
+ *  grounding topology? `readerNow` is the reader-event's Now NODE: locating it (gen4's
+ *  lazily-minted now-{frame}, or any future scheme) is POLICY and stays outside the kernel —
+ *  the kernel takes a node, never a slug convention (opaque-slugs law). The missing-Now
+ *  short-circuit ("no Now ⇒ nothing done-to-me") likewise lives with the caller, who knows
+ *  whether a Now exists.
+ *
+ *  DELIBERATELY ABSENT, pending Hallie's F-A ruling: the authorship clause (done to/by its
+ *  author from birth). Do not add it here without the ruling — the three-way fork
+ *  (forever-done / occurrence-vs-work split / occludable authorship) changes its shape. */
+export function establishedTo(soc: Society, readerNow: string, beat: string, asOf?: number): boolean {
+  return reaches(soc, readerNow, beat, "q-grounding", asOf);
 }
 
 /** mode_at: the establishment-mode read of a beat, as of a moment (default: now). */

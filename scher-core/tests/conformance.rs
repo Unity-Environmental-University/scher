@@ -92,6 +92,9 @@ proptest! {
 
     // TS: "the witnessing clock is monotone … auto stamps are unique" — every auto-stamped
     // beat gets a distinct positive moment, never reusing/preceding an explicit one.
+    // TODO(socratic): the comment promises "never reusing/preceding an explicit one", but the
+    // TODO(socratic): assertions below only check uniqueness and positivity among AUTO stamps —
+    // TODO(socratic): where is the assertion comparing an auto stamp against the explicit `w`s laid before it?
     #[test]
     fn auto_witnessed_stamps_are_unique(
         specs in prop::collection::vec(("[a-z]{1,5}", proptest::option::of(0u64..=50)), 0..=25)
@@ -171,6 +174,9 @@ fn build_scene(targets: &[String], prehensions: &[Prehension], order: &[usize]) 
 
 proptest! {
     // TS: "modeAt / confidence / isEstablished are permutation-invariant" + "confidence in [0,1]".
+    // TODO(socratic): permutation-invariance is proved only for mode_at/is_established/confidence —
+    // TODO(socratic): find_poles and is_occluded also read the log, so what witnesses that THEY
+    // TODO(socratic): are functions of the set of beats rather than the order laid?
     #[test]
     fn reads_are_permutation_invariant((targets, prehensions) in scene(), seed in any::<u64>()) {
         // total beat count = targets + 2 per prehension
@@ -193,6 +199,9 @@ proptest! {
 
     // TS occlusion.prop: "occluding an occluder always reveals the target (one-level emergent
     // un-occlusion)" + "a self-loop never occludes, for any target name".
+    // TODO(socratic): this proves exactly ONE level of emergent un-occlusion — if a third
+    // TODO(socratic): occluder hides `reveal`, does the target flip back to occluded, and which
+    // TODO(socratic): suite (TS or this one) actually pins that alternating-parity law down?
     #[test]
     fn emergent_un_occlusion(target in "[a-z]{1,5}", occ in "[a-z]{1,5}", reveal in "[a-z]{1,5}") {
         prop_assume!(target != occ && occ != reveal && target != reveal);
@@ -275,6 +284,9 @@ use scher_core::edge_word::{find_poles, Pole};
 
 /// lay a gen3 grounding `a ~grounds~ b` (+ its ~q), which `because_edges_from` reads as the
 /// gen4 `a ~because~ b` (a rests on b). The spine climbs from Once UP to HEA.
+// TODO(socratic): the slug `{a}~grounds~{b}` carries the edge's meaning in its NAME — given
+// TODO(socratic): scher's own discipline (opaque slugs, no string-matching), is any reader
+// TODO(socratic): relying on parsing this shape, or would these tests still pass with random slugs?
 fn grounds(soc: &mut Society, a: &str, b: &str) {
     let e = format!("{a}~grounds~{b}");
     soc.lay(EventRow::edge(&e, "", a, b));
@@ -446,6 +458,10 @@ mod isomorph {
     /// on (its argument's ground). The stored edge-word `a~because~b` and the call
     /// `because(soc, a) == b` are the SAME thing (grammar ≅ API). Returns the single ground
     /// on a clean spine (None at the source — nothing left to apply).
+    // TODO(socratic): on a branching event (like the_event(), where `hea` rests on both `you`
+    // TODO(socratic): and `me`) this silently picks the lexicographically-first ground — is
+    // TODO(socratic): "concrescence IS function evaluation" only proved for straight spines, and
+    // TODO(socratic): what does evaluation even mean when Time genuinely forks?
     fn because_fn(soc: &Society, a: &str) -> Option<String> {
         let mut grounds: Vec<String> = because_edges_from(soc, a).into_iter().map(|e| e.b).collect();
         grounds.sort(); grounds.dedup();

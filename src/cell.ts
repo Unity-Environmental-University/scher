@@ -26,6 +26,8 @@
 export type Subscriber<T> = (value: T) => void;
 export type Unsubscribe = () => void;
 
+// TODO(socratic): why does Subscriber<T> take one T argument rather than the old and new values, or a delta, or an event object with metadata?
+
 /** A read-cell: a value that, when re-observed, notifies whoever is reading it.
  *
  *  This is the "a value is a reading" primitive. Everything reactive in the lib —
@@ -43,7 +45,10 @@ export interface Read<T> {
 // end. A view reading several cells then re-projects a single time. Re-entrant:
 // nested batch() calls share the outer frame (only the outermost flushes).
 
+// TODO(socratic): this frame is module-global — if two independent stores batch on the same tick, their waves entangle; is "one shared Now" a commitment here, or an accident of module scope?
+// TODO(socratic): why is batchDepth a number (counting depth) rather than a flag, and does the number itself matter past zero-or-nonzero?
 let batchDepth = 0;
+// TODO(socratic): pendingFlush holds bare functions, not Cell references — does this loose-coupling hide or reveal the cells involved, and can that hide cascading flushes?
 const pendingFlush = new Set<() => void>();
 
 /** Run `fn`, coalescing every cell re-observation inside it into ONE notification
@@ -56,7 +61,9 @@ export function batch<R>(fn: () => R): R {
   } finally {
     batchDepth--;
     if (batchDepth === 0) {
+      // TODO(socratic): why check batchDepth === 0 rather than 1, and does the off-by-one direction matter?
       // copy + clear first: a flush may itself set a cell (legal; it re-queues).
+      // TODO(socratic): a flush that sets a cell re-queues into pendingFlush — but nothing here re-drains that set outside a batch, so those late notifications fire immediately and un-coalesced; is that the wave you promised, or a second smaller wave the caller never asked for?
       const flushes = [...pendingFlush];
       pendingFlush.clear();
       for (const flush of flushes) flush();
@@ -71,6 +78,7 @@ export function batch<R>(fn: () => R): R {
 export class Cell<T> implements Read<T> {
   #value: T;
   readonly #subs = new Set<Subscriber<T>>();
+  // TODO(socratic): why is #eq stored on every cell rather than passed fresh to set(), and does that bake in a fixed equality rule for a cell's whole lifetime?
   readonly #eq: (a: T, b: T) => boolean;
   #disposed = false;
   // true when this cell already has a flush queued inside an open batch frame.
@@ -88,7 +96,9 @@ export class Cell<T> implements Read<T> {
   /** Re-observe with a new value. Equality-gated; inert reads notify nobody. Inside
    *  a batch() the notification is deferred to the flush (coalesced to one wave). */
   set(next: T): void {
+    // TODO(socratic): should a set() to a disposed cell throw rather than silently return, and does silent disposal hide lost updates?
     if (this.#disposed) return;
+    // TODO(socratic): this checks eq(next, current) — which order of arguments, and does it matter if eq is asymmetric or has side effects?
     if (this.#eq(next, this.#value)) return;
     this.#value = next;
     this.#fire();
@@ -98,7 +108,9 @@ export class Cell<T> implements Read<T> {
    *  value identity is unchanged (for in-place mutation of a held structure). Prefer
    *  set() with a fresh value where copying is cheap; this is the escape hatch for
    *  the cases where copying a whole structure every keystroke is wasteful. */
+  // TODO(socratic): update() silently bypasses the equality gate that set() calls the cell's defining virtue — does the name "update" confess that it always fires, or does it lie by symmetry with set()?
   update(mutate: (current: T) => T): void {
+    // TODO(socratic): should update() also return the mutated value, or does that encourage further mutation chaining?
     if (this.#disposed) return;
     this.#value = mutate(this.#value);
     this.#fire();
@@ -106,6 +118,7 @@ export class Cell<T> implements Read<T> {
 
   // notify now, or queue for the batch flush.
   #fire(): void {
+    // TODO(socratic): does #queued prevent duplicate flushes for the same cell, or does it create silent drops if a cell changes twice inside a batch?
     if (batchDepth > 0) {
       if (!this.#queued) {
         this.#queued = true;
@@ -122,16 +135,20 @@ export class Cell<T> implements Read<T> {
   #notify(): void {
     // snapshot the subscriber set: a subscriber may unsubscribe (or subscribe) during
     // its own run, and mutating a Set mid-iteration is a footgun.
+    // TODO(socratic): is the spread [...this.#subs] meant to be a cheap shallow copy, and does it hold if #subs contains millions of subscribers?
     for (const sub of [...this.#subs]) sub(this.#value);
   }
 
   subscribe(sub: Subscriber<T>): Unsubscribe {
+    // TODO(socratic): a disposed cell that still whispers its last value to new subscribers — if the line has dissolved, why does it keep answering, and could a re-projected view mistake that ghost reading for a live one?
     if (this.#disposed) {
       // a disposed cell still answers the current read once, but never again.
+      // TODO(socratic): why fire the subscriber synchronously here, and does that create asymmetry between disposed and live cells?
       sub(this.#value);
       return () => {};
     }
     this.#subs.add(sub);
+    // TODO(socratic): the immediate fire happens before the subscriber is even added to #subs — does that fire-before-add order hide a race if the subscriber itself sets this cell?
     sub(this.#value);
     return () => this.#subs.delete(sub);
   }
@@ -142,6 +159,7 @@ export class Cell<T> implements Read<T> {
    *  re-observe doesn't leak the old subscriptions. */
   dispose(): void {
     this.#disposed = true;
+    // TODO(socratic): dispose() sets #disposed before clearing subscribers — does this prevent a subscriber's own unsubscribe from racing against the clear?
     this.#subs.clear();
   }
 
@@ -162,11 +180,14 @@ export class Derived<T> implements Read<T> {
   readonly #unsubs: Unsubscribe[] = [];
   #disposed = false;
 
+  // TODO(socratic): the sources array is a hand-written duplicate of what compute() actually reads — when a builder edits the closure but not the list, the derived read goes quietly stale; is manual wiring a chosen honesty (explicit prehension) or just tracking we haven't built?
+  // TODO(socratic): if source A is itself a Derived of source B, a change to B notifies this cell twice (once via B, once via A) with no glitch-freedom — outside a batch, can a subscriber observe the torn intermediate reading, and is that a frame we accept?
   constructor(
     compute: () => T,
     sources: ReadonlyArray<Read<unknown>>,
     eq?: (a: T, b: T) => boolean,
   ) {
+    // TODO(socratic): the initial compute() happens here outside any batch frame — if compute() itself calls set() on other cells, those notifications fire immediately rather than coalesced?
     this.#cell = new Cell<T>(compute(), eq);
     const recompute = (): void => {
       if (this.#disposed) return;
@@ -182,6 +203,7 @@ export class Derived<T> implements Read<T> {
             primed = true;
             return;
           }
+          // TODO(socratic): recompute is called outside the batch frame of the original source change — does that break coalescing if multiple sources change in one batch?
           recompute();
         }),
       );
@@ -199,6 +221,7 @@ export class Derived<T> implements Read<T> {
   /** Detach from every source and drop subscribers. The derived line dissolves. */
   dispose(): void {
     this.#disposed = true;
+    // TODO(socratic): why unsubscribe from all sources before clearing the unsub list, and does the order protect against re-entrance?
     for (const u of this.#unsubs) u();
     this.#unsubs.length = 0;
     this.#cell.dispose();
@@ -211,10 +234,12 @@ export function derive<T>(
   sources: ReadonlyArray<Read<unknown>>,
   eq?: (a: T, b: T) => boolean,
 ): Derived<T> {
+  // TODO(socratic): this is just a factory; why expose both the class and the function, and does that encourage builders to avoid the shorthand?
   return new Derived<T>(compute, sources, eq);
 }
 
 /** Sugar: a fresh cell. `cell(0)`. */
 export function cell<T>(initial: T, eq?: (a: T, b: T) => boolean): Cell<T> {
+  // TODO(socratic): this is just a factory; why expose both the class and the function, and do callers ever distinguish or mix them?
   return new Cell<T>(initial, eq);
 }

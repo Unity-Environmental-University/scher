@@ -4,6 +4,7 @@
 // see the card, see exactly how you'd write it. Press the buttons → a beat is laid →
 // the reading re-projects. No server. The deps-loop, broken; the docs, executable.
 //
+// TODO(socratic): I live in scher/src — do my build/serve directions (web/, /web/src/lib/glossary.html) describe a home I no longer have, and will the next builder follow them into a wall?
 // Build:  cd web && npx tsc
 // Serve:  python3 -m http.server 8020  (from repo root) → /web/src/lib/glossary.html
 // ─────────────────────────────────────────────────────────────────────────────
@@ -113,6 +114,7 @@ const groundTea = buttonStory(soc, {
   const starRain = buttonStory(soc, {
     label: "🌧️ react (lay pathos)",
     press: (s) => {
+      // TODO(socratic): counting beats by slug prefix is exactly the string-matching on slugs that scher/CLAUDE.md forbids — shouldn't charge be read structurally (q-feel prehensions onto b-rain), and doesn't the doc string below teach every reader the smuggle?
       const n = s.all().filter((b) => b.slug.startsWith("feel-rain-")).length;
       s.layP(`feel-rain-${n}`, "🌧️", "actor-you", "b-rain", "q-feel");
     },
@@ -135,14 +137,17 @@ const starRain = buttonStory(soc, {
 });`,
   ));
 
+  // TODO(socratic): every CODE string here is a hand-copied twin of the live demo above it — when the lib's API shifts, what keeps the executable half and the quoted half from quietly diverging, and is a glossary that lies about its own code worse than no glossary?
   // ── ENTRY 4: Toggle — built on the Fact PORCELAIN (the positivist wrapper) ──
   // This is the desync-proof version: a Fact gives a get/set(boolean) surface; the
   // toggle never touches a slug, so the one-loop bug is unwriteable.
+  // TODO(socratic): I create this Fact and never read, press, or show it — the toggle below re-derives its own handle from raw slugs — so does 'doorGrounded' demonstrate the porcelain or quietly demonstrate that the demo didn't need it?
   const doorGrounded = fact(soc, "b-door", { by: "actor-you" });
   const doorCard = cardStory(soc, { slug: "b-door", standpoint: "you" });
   const doorToggle = toggleButtonStory(soc, {
     target: "b-door",
     by: "actor-you",
+    // TODO(socratic): a fixed groundSlug on an append-only society — after untick then re-tick, does laying "g-you-door" again collide with the superseded beat of the same name, and is a fixed slug for a repeatable act the "track a slug" bug wearing a new coat?
     groundSlug: "g-you-door",
     labelChecked: "☑ grounded — untick (supersede, stays in ink)",
     labelUnchecked: "☐ check = ground the door",

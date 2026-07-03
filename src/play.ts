@@ -14,6 +14,7 @@
 
 import { Society, prehensionsFrom, prehensionsOnto, isOccluded } from "./society.js";
 
+// TODO(socratic): a single module-level counter shared by every Society — is a doll's history really self-contained if its edge ids depend on which other dolls ran first in the process?
 let _n = 0;
 /** an opaque id — carries no meaning; structure lives in the edges, never the slug. */
 export function pid(): string { return "n" + (_n++); }
@@ -32,6 +33,7 @@ export function succeeds(s: Society, heir: string, parent: string): void {
 /** the live HEAD(s) of the line from `root`: members on the chain that nothing live succeeds.
  *  One tip = a clean line; more than one = a fork (a schism / succession war). Reads q-succeeds. */
 export function heads(s: Society, root: string): string[] {
+  // TODO(socratic): the header vows "slugs stay opaque (no string-matching)" — is composing `slug + "~q"` here reading structure from edges, or smuggling the ~q convention in through a name?
   const isSucc = (slug: string) => s.get(slug + "~q")?.object === "q-succeeds";
   const on = new Set<string>([root]);
   let grew = true;
@@ -43,6 +45,7 @@ export function heads(s: Society, root: string): string[] {
       }
     }
   }
+  // TODO(socratic): occlusion silences the succession EDGE but never the member itself — if `root` or a tip is an occluded node, should it still be crowned a live HEAD, and whose frame decided?
   return [...on].filter((m) =>
     !s.all().some((b) => isSucc(b.slug) && b.object === m && !isOccluded(s, b.slug)));
 }
@@ -70,6 +73,7 @@ export function lure(s: Society, from: string, aim: string): void {
 
 /** does `start` reach `target` by live q-lure hops? (the why-circuit, walked — does it reach V=0?) */
 export function routesTo(s: Society, start: string, target: string, seen = new Set<string>()): boolean {
+  // TODO(socratic): `start === target` says a why-circuit of length zero always closes — is every event trivially its own aim, or should reaching V=0 require at least one live lure?
   if (start === target) return true;
   if (seen.has(start)) return false;
   seen.add(start);
@@ -80,5 +84,6 @@ export function routesTo(s: Society, start: string, target: string, seen = new S
 
 /** every member that q-feels onto `event` (a reading-of, a splinter-of, a witness) — live only. */
 export function feltOnto(s: Society, event: string): string[] {
+  // TODO(socratic): heirsOf, feltOnto, and the occlusion-filtered map differ only in quale — is this the same read wanting to converge into one `liveOnto(s, event, quale)`?
   return prehensionsOnto(s, event, "q-feel").filter((e) => !isOccluded(s, e.slug)).map((e) => e.subject!);
 }

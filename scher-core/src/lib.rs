@@ -20,6 +20,11 @@ use std::collections::HashMap;
 // Not yet wired into Society — it exists so reads stop slug-searching `{slug}~q`.
 pub mod edge_word;
 
+// the contraction plugin seam (merged sitting 2026-07-03): consumer-owned contraction rules
+// over the because-grammar. scher ships the trait, the collision-refusing registry, and the
+// law-checker; the RULES stay consumer-side (Hallie's ruling) and never live here.
+pub mod contraction;
+
 // Qualities are passed as `&str` — the reads only ever compare for equality, and an unknown
 // quality is simply one no read matches. This is genuinely open, with no enum to edit when the
 // grammar grows a word. TS's `Quality` (society.ts) used to be a closed compile-time union and

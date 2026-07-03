@@ -155,19 +155,26 @@ use crate::{prehensions_from, Society, Q_DEPENDS_ON, Q_EXCLUSION, Q_GROUNDING, Q
 ///   `ignores` — negative prehension: b was NEVER admitted, held out from the start (the
 ///               master-negative). distinct from `hides` — was-here-removed vs never-let-in.
 ///               (was exclusion)
-// TODO(socratic): the `_ => None` arm folds any UNKNOWN stored quality into the same
-// bare-`because` as grounding — if a fifth quality ever enters the store, should the bridge
-// silently flatten its mode away, or refuse loudly like the grammar does elsewhere?
-// TODO(socratic): why does `gen4_quality` map Q_GROUNDING to None rather than to "" — does returning None preserve a distinction between "no mode" (bare because) and "mode present but named nothing"?
-// ANSWERED(walk 2026-07-02): yes — None means bare because (grounding is the unmarked default mode); "" would render "be()cause", a shape the parser refuses, so the distinction is structural, not cosmetic. — see walk plan §A (grammar facts)
-fn gen4_quality(stored: &str) -> Option<&'static str> {
+// TODO(socratic): why does `gen4_quality` map Q_GROUNDING to Bare rather than to Mode("") — does the distinction preserve "no mode" (bare because) vs "mode present but named nothing"?
+// ANSWERED(walk 2026-07-02): yes — Bare means bare because (grounding is the unmarked default mode); "" would render "be()cause", a shape the parser refuses, so the distinction is structural, not cosmetic. — see walk plan §A (grammar facts)
+// F9 ANSWERED (merged sitting 2026-07-03, contraction-rules minutes): an UNKNOWN stored
+// quality REFUSES LOUDLY (Unknown → warn + skip in the bridge), never silently flattens to
+// bare `because`. The old `_ => None` arm was exactly the silent flattening this file's own
+// margin questioned; a fifth quality entering the store is a grammar change the bridge must
+// surface, not absorb.
+enum BridgeMode {
+    Bare,               // = bare `because`; the relation, not a mode
+    Mode(&'static str), // a surviving gen4 mode word
+    Unknown,            // not the bridge's contract — refuse loudly, don't flatten
+}
+
+fn gen4_quality(stored: &str) -> BridgeMode {
     match stored {
-        Q_GROUNDING => None,              // = bare `because`; the relation, not a mode
-        Q_DEPENDS_ON => Some("needs"),    // but-for / necessary
-        Q_OCCLUDES => Some("hides"),      // negative — was here, removed (recallable)
-        Q_EXCLUSION => Some("ignores"),   // negative — never admitted (the master-negative)
-        // TODO(socratic): the `_ => None` arm folds any UNKNOWN stored quality into the same bare-`because` as grounding — if a fifth quality ever enters the store, should the bridge silently flatten its mode away, or refuse loudly like the grammar does elsewhere?
-        _ => None,
+        Q_GROUNDING => BridgeMode::Bare,            // the unmarked default mode
+        Q_DEPENDS_ON => BridgeMode::Mode("needs"),  // but-for / necessary
+        Q_OCCLUDES => BridgeMode::Mode("hides"),    // negative — was here, removed (recallable)
+        Q_EXCLUSION => BridgeMode::Mode("ignores"), // negative — never admitted (the master-negative)
+        _ => BridgeMode::Unknown,
     }
 }
 
@@ -186,10 +193,20 @@ pub fn because_edges_from(soc: &Society, a: &str) -> Vec<EdgeWord> {
             // TODO(socratic): why `continue` on `None` rather than treating an objectless prehension as an edge — does a quality without a target beat never make sense in the because-grammar?
             // ANSWERED(walk 2026-07-02): never — an edge always carries both subject and object in the grammar; an objectless row is a node, not an edge, so skipping it is definitional. — see walk plan §A (grammar facts)
             let Some(b) = p.object.as_deref() else { continue };
-            let q = gen4_quality(quality);
-            let built = match q {
-                Some(qn) => EdgeWord::with(a, &[qn], b),
-                None => EdgeWord::bare(a, b),
+            let built = match gen4_quality(quality) {
+                BridgeMode::Mode(qn) => EdgeWord::with(a, &[qn], b),
+                BridgeMode::Bare => EdgeWord::bare(a, b),
+                BridgeMode::Unknown => {
+                    // F9: refuse loudly — never flatten an unknown mode to bare `because`.
+                    // Unreachable through the hardcoded four above; this guard is for the
+                    // day a fifth quality is added to that list without a bridge word.
+                    eprintln!(
+                        "[scher-core] because-bridge: unknown stored quality '{quality}' on \
+                         '{}' — refusing to flatten it to bare `because`; edge skipped (F9)",
+                        p.slug
+                    );
+                    continue;
+                }
             };
             // the proof-of-life: go through the slug-word and back. If a name carries a
             // delimiter it won't render — skip it (the grammar refusing is the grammar working).

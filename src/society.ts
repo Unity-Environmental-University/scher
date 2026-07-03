@@ -26,44 +26,39 @@ export interface EventRow {
   witnessed?: number;
 }
 
-/** The qualities a prehension can co-prehend (the mode it carries). */
-export type Quality =
+// The qualities the kernel itself branches behavior on — isOccluded/isGrounded/dependsOn/
+// resolutionOf/endReached/reactionsOn/authorOf all key a real read off one of these literal
+// strings (see the functions below). q-containment also lives here because
+// assertNotMembershipContainment hardcodes it as a guard trip-wire. Everything else that has
+// ever been a "quality" (q-shared, q-assigned-to, q-due, q-receives, q-succeeds, and any
+// quality a caller invents, like a directional q-move-toward/q-move-away pair) rides through
+// prehendsAs/prehensionsOnto/prehensionsFrom as a plain string comparison with no kernel
+// branch — so it never needed to live in a closed union to be safe. (Committee, 2026-07-03:
+// see docs/committees/2026-07-03-quality-extensibility.md — the closed union bought a
+// typo-catcher for ~9 names, never a runtime gate; prehendsAs already accepts any string a
+// caller casts through. Splitting it this way keeps that one real benefit — catching a
+// typo'd q-groundng on a name the kernel actually reads — while letting new lateral
+// qualities typecheck without editing this file.)
+export type KernelQuality =
   | "q-grounding"
   | "q-lure"
   | "q-exclusion"
   | "q-utterance"
   | "q-feel"
   | "q-containment"
-  | "q-shared"
-  // dependency / assignment / due — the lateral qualities the planning surface lays.
-  // q-depends-on: A waits on B (read both ways: dependsOn / dependentsOf). q-assigned-to:
-  // a card → an actor. q-due: a temporal bound on a card. These are LATERAL prehensions
-  // (object is the related beat/actor, NOT a content node folded into an interval) — never
-  // membership, which stays betweenness. (harvested from the dependency/strain reads.)
   | "q-depends-on"
-  | "q-assigned-to"
-  | "q-due"
-  // drama resolution — a q-resolves edge runs from drama→story when the drama is settled.
   | "q-resolves"
-  // gratitude — the positive BACKWARD prehension: a perished occasion taken AS GIFT, opening no
-  // debt. To the past what q-lure is to the future. The receiving-side of the gift economy.
-  | "q-receives"
-  // occlusion — supersession, reframed (2026-06-26). A CURRENT event (superject-forming) casts a
-  // shadow over a prehended member of its OWN society: E --q-occludes--> X. Replaces the incoherent
-  // self-loop supersede ({subject:X,object:X}, no agent, X cancels itself). Occlusion NAMES the
-  // occluding event (subject=E), is STANDPOINT-RELATIVE (the society is the frame — X occluded HERE
-  // stands in full light in another society), and is REVERSIBLE/EMERGENT (un-occlusion = simply no
-  // live member occluding it; no "occlude the occlusion" recursion). Nothing leaves the DB — that is
-  // banishment, a separate ceremony. See OCCLUSION-DESIGN.md / the events-triad: occlude is the
-  // CURRENT tense (safe), banish violates the MEASURED tense (dangerous).
   | "q-occludes"
-  // succession (2026-06-26, Hallie: "we may need to include succession in our felt qualities").
-  // The fifth grammar-word, finally seeded: heir --q-succeeds--> parent — editing as commit on a
-  // line. A bare read of the line resolves to HEAD (the tip of the q-succeeds chain); the parent
-  // stays immutable, an honored ancestor (NOT replaced — that was the deadnaming supersession we
-  // removed). A schism is two heirs succeeding one parent (a fork); a reunion is one heir succeeding
-  // two (a merge). We modeled this with q-utterance as a stand-in until now; it earns its own quality.
-  | "q-succeeds";
+  // graduated 2026-07-03: assigneesOf now reads this quality (it used to read a slug shape no
+  // live store had ever laid — checked against gen3.beat, canon.event, the prehension graphs —
+  // while real q-assigned-to edges existed). q-due stays lateral: real edges exist but no
+  // kernel read branches on it yet; it graduates when one does.
+  | "q-assigned-to";
+
+/** The qualities a prehension can co-prehend (the mode it carries). KernelQuality for the
+ *  names the kernel branches on, or any other string for a lateral/caller-defined quality
+ *  (q-shared, q-assigned-to, q-due, q-receives, q-succeeds, or something new entirely). */
+export type Quality = KernelQuality | (string & { readonly __quality?: never });
 
 /** The mode a beat reads as. Derived, not stored. */
 export type Mode = "established" | "scripted";
@@ -465,17 +460,17 @@ export function distanceToHEA(soc: Society, frameOnce: string, end?: string): { 
 
 // ── ITHACA-REQUIRED READS (ported from vendored scher copy, promoted into the package) ──
 
-/** assigneesOf: who is assigned to a card — the people on it. Reads the `<card>-asn-<who>` edges
- *  (object = `actor-<who>`), non-superseded, returns bare names. */
-// TODO(socratic): q-assigned-to exists in my Quality union precisely for this relation — why do I
-// read assignment by slug shape ('-asn-', 'actor-' prefix) instead of the quality, and which of the
-// two grammars is the one new writers are actually laying?
+/** assigneesOf: who is assigned to a card — the actor beats its q-assigned-to prehensions reach.
+ *  Reads the quality grammar (card --q-assigned-to--> actor), non-occluded, returns the actor
+ *  beat slugs. (2026-07-03: the old slug-shape read (`<card>-asn-<who>`, 'actor-' prefix strip)
+ *  was checked against every live store — gen3.beat, canon.event, the prehension graphs — and
+ *  had never once been laid; the q-assigned-to quality edges are what real writers actually lay.
+ *  The old TODO-socratic questions here asked exactly this; the record answered. No shim for the
+ *  never-used grammar: break forward.) */
 export function assigneesOf(soc: Society, card: string): string[] {
-  // TODO(socratic): the slug.startsWith check couples assignment reading to slug naming — if I switched to quality-based reading, would old slug-based edges become invisible?
-  // TODO(socratic): the replace(/^actor-/, "") assumes all objects follow the "actor-<name>" pattern — what if an object doesn't match, or the empty string passes through .filter(Boolean)?
-  return soc.all()
-    .filter((b) => b.slug.startsWith(card + "-asn-") && !isOccluded(soc, b.slug))
-    .map((b) => (b.object ?? "").replace(/^actor-/, ""))
+  return prehensionsFrom(soc, card, "q-assigned-to")
+    .filter((p) => !isOccluded(soc, p.slug))
+    .map((p) => p.object!)
     .filter(Boolean);
 }
 

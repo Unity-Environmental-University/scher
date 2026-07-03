@@ -21,10 +21,14 @@ use std::collections::HashMap;
 pub mod edge_word;
 
 // Qualities are passed as `&str` — the reads only ever compare for equality, and an unknown
-// quality is simply one no read matches (the same openness the TS `Quality` string union has
-// at runtime, with no enum to edit when the grammar grows a word). The known words used by the
-// reads here are named as consts for call-site legibility; the grammar's full set lives in
-// society.ts (a string the core never needs to enumerate).
+// quality is simply one no read matches. This is genuinely open, with no enum to edit when the
+// grammar grows a word. TS's `Quality` (society.ts) used to be a closed compile-time union and
+// was NOT actually a mirror of this openness — that was this comment's own error, caught and
+// fixed by committee 2026-07-03 (docs/committees/2026-07-03-quality-extensibility.md). society.ts
+// now splits `KernelQuality` (the handful of words a real kernel read branches on, matching the
+// consts below) from an open `Quality` that also accepts any other string, which is the honest
+// TS-side match for this file's actual behavior. The known words used by the reads here are
+// named as consts for call-site legibility; the grammar's full set lives in society.ts.
 pub const Q_GROUNDING: &str = "q-grounding";
 pub const Q_EXCLUSION: &str = "q-exclusion";
 pub const Q_OCCLUDES: &str = "q-occludes";

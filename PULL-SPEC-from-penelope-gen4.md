@@ -10,6 +10,11 @@ the read; un-ignore it when scher-core ships the symbol and it goes green.
 > Same channel as PULL-SPEC-from-ithaca-muslins.md. Treat it as a muslin-of-a-spec: cut it where
 > it's wrong. The signatures are gen4's guess at the shape — scher owns the final form.
 
+> **STATUS, re-checked 2026-07-03 (the gathered body's first sitting):** SPENT. All three asks
+> ship in scher-core (`grounded_by`, `interval_of`/`end_of`, `distance_to_hea` — commit 8fcd347),
+> and gen4's `interface_contract.rs` records the `#[ignore]`s removed and green. Kept for
+> lineage as the record of the gift-forward channel working end-to-end.
+
 ## Already satisfied (gen4 builds on these now — green contract tests)
 
 `prehends_as`, `prehensions_onto`, `prehensions_from`, `is_occluded`, `is_established`,

@@ -206,11 +206,15 @@ proptest! {
     fn emergent_un_occlusion(target in "[a-z]{1,5}", occ in "[a-z]{1,5}", reveal in "[a-z]{1,5}") {
         prop_assume!(target != occ && occ != reveal && target != reveal);
         let mut s = Society::seeded(&[EventRow::node(&target, &target)]);
-        // a named event occludes the target
-        s.lay_p(&occ, "occludes", "ev", &target, Q_OCCLUDES);
+        // a named event occludes the target. Subjects carry a hyphen so the generated
+        // names (bare [a-z]{1,5}) can never collide with them — a drawn target of "ev"
+        // used to make this edge a self-loop, which correctly never occludes (the law
+        // this test's own third clause asserts), failing the fixture, not the kernel.
+        // Found 2026-07-06 (regression seed kept below per proptest convention).
+        s.lay_p(&occ, "occludes", "ev-1", &target, Q_OCCLUDES);
         prop_assert!(is_occluded(&s, &target, None));
         // occlude the occluder → target revealed (one level)
-        s.lay_p(&reveal, "occludes the occluder", "ev2", &occ, Q_OCCLUDES);
+        s.lay_p(&reveal, "occludes the occluder", "ev-2", &occ, Q_OCCLUDES);
         prop_assert!(!is_occluded(&s, &target, None));
 
         // a self-loop {subject==object} is NOT occlusion
@@ -348,6 +352,32 @@ fn eikon_catches_no_source_when_loop_closed() {
     let poles = find_poles(&soc, ["hea", "once"], Some("hea"), Some("once"));
     assert_eq!(poles.end, Pole::None);    // no beat is `a`-only
     assert_eq!(poles.source, Pole::None); // no beat is `b`-only
+}
+
+#[test]
+fn eikon_end_is_because_now_tells_now_from_end() {
+    // Hallie's ruling, 2026-07-06, verbatim: "the end is because now."
+    // Phase 1 (the hazard, documented): a Now beat is End-shaped to the one-hop signature —
+    // `now ~because~ event` makes it an `a`, never a `b` — so a Now swept into the candidate
+    // set reads as a spurious second End (Pole::Many, a false loud fail).
+    let mut soc = Society::new();
+    for s in ["end", "mid", "once", "now-story"] { soc.lay(EventRow::node(s, "")); }
+    grounds(&mut soc, "end", "mid");
+    grounds(&mut soc, "mid", "once");
+    grounds(&mut soc, "now-story", "mid"); // the story's Now marks mid done — Now is an `a` only
+    let content = ["end", "mid", "once", "now-story"];
+    match find_poles(&soc, content, Some("end"), Some("once")).end {
+        Pole::Many(v) => assert!(v.contains(&"now-story".to_string()), "the hazard: Now reads End-shaped"),
+        other => panic!("expected the documented Many-ends hazard, got {other:?}"),
+    }
+    // Phase 2 (the ruling's mark): the circuit closes — the actual End grounds in the Now of
+    // its closing. `end ~because~ now` makes the Now a `b` (a ground), so it stops matching
+    // the End signature. Both poles read clean WITH the Now still in the candidate set,
+    // no string ever consulted. (A Now never rests on an End, so no cycle.)
+    grounds(&mut soc, "end", "now-story");
+    let poles = find_poles(&soc, content, Some("end"), Some("once"));
+    assert_eq!(poles.end, Pole::Found("end".into()));
+    assert_eq!(poles.source, Pole::Found("once".into()));
 }
 
 // ── the isomorphs are real and go all the way down ──────────────────────────────────

@@ -36,6 +36,11 @@ cd scher && npm test                        # run everything (the dolls + the re
   Dōgen, al-Ash'arī, Hebrew liturgy, Ubuntu, Whitehead-as-the-longest-way). A forest, not a chain.
 - **city-of-death** — Scaroth splintered across time; six frame-relative Mona Lisas; "THIS IS A FAKE"
   in felt-tip under the paint (a reading laid for a future frame to un-occlude).
+- **emoji-charge-doll-a/b/c** — a play committee's three dolls on emoji-as-charge-markers: (a) the
+  existing q-feel reaction shape already IS the charter's ask, plus a real react/un-react/react-again
+  bug found while stress-testing it; (b) a standing glyph-node buys unbounded aggregation, costs a
+  ban-cascade nobody built; (c) emoji-as-charge-content, checked live against the naked-pole address
+  law. Minutes: `docs/committees/2026-07-06-emoji-charge-dolls.md`.
 
 ## How to add one
 Copy the shape of any doll. The discipline (learned the hard way, 2026-06-26):

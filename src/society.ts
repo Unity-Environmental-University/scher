@@ -58,10 +58,10 @@ export type KernelQuality =
   | "q-depends-on"
   | "q-resolves"
   | "q-occludes"
-  // F-A ruling (2026-07-06): "marking voltage lays charge" — the append-only charge event
-  // (particle-shaped write) voltageOf derives its scalar from (field-shaped read). Kernel
-  // name is CHARGE; the user-facing word "voltage" is UI vocabulary, kept out of the wire.
-  | "q-charge"
+  // NOTE: there is deliberately NO charge quality. Charge is a pure ADDRESS read (Hallie,
+  // 2026-07-06: "the charge is a property of the edge not of the node") — a charge is any
+  // bare prehension onto a story's open End-pole (see chargesOn / the address law at
+  // assertNakedPole). Minting a q-charge word would smuggle charge back into contents.
   // graduated 2026-07-03: assigneesOf now reads this quality (it used to read a slug shape no
   // live store had ever laid — checked against gen3.beat, canon.event, the prehension graphs —
   // while real q-assigned-to edges existed). q-due stays lateral: real edges exist but no
@@ -136,6 +136,60 @@ export function assertNoLureInSociety(soc: Society): void {
   );
 }
 
+// ── ADDRESS LAW: nothing touches a naked pole ───────────────────────────────────
+// THE LAW (one sentence, born with its guard per the meta-law of 2026-07-06): an open
+// (not-yet-actual) End-pole receives ONLY charge-prehensions onto it and, eventually, the
+// ONE closing q-grounding out of it — nothing else touches a naked pole; comments and
+// references prehend the STORY, never its End.
+//
+// This is what makes charge a pure address read (chargesOn): "charges on this
+// differential" = the bare prehensions onto its open End — the charge is a property of
+// the EDGE, never of node-contents (Hallie, verbatim), so no charge quality-word exists
+// to mint, and nothing else can be parked on the pole to muddy the count.
+//
+// WHAT TO DO if you hit this: prehend the STORY (the Once/event) instead — a comment, a
+// dependency, a feel, a reference all belong on the story; only charges (bare edges) land
+// on its open End, and only the closing grounding leaves it. Once the End is actual
+// (closed), it is no longer naked and ordinary grammar applies.
+export function assertNakedPole(
+  soc: Society,
+  slug: string,
+  subject: string,
+  object: string,
+  quality: Quality,
+): void {
+  // the q-end-pole designation itself is what MAKES a pole — structural machinery, exempt
+  // in both positions (a pole may itself be a story whose own End lies further in).
+  if (quality === "q-end-pole") return;
+  if (isOpenEndPole(soc, object)) {
+    throw new Error(
+      `[ADDRESS LAW] '${slug}' lays a ${quality} prehension ONTO the open End-pole ` +
+      `'${object}'. A naked pole receives only charge-prehensions (bare edges) onto it — ` +
+      `comments/references prehend the STORY, never its End. Fix: point this edge at the ` +
+      `story (the pole's Once), or lay a bare edge if you mean a charge. (law: naked-pole)`,
+    );
+  }
+  if (isOpenEndPole(soc, subject) && quality !== "q-grounding") {
+    throw new Error(
+      `[ADDRESS LAW] '${slug}' lays a ${quality} prehension OUT of the open End-pole ` +
+      `'${subject}'. The only edge that ever leaves a naked pole is its ONE closing ` +
+      `q-grounding ('end ~because~ now'). Fix: close the pole with q-grounding, or hang ` +
+      `this relation on the story instead. (law: naked-pole)`,
+    );
+  }
+}
+
+/** isOpenEndPole: is `node` a designated End-pole (object of an un-occluded q-end-pole
+ *  edge) that is not yet actual? The address law guards exactly these. */
+function isOpenEndPole(soc: Society, node: string | null, asOf?: number): boolean {
+  if (!node) return false;
+  const designated = soc.all().some(
+    (b) => b.object === node && b.subject !== null &&
+      prehendsAs(soc, b.slug, "q-end-pole", asOf) && !isOccluded(soc, b.slug, asOf),
+  );
+  return designated && !endActual(soc, node, asOf);
+}
+
 export function assertNotMembershipContainment(slug: string, quality: Quality): void {
   if (quality !== "q-containment") return;
   if (/(?:-in|@in)$/.test(slug)) {
@@ -196,6 +250,7 @@ export class Society {
   // permit, or a corruption the append-only law just made unfixable?
   layP(slug: string, content: string, subject: string, object: string, quality: Quality): boolean {
     assertNoLure(slug, quality); // BLOCKS: q-lure is dead grammar (Hallie, 2026-07-06)
+    assertNakedPole(this, slug, subject, object, quality); // BLOCKS: nothing touches a naked pole
     assertNotMembershipContainment(slug, quality);
     // TODO(socratic): does the quality belong in the '~q' beat's content (as "[${quality}]"), or is it already fully encoded by the object field?
     const a = this.lay({ slug, content, subject, object });
@@ -585,10 +640,18 @@ export function endOf(soc: Society, story: string): string | null {
 // when the End becomes actual it is BECAUSE the Now of its closing (`end ~because~ now`,
 // q-grounding) — laid by the done-verb, never at unpack.
 //
-// The openness is VOLTAGE — read ACROSS the poles, stored in neither. Marking voltage
-// lays CHARGE (append-only event); the scalar is derived, never stored. Done closes the
-// circuit (End because Now) → voltage reads zero while every prior event stays readable
-// forever. Reopen = a NEW unpack (new differential), never an un-doing.
+// The openness is VOLTAGE — read ACROSS the poles, stored in neither, and ALWAYS relative
+// to a reference (Hallie, 2026-07-06 second sitting): the GROUND — the head of a frame's
+// now-lineage ("the head of the society — the last now that the user's now is because (or
+// whatever frame's now)", her words). A charge/strike/closing counts toward a reading iff
+// it is ESTABLISHED TO that ground (the established_to walk); nothing is ever globally
+// zeroed — a closing DISCHARGES outward by ordinary reachability, so a frame the closing
+// has not yet established to honestly reads residual voltage ("done, still discharging").
+//
+// Marking voltage lays CHARGE — a BARE edge onto the open End-pole (pure address, see the
+// naked-pole law); the scalar is derived, never stored. Done closes the circuit (End
+// because Now) — the closed circuit IS a closed because-path End → Now-lineage → Once.
+// Reopen = a NEW unpack (new differential), never an un-doing.
 //
 // NOTE (occlusion-of-now-connections): nothing here depends on its presence or absence —
 // it is OUT of this ruling, chartered as a gen5 roadmap feature in the ruling minute.
@@ -601,22 +664,41 @@ export interface PoleUnpack {
   end: string;
   /** the q-end-pole designation edge (the structural End-hood, laid by this unpack). */
   pole: string;
+  /** the story's own frame's first Now — because the Once, laid by this unpack. */
+  now: string;
+}
+
+/** the story's own frame's Now — the `${story}~now` constructor convention (an ADDRESS,
+ *  the layP/`~hea` shape — reads never parse it). Under SOFD this Now's lineage head is
+ *  voltage's default ground. */
+export function storyNow(story: string): string {
+  return `${story}~now`;
 }
 
 /** unpackPoles: lazily unpack ONE event into its three-pole structure (first need only —
  *  callers that can wait should wait; a captured-and-abandoned event stays one event
  *  forever). Idempotent: an already-unpacked event returns its existing poles. `end`
  *  defaults to the `${event}~hea` constructor convention (an ADDRESS, the layP/`now-{frame}`
- *  shape — reads never parse it; the q-end-pole edge is what designates). */
+ *  shape — reads never parse it; the q-end-pole edge is what designates).
+ *
+ *  THREE lays: the End + its designation, and the story's own frame's first Now, BECAUSE
+ *  the Once — "Now is because events," and the Once is the story's first event (Hallie
+ *  confirmed Now belongs in the unpack, 2026-07-06 second sitting; the Now-grounds-in-Once
+ *  relationship is the convener's proposal, STANDING UNLESS SHE AMENDS IT). With the
+ *  closing's `end ~because~ now`, the closed circuit is a literal because-path
+ *  End → Now-lineage → Once. */
 export function unpackPoles(soc: Society, event: string, end = `${event}~hea`): PoleUnpack {
+  const now = storyNow(event);
   const existing = prehensionsFrom(soc, event, "q-end-pole")[0];
-  if (existing) return { once: event, end: existing.object!, pole: existing.slug };
+  if (existing) return { once: event, end: existing.object!, pole: existing.slug, now };
   soc.lay({ slug: end, content: `the End-pole of ${event}, not yet actual`, subject: null, object: null });
   // Q2 (Story's Own Frame Default, ruled-for-now): edges laid in a story's course carry
   // the story's own frame as EXPLICIT ink — visible, greppable, never parsed by a read.
   const pole = `${event}~end-pole~${end}`;
   soc.layP(pole, `End-pole designation (frame: ${event})`, event, end, "q-end-pole");
-  return { once: event, end, pole };
+  soc.lay({ slug: now, content: `the Now of ${event}'s own frame`, subject: null, object: null });
+  soc.layP(`${now}~because~${event}`, `now is because events (frame: ${event})`, now, event, "q-grounding");
+  return { once: event, end, pole, now };
 }
 
 /** endActual: is this End-pole ACTUAL — is it because something (per the pole law, the
@@ -627,44 +709,170 @@ export function endActual(soc: Society, end: string, asOf?: number): boolean {
   return prehensionsFrom(soc, end, "q-grounding", asOf).some((p) => !isOccluded(soc, p.slug, asOf));
 }
 
-/** layCharge: the append-only charge event — `by` marks voltage against `story`. FIRST
- *  NEED: a charge requires the differential, so an un-unpacked event unpacks here. Never
- *  a duplicate task: re-noticing is additional charge across the existing differential.
- *  Returns the charge edge's slug (monotone layer counter, the mark_done redone shape). */
+/** chargesOn: the charges on a differential — a PURE ADDRESS READ (the naked-pole law's
+ *  payoff): the un-occluded BARE prehensions onto the End. No charge quality exists; the
+ *  charge is a property of the EDGE, never of node-contents (Hallie, 2026-07-06). The
+ *  designation edge (quality-carrying) and ~q machinery classify out structurally. */
+export function chargesOn(soc: Society, end: string, asOf?: number): EventRow[] {
+  return soc.all().filter(
+    (b) => b.object === end && b.subject !== null && visibleAt(b, asOf) &&
+      !hasAnyQuality(soc, b.slug, asOf) && !isOccluded(soc, b.slug, asOf),
+  );
+}
+
+/** layCharge: mark voltage against `story` — a BARE edge onto the story's open End-pole
+ *  (the address law: bare-edges-onto-an-open-End ARE the charges; nothing to mint). FIRST
+ *  NEED: a charge requires the differential, so an un-unpacked event unpacks here. Never a
+ *  duplicate task: re-noticing is additional charge across the existing differential.
+ *  Also weaves the story's own lineage — `storyNow ~because~ charge` (SOFD: the charge is
+ *  an event in the story's course, witnessed by the story's own frame) — which is exactly
+ *  what makes the charge count for the default ground's voltage reading. */
 export function layCharge(soc: Society, story: string, by: string, content = "charge"): string {
-  unpackPoles(soc, story); // lazy unpack on first need (idempotent)
-  const n = prehensionsOnto(soc, story, "q-charge").length;
-  const slug = `${story}~charge-${n}`;
-  soc.layP(slug, content, by, story, "q-charge");
+  const u = unpackPoles(soc, story); // lazy unpack on first need (idempotent)
+  const n = soc.all().filter((b) => b.object === u.end && b.subject !== null && !hasAnyQuality(soc, b.slug)).length;
+  const slug = `${u.end}~charge-${n}`;
+  soc.lay({ slug, content, subject: by, object: u.end });
+  soc.layP(`${u.now}~because~${slug}`, `the story's frame witnesses its charge`, u.now, slug, "q-grounding");
   return slug;
 }
 
-/** voltageOf: the scalar across the open differential — DERIVED, stored nowhere. Zero
- *  when the event was never unpacked (one event, no differential) or when the circuit is
- *  closed (every designated End actual — because a Now); otherwise 1 (the open strike) +
- *  the un-occluded charge events laid against the story. Simple sum for now —
- *  decay/weighting is a future READ policy (the charge events stay; only the derivation
- *  would change). A per-frame voltage (read from a reader's Now) is F-B-adjacent and
- *  deliberately not minted here. */
-export function voltageOf(soc: Society, story: string, asOf?: number): number {
+/** closePole: the done-verb's kernel half — the End, now actual, is BECAUSE the Now of
+ *  its closing (`end ~because~ now`, the ONE grounding the address law lets leave a naked
+ *  pole). Closes in the story's OWN frame (SOFD): the closing Now is storyNow, so the
+ *  closed circuit is the literal because-path End → storyNow → Once. Other frames read
+ *  the closing when it establishes to them (see voltageOf — discharge propagates, never a
+ *  global zero); a closer's own frame acknowledges by grounding its now in the returned
+ *  closing edge. Idempotent per lay. */
+export function closePole(soc: Society, story: string, end?: string): string {
+  const u = unpackPoles(soc, story, end ?? undefined);
+  const theEnd = end ?? u.end;
+  const closing = `${theEnd}~because~${u.now}`;
+  soc.layP(closing, `the end is because now (frame: ${story})`, theEnd, u.now, "q-grounding");
+  return closing;
+}
+
+/** voltageOf: the scalar across the story's differentials, read RELATIVE TO A GROUND —
+ *  DERIVED, stored nowhere. `ground` is the reading frame's now-lineage HEAD as a NODE
+ *  (locating/walking lineage heads for other frames is POLICY, per the kernel boundary;
+ *  no structural now-succession exists yet, so a frame's single Now IS its head — TODO
+ *  when now-succession lands: walk to "the last Now that nothing newer is because of").
+ *  Default ground under SOFD: the story's own frame's Now.
+ *
+ *  Per differential (un-occluded designation):
+ *   · CLOSED for this ground iff some un-occluded closing (grounding out of the End) is
+ *     established to the ground — or the ground IS the closing's own Now. Discharge
+ *     PROPAGATES: no global zeroing anywhere; a frame the closing hasn't established to
+ *     honestly reads residual voltage ("done, still discharging").
+ *   · while open: the strike counts iff the story is established to the ground, and each
+ *     charge counts iff established to the ground (the established_to walk, both).
+ *  Simple sum, no decay this pass — decay/weighting is a future READ policy (the events
+ *  stay; only the derivation would change). */
+export function voltageOf(soc: Society, story: string, ground = storyNow(story), asOf?: number): number {
   const poles = prehensionsFrom(soc, story, "q-end-pole", asOf).filter((p) => !isOccluded(soc, p.slug, asOf));
-  const open = poles.some((p) => !endActual(soc, p.object!, asOf));
-  if (!open) return 0; // never unpacked, or closed circuit — nothing un-happened either way
-  const charges = prehensionsOnto(soc, story, "q-charge", asOf).filter((p) => !isOccluded(soc, p.slug, asOf));
-  return 1 + charges.length;
+  let v = 0;
+  for (const p of poles) {
+    const end = p.object!;
+    const closings = prehensionsFrom(soc, end, "q-grounding", asOf).filter((c) => !isOccluded(soc, c.slug, asOf));
+    const closedHere = closings.length > 0 && (
+      // SOFD: a closing on this story's End is an event laid IN the story's own course,
+      // so the story's OWN frame witnesses it by definition — whoever's Now it closed
+      // because. Other grounds wait for ordinary establishment (discharge propagates).
+      ground === storyNow(story) ||
+      closings.some((c) => c.object === ground || establishedTo(soc, ground, c.slug, asOf))
+    );
+    if (closedHere) continue; // discharged to this ground — this differential reads closed
+    if (establishedTo(soc, ground, story, asOf)) v += 1; // the strike
+    for (const c of chargesOn(soc, end, asOf)) {
+      if (establishedTo(soc, ground, c.slug, asOf)) v += 1;
+    }
+  }
+  return v;
 }
 
 /** reopenTask: strike a NEW differential across the same subject matter — a fresh unpack
  *  to a fresh unactualized End. Never an un-doing: the prior End stays actual forever
  *  (Thursday's holding stays actual); no occlusion, no erasure, only a new opening. */
 export function reopenTask(soc: Society, story: string): PoleUnpack {
+  unpackPoles(soc, story); // a never-unpacked story reopens by unpacking first (lineage laid once)
   const n = prehensionsFrom(soc, story, "q-end-pole").length;
   const end = `${story}~hea-${n}`;
   soc.lay({ slug: end, content: `the End-pole of ${story} (reopened), not yet actual`, subject: null, object: null });
   const pole = `${story}~end-pole~${end}`;
   // Q2 frame mark, same ink as unpackPoles.
   soc.layP(pole, `End-pole designation (frame: ${story})`, story, end, "q-end-pole");
-  return { once: story, end, pole };
+  // same frame, same lineage: the story's own Now (laid by the first unpack) carries on.
+  return { once: story, end, pole, now: storyNow(story) };
+}
+
+// ── THE ALGEDONIC CHANNEL (Beer) — pain the system must not be able to mute ──────────
+// Two READS, no writes. These are the algedonic channel of the viable system: the signal
+// that bypasses ordinary reporting because ordinary reporting is exactly what failed.
+// DON'T-PLUG-THE-CHANNEL LAW: these readings must never be silently filtered, thresholded
+// away in the kernel, or defaulted to quiet — threshold POLICY is Hallie's; the kernel
+// returns the raw readings, sorted loudest-first, always.
+
+/** one floating differential: charge nobody's lineage holds. */
+export interface FloatingCharge {
+  story: string;
+  end: string;
+  /** the story's own frame's Now — unreachable from every live ground given. */
+  now: string;
+  /** raw un-occluded charge count on the open End (absolute — no ground can read it). */
+  charges: number;
+}
+
+/** floatingCharge: the dukkha nobody holds — open differentials CARRYING CHARGE whose
+ *  story-frame has no path from any live ground (its now-lineage head unreachable from
+ *  every active frame's head). `grounds` are the live frames' lineage-head NODES (policy
+ *  locates them; the kernel takes nodes). Sorted by charge, loudest first. Algedonic:
+ *  never silently filter this (don't-plug-the-channel). */
+export function floatingCharge(soc: Society, grounds: ReadonlyArray<string>, asOf?: number): FloatingCharge[] {
+  const out: FloatingCharge[] = [];
+  const seen = new Set<string>();
+  for (const b of soc.all()) {
+    // every un-occluded designation names a differential (subject = story, object = end)
+    if (b.subject === null || b.object === null) continue;
+    if (!prehendsAs(soc, b.slug, "q-end-pole", asOf) || isOccluded(soc, b.slug, asOf)) continue;
+    if (endActual(soc, b.object, asOf)) continue; // closed — not floating, discharging normally
+    const key = `${b.subject}\u0000${b.object}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    const charges = chargesOn(soc, b.object, asOf).length;
+    if (charges === 0) continue; // an idle open differential is calm, not dukkha
+    const now = storyNow(b.subject);
+    const held = grounds.some((g) => g === now || reaches(soc, g, now, "q-grounding", asOf));
+    if (!held) out.push({ story: b.subject, end: b.object, now, charges });
+  }
+  return out.sort((a, b) => b.charges - a.charges);
+}
+
+/** one story's contribution to a lineage's load. */
+export interface VoltageReading {
+  story: string;
+  voltage: number;
+}
+
+/** overload: the total voltage grounded through ONE lineage — the line over rating. Reads
+ *  voltageOf for every story against the given ground and returns the raw readings sorted
+ *  loudest-first plus their sum. NO threshold here — threshold policy stays Hallie's;
+ *  algedonic: never silently filter this (don't-plug-the-channel). */
+export function overload(soc: Society, ground: string, asOf?: number): { ground: string; total: number; readings: VoltageReading[] } {
+  const stories = new Set<string>();
+  for (const b of soc.all()) {
+    if (b.subject !== null && b.object !== null &&
+        prehendsAs(soc, b.slug, "q-end-pole", asOf) && !isOccluded(soc, b.slug, asOf)) {
+      stories.add(b.subject);
+    }
+  }
+  const readings: VoltageReading[] = [];
+  let total = 0;
+  for (const story of stories) {
+    const voltage = voltageOf(soc, story, ground, asOf);
+    if (voltage > 0) readings.push({ story, voltage });
+    total += voltage;
+  }
+  readings.sort((a, b) => b.voltage - a.voltage);
+  return { ground, total, readings };
 }
 
 /** author_of: the subject of a q-utterance prehension onto `beat` (who said it). */

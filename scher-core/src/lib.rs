@@ -170,6 +170,28 @@ impl Society {
              into its three poles instead: lay Q_END_POLE ('{subject} ~end-pole~ end') and \
              close with 'end ~because~ now' (Q_GROUNDING). (law: three-poles, no-luring-verb)"
         );
+        // ADDRESS LAW (blocking — mirrors society.ts assertNakedPole; the law and its
+        // guard born together per the 2026-07-06 meta-law): an open End-pole receives
+        // ONLY charge-prehensions (bare edges) onto it and, eventually, the ONE closing
+        // q-grounding out of it — nothing else touches a naked pole; comments/references
+        // prehend the STORY, never its End. (q-end-pole itself is exempt structure: a
+        // pole may itself be a story whose own End lies further in.)
+        if quality != Q_END_POLE {
+            assert!(
+                !is_open_end_pole(self, object, None),
+                "[ADDRESS LAW] '{slug}' lays a {quality} prehension ONTO the open End-pole \
+                 '{object}'. A naked pole receives only charge-prehensions (bare edges) — \
+                 comments/references prehend the STORY, never its End. Fix: point this \
+                 edge at the story, or lay a bare edge if you mean a charge. (law: naked-pole)"
+            );
+            assert!(
+                quality == Q_GROUNDING || !is_open_end_pole(self, subject, None),
+                "[ADDRESS LAW] '{slug}' lays a {quality} prehension OUT of the open \
+                 End-pole '{subject}'. The only edge that ever leaves a naked pole is its \
+                 ONE closing q-grounding ('end ~because~ now'). Fix: close with \
+                 q-grounding, or hang this relation on the story. (law: naked-pole)"
+            );
+        }
         let a = self.lay(EventRow::edge(slug, content, subject, object));
         let q_slug = format!("{slug}~q");
         let q_content = format!("{content} [{quality}]");
@@ -599,31 +621,170 @@ pub fn end_actual(soc: &Society, end: &str, as_of: Option<u64>) -> bool {
         .any(|p| !is_occluded(soc, &p.slug, as_of))
 }
 
-/// voltage_of: the scalar across a story's open differential — DERIVED, stored nowhere
-/// (F-A ruling, Hallie 2026-07-06: "capture strikes a voltage; marking voltage lays
-/// charge; done closes the circuit; nothing ever un-happens"). Zero when the event was
-/// never unpacked (one event, no differential) or when the circuit is closed (every
-/// designated End actual — because a Now); otherwise 1 (the open strike) + the
-/// un-occluded q-charge events laid against the story. Simple sum for now —
-/// decay/weighting is a future READ policy (the charge events stay; only the derivation
-/// would change). Mirrors `voltageOf` in society.ts.
-pub fn voltage_of(soc: &Society, story: &str, as_of: Option<u64>) -> u64 {
-    let open = prehensions_from(soc, story, Q_END_POLE, as_of)
-        .iter()
+/// story_now: the story's own frame's Now — the `{story}~now` constructor convention (an
+/// ADDRESS, the lay_p/`~hea` shape — reads never parse it). Under SOFD this Now's lineage
+/// head is voltage's default ground. Mirrors `storyNow` in society.ts.
+pub fn story_now(story: &str) -> String {
+    format!("{story}~now")
+}
+
+/// is_open_end_pole: is `node` a designated End-pole (object of an un-occluded
+/// Q_END_POLE edge) not yet actual? The address law guards exactly these.
+pub fn is_open_end_pole(soc: &Society, node: &str, as_of: Option<u64>) -> bool {
+    let designated = soc.all().any(|b| {
+        b.object.as_deref() == Some(node)
+            && b.subject.is_some()
+            && prehends_as(soc, &b.slug, Q_END_POLE, as_of)
+            && !is_occluded(soc, &b.slug, as_of)
+    });
+    designated && !end_actual(soc, node, as_of)
+}
+
+/// charges_on: the charges on a differential — a PURE ADDRESS READ (the naked-pole law's
+/// payoff): the un-occluded BARE prehensions onto the End. No charge quality exists; the
+/// charge is a property of the EDGE, never node-contents (Hallie, 2026-07-06). Mirrors
+/// `chargesOn` in society.ts.
+pub fn charges_on<'a>(soc: &'a Society, end: &str, as_of: Option<u64>) -> Vec<&'a EventRow> {
+    soc.all()
+        .filter(|b| {
+            b.object.as_deref() == Some(end)
+                && b.subject.is_some()
+                && visible_at(b, as_of)
+                && !has_any_quality(soc, &b.slug, as_of)
+                && !is_occluded(soc, &b.slug, as_of)
+        })
+        .collect()
+}
+
+/// voltage_of: the scalar across the story's differentials, read RELATIVE TO A GROUND —
+/// DERIVED, stored nowhere (Hallie, 2026-07-06 second sitting: the GROUND is the reading
+/// frame's now-lineage head, "the last now that the user's now is because (or whatever
+/// frame's now)"). `ground: None` ⇒ the story's OWN frame's Now (SOFD default). Locating
+/// or walking lineage heads for other frames is POLICY (the kernel takes a node); no
+/// structural now-succession exists yet, so a frame's single Now IS its head.
+///
+/// Per differential: CLOSED for this ground iff a closing is established to it (or the
+/// ground IS the closing's Now, or the ground is the story's own frame — SOFD: a closing
+/// on this story's End is an event in the story's own course). Discharge PROPAGATES; no
+/// global zeroing — an unestablished frame honestly reads residual voltage ("done, still
+/// discharging"). While open: the strike counts iff the story is established to the
+/// ground; each charge (bare edge onto the End — pure address) counts iff established to
+/// the ground. Simple sum, no decay this pass. Mirrors `voltageOf` in society.ts.
+pub fn voltage_of(soc: &Society, story: &str, ground: Option<&str>, as_of: Option<u64>) -> u64 {
+    let own = story_now(story);
+    let ground = ground.unwrap_or(&own);
+    let poles: Vec<EventRow> = prehensions_from(soc, story, Q_END_POLE, as_of)
+        .into_iter()
         .filter(|p| !is_occluded(soc, &p.slug, as_of))
-        .any(|p| {
-            p.object
-                .as_deref()
-                .is_some_and(|end| !end_actual(soc, end, as_of))
-        });
-    if !open {
-        return 0; // closed circuit, or never a story — nothing un-happened either way
+        .cloned()
+        .collect();
+    let mut v = 0;
+    for p in poles {
+        let Some(end) = p.object.as_deref() else { continue };
+        let closings: Vec<EventRow> = prehensions_from(soc, end, Q_GROUNDING, as_of)
+            .into_iter()
+            .filter(|c| !is_occluded(soc, &c.slug, as_of))
+            .cloned()
+            .collect();
+        let closed_here = !closings.is_empty()
+            && (ground == own
+                || closings.iter().any(|c| {
+                    c.object.as_deref() == Some(ground)
+                        || established_to(soc, ground, &c.slug, as_of)
+                }));
+        if closed_here {
+            continue; // discharged to this ground — this differential reads closed
+        }
+        if established_to(soc, ground, story, as_of) {
+            v += 1; // the strike
+        }
+        for c in charges_on(soc, end, as_of) {
+            if established_to(soc, ground, &c.slug, as_of) {
+                v += 1;
+            }
+        }
     }
-    let charges = prehensions_onto(soc, story, "q-charge", as_of)
-        .iter()
-        .filter(|p| !is_occluded(soc, &p.slug, as_of))
-        .count() as u64;
-    1 + charges
+    v
+}
+
+/// one floating differential: charge nobody's lineage holds.
+pub struct FloatingCharge {
+    pub story: String,
+    pub end: String,
+    /// the story's own frame's Now — unreachable from every live ground given.
+    pub now: String,
+    /// raw un-occluded charge count on the open End (absolute — no ground can read it).
+    pub charges: usize,
+}
+
+/// floating_charge: THE ALGEDONIC CHANNEL (Beer), read one — the dukkha nobody holds:
+/// open differentials CARRYING CHARGE whose story-frame has no path from any live ground
+/// (its now-lineage head unreachable from every active frame's head). `grounds` are the
+/// live frames' lineage-head NODES (policy locates them). Sorted by charge, loudest
+/// first. DON'T-PLUG-THE-CHANNEL LAW: never silently filter or threshold this in the
+/// kernel — threshold policy is Hallie's. Mirrors `floatingCharge` in society.ts.
+pub fn floating_charge(soc: &Society, grounds: &[&str], as_of: Option<u64>) -> Vec<FloatingCharge> {
+    let mut out: Vec<FloatingCharge> = Vec::new();
+    let mut seen = std::collections::HashSet::new();
+    for b in soc.all() {
+        let (Some(story), Some(end)) = (b.subject.as_deref(), b.object.as_deref()) else { continue };
+        if !prehends_as(soc, &b.slug, Q_END_POLE, as_of) || is_occluded(soc, &b.slug, as_of) {
+            continue;
+        }
+        if end_actual(soc, end, as_of) {
+            continue; // closed — discharging normally, not floating
+        }
+        if !seen.insert((story.to_string(), end.to_string())) {
+            continue;
+        }
+        let charges = charges_on(soc, end, as_of).len();
+        if charges == 0 {
+            continue; // an idle open differential is calm, not dukkha
+        }
+        let now = story_now(story);
+        let held = grounds
+            .iter()
+            .any(|g| *g == now || reaches(soc, g, &now, Q_GROUNDING, as_of));
+        if !held {
+            out.push(FloatingCharge { story: story.to_string(), end: end.to_string(), now, charges });
+        }
+    }
+    out.sort_by(|a, b| b.charges.cmp(&a.charges));
+    out
+}
+
+/// one story's contribution to a lineage's load.
+pub struct VoltageReading {
+    pub story: String,
+    pub voltage: u64,
+}
+
+/// overload: THE ALGEDONIC CHANNEL (Beer), read two — the total voltage grounded through
+/// ONE lineage: the line over rating. Raw readings sorted loudest-first plus their sum;
+/// NO threshold here — threshold policy stays Hallie's, and the don't-plug-the-channel
+/// law forbids silent filtering. Mirrors `overload` in society.ts.
+pub fn overload(soc: &Society, ground: &str, as_of: Option<u64>) -> (u64, Vec<VoltageReading>) {
+    let mut stories = std::collections::HashSet::new();
+    for b in soc.all() {
+        if b.subject.is_some()
+            && b.object.is_some()
+            && prehends_as(soc, &b.slug, Q_END_POLE, as_of)
+            && !is_occluded(soc, &b.slug, as_of)
+        {
+            stories.insert(b.subject.clone().unwrap());
+        }
+    }
+    let mut total = 0;
+    let mut readings: Vec<VoltageReading> = Vec::new();
+    for story in stories {
+        let voltage = voltage_of(soc, &story, Some(ground), as_of);
+        total += voltage;
+        if voltage > 0 {
+            readings.push(VoltageReading { story, voltage });
+        }
+    }
+    readings.sort_by(|a, b| b.voltage.cmp(&a.voltage));
+    (total, readings)
 }
 
 /// distance_to_hea: the HEA as a gradient, READ (not a stored lure). For a story from

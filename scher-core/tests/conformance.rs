@@ -593,38 +593,99 @@ fn laying_q_lure_will_not_work() {
     soc.lay_p("a~lures~b", "a lure", "a", "b", "q-lure");
 }
 
-// ── voltage (mirrors scher/test/voltage.test.ts) — F-A ruling + pole law, 2026-07-06 ──
+// ── voltage (mirrors scher/test/voltage.test.ts) — the 2026-07-06 pole rulings ────────
 // "Capture strikes a voltage; marking voltage lays charge; done closes the circuit;
-// nothing ever un-happens." — and: an event is ONE event until lazily unpacked into the
-// THREE poles; the end, when actual, is because Now.
+// nothing ever un-happens." Voltage takes a GROUND (the reading frame's lineage head;
+// default the story's own frame under SOFD); charges are BARE edges onto the open End
+// (pure address — no charge quality exists); discharge PROPAGATES, never a global zero.
 #[test]
-fn voltage_is_derived_across_the_unpacked_differential_and_done_closes_it() {
+fn voltage_is_grounded_and_discharge_propagates() {
     let mut soc = Society::new();
     // capture = ONE event: no poles, no differential, no voltage.
     soc.lay(EventRow::node("buy-milk", "buy milk"));
-    assert_eq!(voltage_of(&soc, "buy-milk", None), 0);
+    assert_eq!(voltage_of(&soc, "buy-milk", None, None), 0);
 
-    // first need: the lazy three-pole unpack — End-pole minted, structurally designated.
+    // first need: the lazy three-pole unpack — End designated; the story's own Now,
+    // because its Once ("Now is because events"; convener's proposal, standing).
     soc.lay(EventRow::node("buy-milk~hea", "the End-pole, not yet actual"));
     soc.lay_p("buy-milk~end-pole~hea", "End-pole designation (frame: buy-milk)", "buy-milk", "buy-milk~hea", Q_END_POLE);
-    assert_eq!(voltage_of(&soc, "buy-milk", None), 1); // the open strike
+    let now = story_now("buy-milk");
+    soc.lay(EventRow::node(&now, "the story's own Now"));
+    soc.lay_p(&format!("{now}~because~buy-milk"), "now is because events", &now, "buy-milk", Q_GROUNDING);
+    assert_eq!(voltage_of(&soc, "buy-milk", None, None), 1); // the open strike
 
-    // marking voltage lays charge — append-only; the read rises
-    soc.lay_p("buy-milk~charge-0", "charge", "frame-hallie", "buy-milk", "q-charge");
-    soc.lay_p("buy-milk~charge-1", "noticed again", "frame-hallie", "buy-milk", "q-charge");
-    assert_eq!(voltage_of(&soc, "buy-milk", None), 3);
+    // charge: a BARE edge onto the open End, woven into the story's lineage (SOFD).
+    soc.lay(EventRow::edge("buy-milk~hea~charge-0", "charge", "frame-hallie", "buy-milk~hea"));
+    soc.lay_p(&format!("{now}~because~buy-milk~hea~charge-0"), "witnessed", &now, "buy-milk~hea~charge-0", Q_GROUNDING);
+    assert_eq!(charges_on(&soc, "buy-milk~hea", None).len(), 1);
+    assert_eq!(voltage_of(&soc, "buy-milk", None, None), 2);
 
-    // done: the pole law's closing move — the End, now actual, is because the Now of its
-    // closing. Circuit closed, voltage zero, every prior event still readable.
-    soc.lay_p("hea~because~now-hallie", "the end is because now", "buy-milk~hea", "now-hallie", Q_GROUNDING);
+    // Bob's lineage witnesses story and charge — his ground reads 2 as well:
+    soc.lay(EventRow::node("now-bob", "Bob's Now"));
+    soc.lay_p("now-bob~because~buy-milk", "bob witnessed", "now-bob", "buy-milk", Q_GROUNDING);
+    soc.lay_p("now-bob~because~charge0", "bob witnessed the charge", "now-bob", "buy-milk~hea~charge-0", Q_GROUNDING);
+    assert_eq!(voltage_of(&soc, "buy-milk", Some("now-bob"), None), 2);
+
+    // done: end ~because~ storyNow. Closed for the story's own frame (SOFD) — but Bob
+    // reads RESIDUAL voltage until the closing establishes to him: no global zeroing.
+    let closing = format!("buy-milk~hea~because~{now}");
+    soc.lay_p(&closing, "the end is because now", "buy-milk~hea", &now, Q_GROUNDING);
     assert!(end_actual(&soc, "buy-milk~hea", None));
-    assert_eq!(voltage_of(&soc, "buy-milk", None), 0);
-    assert!(soc.get("buy-milk~charge-0").is_some());
-    assert!(soc.get("buy-milk~end-pole~hea").is_some());
+    assert_eq!(voltage_of(&soc, "buy-milk", None, None), 0); // closed where it closed
+    assert_eq!(voltage_of(&soc, "buy-milk", Some("now-bob"), None), 2); // done, still discharging
+    soc.lay_p("now-bob~because~closing", "the closing reached bob", "now-bob", &closing, Q_GROUNDING);
+    assert_eq!(voltage_of(&soc, "buy-milk", Some("now-bob"), None), 0); // discharged to Bob
 
-    // reopen = a NEW unpack (new differential), never an un-doing.
-    soc.lay(EventRow::node("buy-milk~hea-1", "reopened End, not yet actual"));
-    soc.lay_p("buy-milk~end-pole~hea-1", "End-pole designation (frame: buy-milk)", "buy-milk", "buy-milk~hea-1", Q_END_POLE);
-    assert!(voltage_of(&soc, "buy-milk", None) > 0); // open again
-    assert!(end_actual(&soc, "buy-milk~hea", None)); // Thursday's holding still actual
+    // the closed circuit IS a closed because-path End → Now → Once:
+    assert!(reaches(&soc, "buy-milk~hea", "buy-milk", Q_GROUNDING, None));
+    // nothing un-happened:
+    assert!(soc.get("buy-milk~hea~charge-0").is_some());
+    assert!(soc.get("buy-milk~end-pole~hea").is_some());
+}
+
+// ── the naked-pole address law (mirrors scher/test/address-law.test.ts) ───────────────
+// THE LAW: an open End-pole receives only charge-prehensions (bare edges) onto it and,
+// eventually, the ONE closing q-grounding out of it — nothing else touches a naked pole.
+#[test]
+#[should_panic(expected = "ADDRESS LAW")]
+fn a_quality_prehension_onto_a_naked_pole_will_not_work() {
+    let mut soc = Society::new();
+    soc.lay(EventRow::node("task", "a task"));
+    soc.lay(EventRow::node("task~hea", "open End"));
+    soc.lay_p("task~end-pole~hea", "designation", "task", "task~hea", Q_END_POLE);
+    soc.lay_p("cmt~feels~hea", "comment parked on the pole", "commenter", "task~hea", "q-feel");
+}
+
+// ── the algedonic reads (mirror scher/test/algedonic.test.ts) — Beer's channel ────────
+#[test]
+fn floating_charge_and_overload_read_raw_and_loudest_first() {
+    let mut soc = Society::new();
+    for t in ["held-task", "orphan-task"] {
+        soc.lay(EventRow::node(t, t));
+        let (end, now) = (format!("{t}~hea"), story_now(t));
+        soc.lay(EventRow::node(&end, "open End"));
+        soc.lay_p(&format!("{t}~end-pole~{end}"), "designation", t, &end, Q_END_POLE);
+        soc.lay(EventRow::node(&now, "story now"));
+        soc.lay_p(&format!("{now}~because~{t}"), "now is because events", &now, t, Q_GROUNDING);
+        // one charge each, woven:
+        let c = format!("{end}~charge-0");
+        soc.lay(EventRow::edge(&c, "charge", "frame-vik", &end));
+        soc.lay_p(&format!("{now}~because~{c}"), "witnessed", &now, &c, Q_GROUNDING);
+    }
+    // a second charge makes the orphan louder:
+    soc.lay(EventRow::edge("orphan-task~hea~charge-1", "more", "frame-tam", "orphan-task~hea"));
+    // one live frame holds held-task's lineage only:
+    soc.lay(EventRow::node("now-priya", "priya's Now"));
+    soc.lay_p("now-priya~holds", "priya holds it", "now-priya", &story_now("held-task"), Q_GROUNDING);
+
+    let floating = floating_charge(&soc, &["now-priya"], None);
+    assert_eq!(floating.len(), 1);
+    assert_eq!(floating[0].story, "orphan-task");
+    assert_eq!(floating[0].charges, 2);
+
+    let (total, readings) = overload(&soc, "now-priya", None);
+    // priya's ground reaches held-task's whole course (strike + charge = 2); orphan: 0.
+    assert_eq!(total, 2);
+    assert_eq!(readings.len(), 1);
+    assert_eq!(readings[0].story, "held-task");
 }

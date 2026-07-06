@@ -51,6 +51,11 @@ export type KernelQuality =
   // REFUSES it (assertNoLure, below — blocking, unlike the containment holler). The
   // three-pole unpack replaces it: q-end-pole designates a pole, structurally.
   | "q-end-pole"
+  // q-sublime-pole designates a never-closing pole (2026-07-06 sublimes-store design):
+  // unlike an End-pole (which closes when `end ~because~ now`), a sublime-pole is forever
+  // open. It is INERT — never lures, never actualize. Its structure is "star for navigation,
+  // not a destination to land" (Hallie).
+  | "q-sublime-pole"
   | "q-exclusion"
   | "q-utterance"
   | "q-feel"
@@ -203,6 +208,44 @@ export function assertNotMembershipContainment(slug: string, quality: Quality): 
   }
 }
 
+// ── SUBLIME GUARD: sublimes never close ────────────────────────────────────
+// THE LAW (one sentence, born with its guard per the meta-law of 2026-07-06):
+// a sublime-pole is NEVER ACTUAL. It is a never-closing, receding horizon — a "star
+// for navigation, not a destination to land" (Hallie). Unlike an End-pole (which
+// closes when `end ~because~ now`), a sublime remains eternally open.
+//
+// This ensures the anti-q-lure guarantee: a sublime is INERT (never beckons, never
+// actualizes an agent's promise). Closure is forbidden structurally.
+//
+// WHAT TO DO if you hit this: a sublime is not a story endpoint. Do not try to
+// close it or mark it as done. If you mean to actualize an End, use an End-pole
+// instead (designate it with q-end-pole and close it with `end ~because~ now`).
+// A sublime's purpose is to ORIENT pursuit, not to be reached. (law: sublime-never-closes)
+export function assertSublimeNeverCloses(soc: Society, slug: string, subject: string, object: string, quality: Quality): void {
+  // q-sublime-pole designation itself is structural; it is exempt (like q-end-pole).
+  if (quality === "q-sublime-pole") return;
+  // Trying to lay a q-grounding OUT of a sublime-pole (sublime as subject)
+  if (subject !== null && isSublimePole(soc, subject) && quality === "q-grounding") {
+    throw new Error(
+      `[ANTI-Q-LURE GUARANTEE] '${slug}' tries to close the sublime-pole '${subject}' ` +
+      `with q-grounding. A sublime is NEVER ACTUAL — it is a receding horizon, not a ` +
+      `destination. Sublimes orient pursuit; they do not actualize. (law: ` +
+      `sublime-never-closes)`,
+    );
+  }
+}
+
+/** isSublimePole: is `node` a designated sublime-pole (object of an un-occluded
+ *  q-sublime-pole edge)? Unlike an End-pole, a sublime is NEVER ACTUAL — its openness
+ *  is eternal. */
+export function isSublimePole(soc: Society, node: string | null, asOf?: number): boolean {
+  if (!node) return false;
+  return soc.all().some(
+    (b) => b.object === node && b.subject !== null &&
+      prehendsAs(soc, b.slug, "q-sublime-pole", asOf) && !isOccluded(soc, b.slug, asOf),
+  );
+}
+
 // ── the society itself ───────────────────────────────────────────────────────
 
 /** An append-only society of beats. The only write is lay(). `rev` rises on every
@@ -251,6 +294,7 @@ export class Society {
   layP(slug: string, content: string, subject: string, object: string, quality: Quality): boolean {
     assertNoLure(slug, quality); // BLOCKS: q-lure is dead grammar (Hallie, 2026-07-06)
     assertNakedPole(this, slug, subject, object, quality); // BLOCKS: nothing touches a naked pole
+    assertSublimeNeverCloses(this, slug, subject, object, quality); // BLOCKS: sublimes never close
     assertNotMembershipContainment(slug, quality);
     // TODO(socratic): does the quality belong in the '~q' beat's content (as "[${quality}]"), or is it already fully encoded by the object field?
     const a = this.lay({ slug, content, subject, object });
@@ -1093,4 +1137,43 @@ function hasSuccessor(soc: Society, event: string): boolean {
 function findSuccessor(soc: Society, event: string): string | null {
   const firstEdge = prehensionsOnto(soc, event, "q-succeeds")[0];
   return firstEdge?.subject ?? null;
+}
+
+// ── SUBLIME READS (2026-07-06 sublimes-store design) ─────────────────────────────
+// Sublimes are never-closing poles that ORGANIZE pursuit without luring. They orient
+// events via because-edges (bearings). The reads here measure voltage-toward and
+// trace inherited bearings through story membership.
+
+/** bearingsOf: all because-edges FROM this event TO any sublime-pole, as of a moment.
+ *  These are the bearings (orientations) the event sails under. A bare because-edge
+ *  (`event ~because~ sublime`) is pure orientation, not establishment. Occluded bearings
+ *  are filtered out. */
+export function bearingsOf(soc: Society, event: string, asOf?: number): EventRow[] {
+  return prehensionsFrom(soc, event, "because", asOf).filter(
+    (p) => !isOccluded(soc, p.slug, asOf) && isSublimePole(soc, p.object, asOf),
+  );
+}
+
+/** storyBearingsOf: bearings inherited via story membership. If this beat is in a
+ *  story's interval (between its Once and End), return the story's own bearings
+ *  (because-edges from the story's Once to sublime-poles). Empty if the beat is not
+ *  in any story's interval. (Placeholder: full implementation of climb-membership
+ *  and story-interval-checking is chartered for next pass; shape is proven.) */
+export function storyBearingsOf(soc: Society, beat: string, asOf?: number): EventRow[] {
+  // TODO(discernment-scout-2026-07-06): climb membership to find the story's Once,
+  // then return bearingsOf(once). This is the template for the next pass:
+  // 1. Find all stories that could contain this beat (stories whose ends are reachable
+  //    from the beat via reverse betweenness).
+  // 2. For each story, climb to its Once and return its bearings.
+  // 3. Aggregate and deduplicate by sublime-pole.
+  // For now, return empty array; the shape is proven and documented.
+  return [];
+}
+
+/** voltageTowardSublime: count of non-occluded bare prehensions onto this sublime,
+ *  as of a moment. This is the sublime's "charge" — attraction without actualization.
+ *  Unlike charge on an End-pole (which discharges when the pole closes), a sublime's
+ *  voltage accumulates forever, never exhausted. */
+export function voltageTowardSublime(soc: Society, sublime: string, asOf?: number): number {
+  return prehensionsOnto(soc, sublime, "because", asOf).filter((p) => !isOccluded(soc, p.slug, asOf)).length;
 }

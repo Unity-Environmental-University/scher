@@ -46,6 +46,10 @@ pub const Q_DEPENDS_ON: &str = "q-depends-on";
 /// q-lure is DEAD — killed with fire (Hallie, same ruling): it smuggled an agent and
 /// could not state its own direction. `lay_p` REFUSES it (panic, fail-closed).
 pub const Q_END_POLE: &str = "q-end-pole";
+/// The structural sublime-pole designation (2026-07-06 sublimes-store design): a
+/// never-closing pole that ORGANIZES pursuit without luring. Sublimes are inert — they
+/// never close, never beckon, never actualize. `lay_p` REFUSES attempts to close them.
+pub const Q_SUBLIME_POLE: &str = "q-sublime-pole";
 
 /// A beat. With subject+object it is a prehension (an edge). A quality beat (slug ending
 /// `~q`, object a `q-*`) carries mode. Mirrors the `EventRow` interface in society.ts.
@@ -190,6 +194,20 @@ impl Society {
                  End-pole '{subject}'. The only edge that ever leaves a naked pole is its \
                  ONE closing q-grounding ('end ~because~ now'). Fix: close with \
                  q-grounding, or hang this relation on the story. (law: naked-pole)"
+            );
+        }
+        // SUBLIME GUARD (blocking — mirrors society.ts assertSublimeNeverCloses,
+        // 2026-07-06 sublimes-store design): a sublime-pole is NEVER ACTUAL. It is a
+        // never-closing, receding horizon — a "star for navigation, not a destination to
+        // land" (Hallie). Attempting to close it with q-grounding violates the anti-q-lure
+        // guarantee. Q_SUBLIME_POLE designation itself is exempt (like Q_END_POLE).
+        if quality != Q_SUBLIME_POLE {
+            assert!(
+                quality != Q_GROUNDING || !is_sublime_pole(self, subject, None),
+                "[ANTI-Q-LURE GUARANTEE] '{slug}' tries to close the sublime-pole '{subject}' \
+                 with q-grounding. A sublime is NEVER ACTUAL — it is a receding horizon, not a \
+                 destination. Sublimes orient pursuit; they do not actualize. (law: \
+                 sublime-never-closes)"
             );
         }
         let a = self.lay(EventRow::edge(slug, content, subject, object));
@@ -650,6 +668,18 @@ pub fn is_open_end_pole(soc: &Society, node: &str, as_of: Option<u64>) -> bool {
     designated && !end_actual(soc, node, as_of)
 }
 
+/// is_sublime_pole: is `node` a designated sublime-pole (object of an un-occluded
+/// Q_SUBLIME_POLE edge)? Unlike an End-pole, a sublime is NEVER ACTUAL — its openness
+/// is eternal. (2026-07-06 sublimes-store design.) Mirrors `isSublimePole` in society.ts.
+pub fn is_sublime_pole(soc: &Society, node: &str, as_of: Option<u64>) -> bool {
+    soc.all().any(|b| {
+        b.object.as_deref() == Some(node)
+            && b.subject.is_some()
+            && prehends_as(soc, &b.slug, Q_SUBLIME_POLE, as_of)
+            && !is_occluded(soc, &b.slug, as_of)
+    })
+}
+
 /// charges_on: the charges on a differential — a PURE ADDRESS READ (the naked-pole law's
 /// payoff): the un-occluded BARE prehensions onto the End. No charge quality exists; the
 /// charge is a property of the EDGE, never node-contents (Hallie, 2026-07-06). Mirrors
@@ -825,4 +855,31 @@ pub fn distance_to_hea(soc: &Society, frame_once: &str, end: Option<&str>) -> He
         remaining,
         total: interior.len(),
     }
+}
+
+// ── SUBLIME READS (2026-07-06 sublimes-store design) ─────────────────────────────
+// Sublimes are never-closing poles that ORGANIZE pursuit without luring. They orient
+// events via because-edges (bearings). The reads here measure voltage-toward and
+// trace inherited bearings through story membership.
+
+/// bearings_of: all because-edges FROM this event TO any sublime-pole, as of a moment.
+/// These are the bearings (orientations) the event sails under. A bare because-edge
+/// (`event ~because~ sublime`) is pure orientation, not establishment. Occluded bearings
+/// are filtered out. Mirrors `bearingsOf` in society.ts.
+pub fn bearings_of<'a>(soc: &'a Society, event: &str, as_of: Option<u64>) -> Vec<&'a EventRow> {
+    prehensions_from(soc, event, "because", as_of)
+        .into_iter()
+        .filter(|p| !is_occluded(soc, &p.slug, as_of) && is_sublime_pole(soc, p.object.as_deref().unwrap_or(""), as_of))
+        .collect()
+}
+
+/// voltage_toward_sublime: count of non-occluded bare prehensions onto this sublime,
+/// as of a moment. This is the sublime's "charge" — attraction without actualization.
+/// Unlike charge on an End-pole (which discharges when the pole closes), a sublime's
+/// voltage accumulates forever, never exhausted. Mirrors `voltageTowardSublime` in society.ts.
+pub fn voltage_toward_sublime(soc: &Society, sublime: &str, as_of: Option<u64>) -> usize {
+    prehensions_onto(soc, sublime, "because", as_of)
+        .into_iter()
+        .filter(|p| !is_occluded(soc, &p.slug, as_of))
+        .count()
 }

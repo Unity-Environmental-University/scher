@@ -561,18 +561,16 @@ pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
     fwd.into_iter().filter(|n| bwd.contains(n)).collect()
 }
 
-/// end_of: the End a story lures toward — the object of the story's `q-lure` edge whose object
-/// names an "end". Mirrors `endOf` in society.ts. (Seam for gen4: gen4 retires q-lure — "the lure
-/// is read" — so gen4 will likely pass `end` explicitly to distance_to_hea rather than rely on
-/// this. Ported faithfully to scher's grammar, where q-lure still names the End.)
-// TODO(socratic): `o.contains("end")` will crown "weekend-review" or "backend-cleanup" as a story's End — is a substring of a slug really where the metaphysics wants "what an End IS" to live, and does `soc.all().find(...)` on an unordered map even pick a stable End when two q-lure edges match?
+/// end_of: the End a story lures toward — the object of the story's `q-lure` edge,
+/// structurally; the lure IS the End-pole designation (F-A ruling, 2026-07-06). The old
+/// read also demanded the object's slug contain "end" (its own TODO named the
+/// "weekend-review" false crowning); no spelling is read anymore. Mirrors `endOf` in
+/// society.ts.
+// TODO(socratic): find() returns the first match in an unordered map — what defines "first", and if two q-lure edges match, should end_of pick one deterministically or error?
 pub fn end_of(soc: &Society, story: &str) -> Option<String> {
     soc.all()
-        // TODO(socratic): find() returns the first match in an unordered map — what defines "first", and if two q-lure edges match, should end_of pick one deterministically or error?
         .find(|b| {
-            b.subject.as_deref() == Some(story)
-                && b.object.as_deref().is_some_and(|o| o.contains("end"))
-                && prehends_as(soc, &b.slug, "q-lure", None)
+            b.subject.as_deref() == Some(story) && prehends_as(soc, &b.slug, "q-lure", None)
         })
         .and_then(|b| b.object.clone())
 }

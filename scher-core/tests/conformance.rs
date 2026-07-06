@@ -14,12 +14,12 @@ use scher_core::*;
 
 // ── generators (mirror the TS arbitraries) ───────────────────────────────────────
 
-/// distinct content-beat slugs: 1..=6 chars, not ending `~q`, not starting `q-`.
+/// distinct content-beat slugs: 1..=6 chars, not ending `~q` (the lay_p constructor
+/// namespace). A slug merely SPELLING `q-` is fair game — quality-hood is structural
+/// (has_any_quality, 2026-07-06 migration-design item 1), mirroring the TS generators.
 fn slugs() -> impl Strategy<Value = Vec<String>> {
     prop::collection::hash_set(
-        "[a-z]{1,6}".prop_filter("no ~q / q- slugs", |s: &String| {
-            !s.ends_with("~q") && !s.starts_with("q-")
-        }),
+        "[a-z]{1,6}".prop_filter("no ~q slugs", |s: &String| !s.ends_with("~q")),
         1..=8,
     )
     .prop_map(|set| set.into_iter().collect())
@@ -561,4 +561,23 @@ mod anti_time {
         assert_eq!(p.end, Pole::None);    // no terminal — paradox
         assert_eq!(p.source, Pole::None); // no source — paradox
     }
+}
+
+// ── story-hood is structural (mirrors scher/test/story-structural.test.ts) ────────────
+// F-A ruling (2026-07-06): a beat is a Story iff it q-lures somewhere — the lure edge IS
+// the End-pole designation; end_of reads its object, no spelling ever inspected.
+#[test]
+fn end_of_reads_the_lure_structurally_never_the_spelling() {
+    let mut soc = Society::new();
+    soc.lay(EventRow::node("capture-milk", "capture"));
+    soc.lay(EventRow::node("milk-in-fridge", "the End-pole — no 'end' spelled"));
+    soc.lay_p("cm~lures~mif", "lures its End", "capture-milk", "milk-in-fridge", "q-lure");
+    assert_eq!(end_of(&soc, "capture-milk").as_deref(), Some("milk-in-fridge"));
+
+    // and 'weekend-plans' bait without a lure designates nothing:
+    soc.lay(EventRow::node("saturday-thought", "thought"));
+    soc.lay(EventRow::node("weekend-plans", "spells 'end'"));
+    soc.lay(EventRow::edge("st-e1", "plain edge", "saturday-thought", "weekend-plans"));
+    soc.lay_p("st-dep", "waits on", "saturday-thought", "weekend-plans", "q-depends-on");
+    assert_eq!(end_of(&soc, "saturday-thought"), None);
 }

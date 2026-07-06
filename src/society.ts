@@ -460,15 +460,14 @@ export function reactionsOn(soc: Society, beat: string, asOf?: number): Pathos[]
   return [...byEmoji.values()].sort((a, b) => b.count - a.count);
 }
 
-// TODO(socratic): my own CLAUDE.md law is "opaque slugs, no string-matching" — yet here I decide
-// story-hood by object.includes("end"); does a lure toward "weekend-plans" make anything a Story,
-// and why isn't End-ness a quality or a read instead of a syllable?
-/** is_story: does `beat` lure to a beat whose slug contains 'end'? */
+/** is_story: does `beat` have a lured End-pole? Story-hood is STRUCTURAL (F-A ruling,
+ *  2026-07-06, docs/committees/2026-07-06-F-A-ruled-voltage.md): the q-lure edge itself
+ *  IS the End-pole designation — its object is the story's End, whatever it is spelled.
+ *  The old read also demanded the object's slug contain the letters "end" (the
+ *  "weekend-plans" false positive its own TODO named); no spelling is read anymore. */
 export function isStory(soc: Society, beat: string): boolean {
   // TODO(socratic): should isStory also check that the lure is not occluded, or is the existence of a lure-edge enough regardless of occlusion?
-  return soc.all().some(
-    (b) => b.subject === beat && (b.object?.includes("end") ?? false) && prehendsAs(soc, b.slug, "q-lure"),
-  );
+  return prehensionsFrom(soc, beat, "q-lure").length > 0;
 }
 
 /** content beats: subject===null and not a '~q' mode-beat — the nodes, not the edges. */
@@ -507,13 +506,12 @@ export function intervalOf(soc: Society, once: string, end: string): string[] {
   return [...fwd].filter((n) => bwd.has(n));
 }
 
-/** the End-beat a story lures toward (the slug containing 'end' it q-lures to), if any. */
+/** the End-beat a story lures toward — the object of its q-lure edge, structurally; the
+ *  lure IS the designation (F-A ruling, 2026-07-06). No spelling is read. */
 export function endOf(soc: Society, story: string): string | null {
   // TODO(socratic): should endOf return null if the lure is occluded, or is the presence of any lure-edge the right answer?
-  // TODO(socratic): if a story lures to multiple end-beats, find() returns only the first — is that intentional or a bug?
-  const lure = soc.all().find(
-    (b) => b.subject === story && (b.object?.includes("end") ?? false) && prehendsAs(soc, b.slug, "q-lure"),
-  );
+  // TODO(socratic): if a story lures to multiple end-beats, [0] returns only the first — is that intentional or a bug?
+  const lure = prehensionsFrom(soc, story, "q-lure")[0];
   return lure?.object ?? null;
 }
 

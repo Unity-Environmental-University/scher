@@ -221,6 +221,19 @@ pub fn prehends_as(soc: &Society, pslug: &str, quality: &str, as_of: Option<u64>
     }
 }
 
+/// has_any_quality: does this prehension co-prehend ANY quality — i.e. does its `~q`
+/// mode-beat exist? Structural: reads the mode-beat's PRESENCE (the lay_p constructor
+/// convention), never the object's text. Mirrors `hasAnyQuality` in society.ts — the
+/// existential prehends_as had no name for. Replaces the `q-` content-prefix sniff that
+/// classified plain vs quality edges (2026-07-06 migration-design sitting, item 1).
+pub fn has_any_quality(soc: &Society, pslug: &str, as_of: Option<u64>) -> bool {
+    let q_slug = format!("{pslug}~q");
+    match soc.get(&q_slug) {
+        Some(q) => visible_at(q, as_of),
+        None => false,
+    }
+}
+
 /// Every prehension reaching `row` as object, co-prehending `quality`, as of a moment.
 /// Returns the prehension beats (whose `subject` is the frame that laid it).
 pub fn prehensions_onto<'a>(
@@ -497,8 +510,8 @@ pub fn grounded_by(soc: &Society, row: &str) -> Vec<String> {
 
 /// interval_of: the beats BETWEEN `once` and `end` — members of a story by betweenness, never a
 /// stored containment. A beat is in the interval iff it is forward-reachable from `once` AND
-/// backward-reachable from `end` over plain edges (object not a `q-*`, slug not `~q`). Mirrors
-/// `intervalOf` in society.ts.
+/// backward-reachable from `end` over plain edges (carrying no quality — has_any_quality —
+/// and not themselves `~q` mode-beats). Mirrors `intervalOf` in society.ts.
 pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
     let edges: Vec<&EventRow> = soc
         .all()
@@ -507,8 +520,10 @@ pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
             // ANSWERED(walk 2026-07-02): an edge with only one end doesn't exist in the grammar (nodes are None,None); "plain" = both ends present, object not q-*, slug not ~q. Membership is this betweenness walk, never a stored containment edge — ~holds~ is settled-dead. — see clearness-holds-is-settled-debt.md
             b.subject.is_some()
                 && b.object.is_some()
-                // TODO(socratic): excluding objects starting with "q-" filters quality beats; but should the filter also exclude other meta edges, or is this the right boundary?
-                && !b.object.as_deref().unwrap().starts_with("q-")
+                // plain = carries no quality (no `~q` mode-beat — has_any_quality, structural).
+                // Formerly a `q-` content-prefix sniff on the object; replaced 2026-07-06
+                // (migration-design item 1, paired with society.ts's intervalOf).
+                && !has_any_quality(soc, &b.slug, None)
                 && !b.slug.ends_with("~q")
         })
         .collect();

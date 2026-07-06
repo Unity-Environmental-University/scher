@@ -12,7 +12,8 @@
 import { Cell, type Read } from "./cell.js";
 
 /** A beat. With subject+object it is a prehension (an edge). A quality beat (slug
- *  ending '~q', object a q-*) carries mode. */
+ *  ending '~q', object the quality itself — usually a q-*, but the spelling is never
+ *  read; see hasAnyQuality) carries mode. */
 export interface EventRow {
   slug: string;
   content: string;
@@ -202,6 +203,18 @@ function visibleAt(b: EventRow, asOf?: number): boolean {
 export function prehendsAs(soc: Society, pslug: string, quality: Quality, asOf?: number): boolean {
   const q = soc.get(pslug + "~q");
   return !!q && q.object === quality && visibleAt(q, asOf);
+}
+
+/** hasAnyQuality: does this prehension co-prehend ANY quality — i.e. does its `~q`
+ *  mode-beat exist? Structural: reads the mode-beat's PRESENCE (the layP constructor
+ *  convention), never the object's text. This is the existential prehendsAs had no name
+ *  for — "co-prehends *some* quality," not "co-prehends *this* one." It replaces the
+ *  `q-` content-prefix sniff that used to classify plain vs quality edges (2026-07-06
+ *  migration-design sitting, item 1): a quality family that doesn't spell `q-` (the
+ *  coming f- stems) classifies correctly here because no spelling is ever read. */
+export function hasAnyQuality(soc: Society, pslug: string, asOf?: number): boolean {
+  const q = soc.get(pslug + "~q");
+  return !!q && visibleAt(q, asOf);
 }
 
 /** Every prehension reaching `beat` as object, co-prehending `quality`, as of a moment.
@@ -467,9 +480,12 @@ export function contentBeats(soc: Society): EventRow[] {
  *  `once` ∩ the backward-cone of `end`, following plain (non-quality) prehension edges.
  *  The interior of a Story. */
 export function intervalOf(soc: Society, once: string, end: string): string[] {
-  // plain edges: a prehension whose object isn't a q-* and which isn't a ~q mode-beat.
+  // plain edges: a prehension carrying no quality (no `~q` mode-beat — hasAnyQuality, the
+  // structural read) and which isn't itself a ~q mode-beat. Formerly a `q-` content-prefix
+  // sniff on the object; replaced 2026-07-06 (migration-design item 1) so a quality family
+  // that doesn't spell `q-` is never swallowed into story-interval walks.
   const edges = soc.all().filter(
-    (b) => b.subject !== null && b.object !== null && !b.object.startsWith("q-") && !b.slug.endsWith("~q"),
+    (b) => b.subject !== null && b.object !== null && !hasAnyQuality(soc, b.slug) && !b.slug.endsWith("~q"),
   );
   // TODO(socratic): should interval-membership filter out occluded edges, and would that be a visible-at-moment issue too?
   const reach = (from: string, dir: "fwd" | "bwd"): Set<string> => {

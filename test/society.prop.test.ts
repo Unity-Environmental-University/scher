@@ -34,9 +34,12 @@ const contentBeatArb = (slug: string): fc.Arbitrary<EventRow> =>
     object: fc.constant(null),
   });
 
-/** an arbitrary set of distinct content-beat slugs. */
+/** an arbitrary set of distinct content-beat slugs. Only the `~q` constructor namespace is
+ *  excluded (a slug ending ~q would collide with layP's mode-beat convention); a slug that
+ *  merely SPELLS `q-` is fair game — quality-hood is structural now (hasAnyQuality), never
+ *  read from spelling (2026-07-06 migration-design, item 1). */
 const slugsArb = fc.uniqueArray(
-  fc.string({ minLength: 1, maxLength: 6 }).filter((s) => !s.endsWith("~q") && !s.startsWith("q-")),
+  fc.string({ minLength: 1, maxLength: 6 }).filter((s) => !s.endsWith("~q")),
   { minLength: 1, maxLength: 8 },
 );
 

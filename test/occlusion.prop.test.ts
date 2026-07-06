@@ -84,7 +84,8 @@ describe("occlusion — property tests over arbitrary histories", () => {
   it("occluding an occluder always reveals the target (one-level emergent un-occlusion)", () => {
     fc.assert(
       fc.property(
-        fc.string({ minLength: 1, maxLength: 6 }).filter((t) => !t.endsWith("~q") && !t.startsWith("q-")),
+        // only the ~q constructor namespace is excluded; a slug SPELLING "q-" is fair game — quality-hood is structural (hasAnyQuality, 2026-07-06)
+        fc.string({ minLength: 1, maxLength: 6 }).filter((t) => !t.endsWith("~q")),
         (target) => {
           const s = soc(); node(s, target);
           occlude(s, `o1-${target}`, target, "evA");
@@ -123,7 +124,8 @@ describe("occlusion — property tests over arbitrary histories", () => {
   it("a self-loop never occludes, for any target name", () => {
     fc.assert(
       fc.property(
-        fc.string({ minLength: 1, maxLength: 6 }).filter((t) => !t.endsWith("~q") && !t.startsWith("q-")),
+        // only the ~q constructor namespace is excluded; a slug SPELLING "q-" is fair game — quality-hood is structural (hasAnyQuality, 2026-07-06)
+        fc.string({ minLength: 1, maxLength: 6 }).filter((t) => !t.endsWith("~q")),
         (target) => {
           const s = soc(); node(s, target);
           s.lay({ slug: `sup-${target}`, content: "self-loop", subject: target, object: target });

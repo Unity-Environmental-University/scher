@@ -1259,3 +1259,150 @@ export function reachedSublimesOf(soc: Society, event: string, asOf?: number): s
   }
   return [...all];
 }
+
+// ── PATH TO SUBLIME: reachability spine (sublime ingression navigation) ──────────
+// pathToSublime constructs a navigable spine from a starting event/now toward a
+// sublime-pole target: the sequence of poles (End-poles and sublime-poles) that
+// stand between the start and the goal, plus the interval members within each
+// segment. Returns the spine as a chain of segments (pole-to-pole + members), and
+// reports whether the target is reachable and whether any segment required
+// forward/scripted traversal (not just established reachability).
+
+/** PathSegment: one link in the chain from start to sublime. */
+export interface PathSegment {
+  /** The pole we're starting from (Once/End/Sublime). */
+  from: string;
+  /** The pole we're heading toward. */
+  to: string;
+  /** The interval members between from and to (beats in the causal diamond). */
+  members: string[];
+}
+
+/** PathToSublime: the reachability spine and its properties. */
+export interface PathToSublime {
+  /** Ordered segments from start → sublime. Empty if unreachable. */
+  segments: PathSegment[];
+  /** True iff the target sublime is reachable from fromNow. */
+  reachable: boolean;
+  /** True iff the entire path is established (all edges are behind readerNow's grounding);
+   *  false iff any segment requires forward/scripted walk (not yet actual). */
+  established: boolean;
+}
+
+/** pathToSublime: given a starting event/now and a sublime-pole target, return
+ *  the reachability chain between them—the ordered poles and interval members
+ *  that form a drawable spine from current position to the star.
+ *
+ *  ALGORITHM:
+ *  1. First attempt: walk via q-grounding (established reachability via `reaches`).
+ *     If the sublime is reachable this way, return the established path.
+ *  2. If established reachability fails, attempt the bearing structure (forward reachability).
+ *     Walk via because-edges (bearingsOf); sublimes are scripted (never close), so this
+ *     finds the forward-looking path to them.
+ *  3. Return the path (established or forward), or empty if unreachable either way.
+ *
+ *  The `established` flag reports whether the path is behind readerNow's grounding
+ *  (all edges are q-grounding paths) or forward-walking (requires bearing structure). */
+export function pathToSublime(soc: Society, fromNow: string, sublime: string, asOf?: number): PathToSublime {
+  // Sanity check: is the target actually a sublime-pole?
+  if (!isSublimePole(soc, sublime, asOf)) {
+    return { segments: [], reachable: false, established: false };
+  }
+
+  // Helper: build path from parent map
+  const buildPath = (parentMap: Map<string, string | null>, target: string): string[] => {
+    const path: string[] = [];
+    let current: string | null = target;
+    while (current !== null) {
+      path.unshift(current);
+      current = parentMap.get(current) ?? null;
+    }
+    return path;
+  };
+
+  // Attempt 1: established reachability via q-grounding
+  const establishedParents = new Map<string, string | null>();
+  establishedParents.set(fromNow, null);
+  const establishedQueue: string[] = [fromNow];
+  let head = 0;
+  let foundViaEstablished = false;
+
+  while (head < establishedQueue.length && !foundViaEstablished) {
+    const current = establishedQueue[head++]!;
+    if (current === sublime) {
+      foundViaEstablished = true;
+      break;
+    }
+
+    // Walk q-grounding edges from current
+    for (const p of prehensionsFrom(soc, current, "q-grounding", asOf)) {
+      if (isOccluded(soc, p.slug, asOf)) continue;
+      const next = p.object!;
+      if (!establishedParents.has(next)) {
+        establishedParents.set(next, current);
+        establishedQueue.push(next);
+      }
+    }
+  }
+
+  if (foundViaEstablished) {
+    const path = buildPath(establishedParents, sublime);
+    const segments = buildSegments(soc, path);
+    return { segments, reachable: true, established: true };
+  }
+
+  // Attempt 2: forward reachability via because-edges (bearings)
+  const forwardParents = new Map<string, string | null>();
+  forwardParents.set(fromNow, null);
+  const forwardQueue: string[] = [fromNow];
+  head = 0;
+  let foundViaForward = false;
+
+  while (head < forwardQueue.length && !foundViaForward) {
+    const current = forwardQueue[head++]!;
+    if (current === sublime) {
+      foundViaForward = true;
+      break;
+    }
+
+    // Walk because-edges (bearings) from current
+    const bearings = bearingsOf(soc, current, asOf);
+    for (const bearing of bearings) {
+      const next = bearing.object!;
+      if (!forwardParents.has(next)) {
+        forwardParents.set(next, current);
+        forwardQueue.push(next);
+      }
+    }
+  }
+
+  if (foundViaForward) {
+    const path = buildPath(forwardParents, sublime);
+    const segments = buildSegments(soc, path);
+    return { segments, reachable: true, established: false };
+  }
+
+  // Neither path found the sublime
+  return { segments: [], reachable: false, established: false };
+}
+
+/** buildSegments: helper to construct PathSegments from a pole sequence. */
+function buildSegments(soc: Society, path: string[]): PathSegment[] {
+  const segments: PathSegment[] = [];
+  for (let i = 0; i < path.length - 1; i++) {
+    const from = path[i]!;
+    const to = path[i + 1]!;
+
+    // Get interval members between from and to (if "from" is a story)
+    let members: string[] = [];
+    if (isStory(soc, from)) {
+      const end = endOf(soc, from);
+      if (end !== null) {
+        members = intervalOf(soc, from, end).filter((m) => m !== from && m !== end);
+      }
+    }
+
+    segments.push({ from, to, members });
+  }
+  return segments;
+}

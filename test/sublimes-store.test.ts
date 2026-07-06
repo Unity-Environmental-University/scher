@@ -16,7 +16,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { Society, isSublimePole, bearingsOf, voltageTowardSublime } from "../src/society.js";
+import { Society, isSublimePole, bearingsOf, voltageTowardSublime, serviceChainOf, reachedSublimesOf } from "../src/society.js";
 
 describe("sublimes-store: never-closing poles for navigation", () => {
   describe("isSublimePole: identification of sublime-poles", () => {
@@ -316,6 +316,130 @@ describe("sublimes-store: never-closing poles for navigation", () => {
       expect(voltageTowardSublime(s, excellence)).toBe(1);
       expect(voltageTowardSublime(s, learning)).toBe(1);
       expect(voltageTowardSublime(s, perseverance)).toBe(1);
+    });
+  });
+
+  // ── SUBLIME CHAINING (Hallie's extension, 2026-07-06): sublimes serve sublimes ──
+  describe("sublimes chain to sublimes: a DAG of stars", () => {
+    // Helper: designate a node as a sublime-pole (self-designation for chaining tests).
+    function makeSublime(s: Society, name: string): void {
+      s.lay({ slug: name, content: name, subject: null, object: null });
+      s.layP(`${name}~pole`, name, name, name, "q-sublime-pole");
+    }
+
+    it("a sublime can be the SUBJECT of a bearing (bearingsOf works on a sublime — free)", () => {
+      const s = new Society();
+      makeSublime(s, "the-plan-reads-itself");
+      makeSublime(s, "nothing-unheard");
+
+      // the-plan-reads-itself serves nothing-unheard
+      s.layP("plan~serves~nothing", "in service of", "the-plan-reads-itself", "nothing-unheard", "because");
+
+      const served = bearingsOf(s, "the-plan-reads-itself");
+      expect(served).toHaveLength(1);
+      expect(served[0].object).toBe("nothing-unheard");
+    });
+
+    it("serviceChainOf walks UP the DAG transitively (the why-behind-the-why)", () => {
+      const s = new Society();
+      makeSublime(s, "the-plan-reads-itself");
+      makeSublime(s, "nothing-unheard");
+      makeSublime(s, "people-are-not-grey-goo");
+
+      // Chain: the-plan-reads-itself → nothing-unheard → people-are-not-grey-goo
+      s.layP("a~serves~b", "serves", "the-plan-reads-itself", "nothing-unheard", "because");
+      s.layP("b~serves~c", "serves", "nothing-unheard", "people-are-not-grey-goo", "because");
+
+      const chain = serviceChainOf(s, "the-plan-reads-itself");
+      expect(new Set(chain)).toEqual(new Set(["nothing-unheard", "people-are-not-grey-goo"]));
+
+      // From the middle, only the top remains
+      expect(serviceChainOf(s, "nothing-unheard")).toEqual(["people-are-not-grey-goo"]);
+      // The top serves nothing further
+      expect(serviceChainOf(s, "people-are-not-grey-goo")).toHaveLength(0);
+    });
+
+    it("reachedSublimesOf: an event bearing A inherits bearing toward everything A serves", () => {
+      const s = new Society();
+      makeSublime(s, "sublime-a");
+      makeSublime(s, "sublime-b");
+      makeSublime(s, "sublime-c");
+
+      // DAG: a → b → c
+      s.layP("a~serves~b", "serves", "sublime-a", "sublime-b", "because");
+      s.layP("b~serves~c", "serves", "sublime-b", "sublime-c", "because");
+
+      // An event bears only A directly
+      s.lay({ slug: "event", content: "work", subject: null, object: null });
+      s.layP("event~bear~a", "bearing", "event", "sublime-a", "because");
+
+      // Direct bearing: just A
+      expect(bearingsOf(s, "event").map((b) => b.object)).toEqual(["sublime-a"]);
+
+      // Transitive: A, B, and C (inherited the whole chain)
+      expect(new Set(reachedSublimesOf(s, "event"))).toEqual(
+        new Set(["sublime-a", "sublime-b", "sublime-c"]),
+      );
+    });
+
+    it("THE GUARD: a bearing that closes a cycle among sublimes FAILS LOUD", () => {
+      const s = new Society();
+      makeSublime(s, "sublime-a");
+      makeSublime(s, "sublime-b");
+      makeSublime(s, "sublime-c");
+
+      // Build a chain a → b → c
+      s.layP("a~serves~b", "serves", "sublime-a", "sublime-b", "because");
+      s.layP("b~serves~c", "serves", "sublime-b", "sublime-c", "because");
+
+      // Now c → a would close the ring a → b → c → a. REFUSE.
+      expect(() => s.layP("c~serves~a", "serves", "sublime-c", "sublime-a", "because")).toThrowError(
+        /ANTI-Q-LURE GUARANTEE.*close a CYCLE among sublime-poles.*points UP.*never back into a ring/,
+      );
+
+      // Nothing was laid — fail-closed
+      expect(s.has("c~serves~a")).toBe(false);
+      expect(s.has("c~serves~a~q")).toBe(false);
+    });
+
+    it("THE GUARD: a direct self-serving loop (A serves A) is refused", () => {
+      const s = new Society();
+      makeSublime(s, "solo");
+
+      // solo → solo is the smallest ring
+      expect(() => s.layP("solo~serves~solo", "serves", "solo", "solo", "because")).toThrowError(
+        /ANTI-Q-LURE GUARANTEE.*close a CYCLE/,
+      );
+    });
+
+    it("the guard permits chaining that stays acyclic (points UP)", () => {
+      const s = new Society();
+      makeSublime(s, "sublime-a");
+      makeSublime(s, "sublime-b");
+      makeSublime(s, "sublime-c");
+
+      // A diamond: a → b, a → c, b → c — all point up, no cycle.
+      expect(() => {
+        s.layP("a~serves~b", "serves", "sublime-a", "sublime-b", "because");
+        s.layP("a~serves~c", "serves", "sublime-a", "sublime-c", "because");
+        s.layP("b~serves~c", "serves", "sublime-b", "sublime-c", "because");
+      }).not.toThrow();
+
+      // reachedSublimesOf from an event bearing A finds all three
+      s.lay({ slug: "event", content: "w", subject: null, object: null });
+      s.layP("event~bear~a", "bearing", "event", "sublime-a", "because");
+      expect(new Set(reachedSublimesOf(s, "event"))).toEqual(
+        new Set(["sublime-a", "sublime-b", "sublime-c"]),
+      );
+    });
+
+    it("a bearing from an EVENT (non-sublime) to a sublime is never mistaken for a cycle", () => {
+      const s = new Society();
+      makeSublime(s, "star");
+
+      // An ordinary event bearing a star — subject is not a sublime, so the guard is inert.
+      s.lay({ slug: "task", content: "task", subject: null, object: null });
+      expect(() => s.layP("task~bear~star", "bearing", "task", "star", "because")).not.toThrow();
     });
   });
 });

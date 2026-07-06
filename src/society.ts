@@ -235,6 +235,46 @@ export function assertSublimeNeverCloses(soc: Society, slug: string, subject: st
   }
 }
 
+// ── SUBLIME-DAG GUARD: stars point UP, never into a ring ─────────────────────────
+// THE LAW (one sentence, born with its guard per the meta-law of 2026-07-06): sublimes
+// may CHAIN (sublime-A ~because~ sublime-B means A is in service of B — A sails under B),
+// forming a DAG of stars — but the chain must stay ACYCLIC. A bearing that would close a
+// cycle among sublime-poles (A serves B serves ... serves A) is REFUSED.
+//
+// WHY (Hallie, 2026-07-06): a cycle of never-closing poles is a closed loop of mutual
+// beckoning with no ground — the q-lure shape wearing a halo. A sublime points UP toward
+// the ever-receding (the why-behind-the-why), never back into a ring. A ring has no
+// horizon; it is beckoning that feeds on itself, which is exactly what q-lure was.
+//
+// WHAT TO DO if you hit this: a sublime chains toward what it SERVES, which must itself
+// be higher (nearer the receding horizon). If A should serve B, then B must not already
+// (transitively) serve A. Re-aim the bearing UP the DAG, or reconsider which star is the
+// deeper one. (law: sublime-dag-acyclic)
+//
+// Detection: a bounded reachability walk (reaches, over `because` among sublime-poles).
+// For a would-be edge subject ~because~ object, if `object` already reaches `subject`
+// through sublime-poles, the new edge closes a cycle → refuse. reaches is a cycle-safe
+// BFS (its `seen` set), so this is O(edges) per lay — bounded, not a perf worry at this
+// scale. If the sublime-DAG ever grows large enough to matter, this becomes a test-time +
+// best-effort check (noted in the design), but at ledger scale the walk is cheap.
+export function assertSublimeAcyclic(soc: Society, slug: string, subject: string, object: string, quality: Quality): void {
+  // Only bearing edges (bare because) between two sublime-poles can form a sublime-cycle.
+  if (quality !== "because") return;
+  if (!isSublimePole(soc, subject) || !isSublimePole(soc, object)) return;
+  // Would this edge close a cycle? If `object` already reaches `subject` via because, yes.
+  if (reaches(soc, object, subject, "because")) {
+    throw new Error(
+      `[ANTI-Q-LURE GUARANTEE] '${slug}' lays a sublime-bearing '${subject}' ~because~ ` +
+      `'${object}' that would close a CYCLE among sublime-poles ('${object}' already ` +
+      `serves '${subject}' transitively). A cycle of never-closing poles is a closed loop ` +
+      `of mutual beckoning with no ground — q-lure wearing a halo. A sublime points UP ` +
+      `toward the ever-receding, never back into a ring. Fix: re-aim the bearing UP the ` +
+      `DAG (serve a HIGHER star), or reconsider which star is the deeper one. (law: ` +
+      `sublime-dag-acyclic)`,
+    );
+  }
+}
+
 /** isSublimePole: is `node` a designated sublime-pole (object of an un-occluded
  *  q-sublime-pole edge)? Unlike an End-pole, a sublime is NEVER ACTUAL — its openness
  *  is eternal. */
@@ -295,6 +335,7 @@ export class Society {
     assertNoLure(slug, quality); // BLOCKS: q-lure is dead grammar (Hallie, 2026-07-06)
     assertNakedPole(this, slug, subject, object, quality); // BLOCKS: nothing touches a naked pole
     assertSublimeNeverCloses(this, slug, subject, object, quality); // BLOCKS: sublimes never close
+    assertSublimeAcyclic(this, slug, subject, object, quality); // BLOCKS: sublime-DAG stays acyclic
     assertNotMembershipContainment(slug, quality);
     // TODO(socratic): does the quality belong in the '~q' beat's content (as "[${quality}]"), or is it already fully encoded by the object field?
     const a = this.lay({ slug, content, subject, object });
@@ -1176,4 +1217,45 @@ export function storyBearingsOf(soc: Society, beat: string, asOf?: number): Even
  *  voltage accumulates forever, never exhausted. */
 export function voltageTowardSublime(soc: Society, sublime: string, asOf?: number): number {
   return prehensionsOnto(soc, sublime, "because", asOf).filter((p) => !isOccluded(soc, p.slug, asOf)).length;
+}
+
+// ── SUBLIME CHAINING (Hallie's extension, 2026-07-06): sublimes serve sublimes ───
+// A sublime-pole may be the SUBJECT of a bearing edge, not only the object:
+// sublime-A ~because~ sublime-B means A sails under B — A is IN SERVICE OF B. Sublimes
+// form a DAG of stars (the-plan-reads-itself → nothing-unheard → people-are-not-grey-goo),
+// kept acyclic by assertSublimeAcyclic. bearingsOf already works on a sublime as subject
+// (it returns the sublimes IT serves — free, no new read). The reads here climb UP the DAG.
+
+/** serviceChainOf: the sublimes this sublime serves, transitively — every sublime-pole
+ *  reachable UP the because-DAG from this one (the why-behind-the-why). Excludes the
+ *  sublime itself. Cycle-safe (reuses a seen-set); occlusion-aware via bearingsOf. */
+export function serviceChainOf(soc: Society, sublime: string, asOf?: number): string[] {
+  const seen = new Set<string>([sublime]);
+  const out: string[] = [];
+  const stack = [sublime];
+  while (stack.length) {
+    const n = stack.pop()!;
+    for (const b of bearingsOf(soc, n, asOf)) {
+      const next = b.object!;
+      if (!seen.has(next)) {
+        seen.add(next);
+        out.push(next);
+        stack.push(next);
+      }
+    }
+  }
+  return out;
+}
+
+/** reachedSublimesOf: every sublime-pole an event ultimately sails under — its DIRECT
+ *  bearings PLUS everything those bearings transitively serve up the DAG (the full
+ *  why-behind-the-why for this event). An event bearing A inherits bearing toward
+ *  everything A serves. Deduplicated; cycle-safe. */
+export function reachedSublimesOf(soc: Society, event: string, asOf?: number): string[] {
+  const direct = bearingsOf(soc, event, asOf).map((b) => b.object!);
+  const all = new Set<string>(direct);
+  for (const s of direct) {
+    for (const up of serviceChainOf(soc, s, asOf)) all.add(up);
+  }
+  return [...all];
 }

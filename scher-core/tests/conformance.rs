@@ -752,3 +752,68 @@ fn interval_excludes_edges_onto_quality_tokens() {
     let interval = interval_of(&soc, "once", "end");
     assert!(!interval.contains(&"q-grounding".to_string()), "got {interval:?}");
 }
+
+// ── sublimes-store + chaining (mirrors scher/test/sublimes-store.test.ts) ─────────────
+// Sublimes are never-closing poles that organize pursuit without luring. They chain into
+// a DAG of stars (A ~because~ B = A serves B), kept acyclic — a cycle of never-closing
+// poles is q-lure wearing a halo.
+
+fn make_sublime(soc: &mut Society, name: &str) {
+    soc.lay(EventRow::node(name, name));
+    soc.lay_p(&format!("{name}~pole"), name, name, name, Q_SUBLIME_POLE);
+}
+
+#[test]
+fn sublime_pole_is_designated_and_never_closes() {
+    let mut soc = Society::new();
+    make_sublime(&mut soc, "horizon");
+    assert!(is_sublime_pole(&soc, "horizon", None));
+    // bearings + voltage from an event
+    soc.lay(EventRow::node("work", "work"));
+    soc.lay_p("work~bear", "bearing", "work", "horizon", "because");
+    assert_eq!(bearings_of(&soc, "work", None).len(), 1);
+    assert_eq!(voltage_toward_sublime(&soc, "horizon", None), 1);
+}
+
+#[test]
+#[should_panic(expected = "sublime-never-closes")]
+fn closing_a_sublime_will_not_work() {
+    let mut soc = Society::new();
+    make_sublime(&mut soc, "horizon");
+    soc.lay(EventRow::node("now", "now"));
+    soc.lay_p("close", "close", "horizon", "now", Q_GROUNDING);
+}
+
+#[test]
+fn sublimes_chain_and_service_chain_walks_up_the_dag() {
+    let mut soc = Society::new();
+    make_sublime(&mut soc, "a");
+    make_sublime(&mut soc, "b");
+    make_sublime(&mut soc, "c");
+    soc.lay_p("a~serves~b", "serves", "a", "b", "because");
+    soc.lay_p("b~serves~c", "serves", "b", "c", "because");
+
+    let mut chain = service_chain_of(&soc, "a", None);
+    chain.sort();
+    assert_eq!(chain, vec!["b".to_string(), "c".to_string()]);
+
+    // an event bearing a inherits toward all of a, b, c
+    soc.lay(EventRow::node("event", "event"));
+    soc.lay_p("event~bear~a", "bearing", "event", "a", "because");
+    let mut reached = reached_sublimes_of(&soc, "event", None);
+    reached.sort();
+    assert_eq!(reached, vec!["a".to_string(), "b".to_string(), "c".to_string()]);
+}
+
+#[test]
+#[should_panic(expected = "sublime-dag-acyclic")]
+fn a_cycle_among_sublimes_will_not_work() {
+    let mut soc = Society::new();
+    make_sublime(&mut soc, "a");
+    make_sublime(&mut soc, "b");
+    make_sublime(&mut soc, "c");
+    soc.lay_p("a~serves~b", "serves", "a", "b", "because");
+    soc.lay_p("b~serves~c", "serves", "b", "c", "because");
+    // c → a closes the ring a → b → c → a. REFUSE.
+    soc.lay_p("c~serves~a", "serves", "c", "a", "because");
+}

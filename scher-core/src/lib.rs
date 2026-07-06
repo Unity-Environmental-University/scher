@@ -210,6 +210,26 @@ impl Society {
                  sublime-never-closes)"
             );
         }
+        // SUBLIME-DAG GUARD (blocking — mirrors society.ts assertSublimeAcyclic, Hallie's
+        // 2026-07-06 chaining extension): sublimes may CHAIN (A ~because~ B = A serves B),
+        // forming a DAG of stars — but the chain must stay ACYCLIC. A bearing that would
+        // close a cycle among sublime-poles (A serves B serves ... serves A) is a closed
+        // loop of mutual beckoning with no ground — q-lure wearing a halo. Detected via a
+        // bounded reachability walk: if `object` already reaches `subject` through
+        // sublime-poles, the new edge closes a cycle. A sublime points UP toward the
+        // ever-receding, never back into a ring.
+        if quality == "because" && is_sublime_pole(self, subject, None) && is_sublime_pole(self, object, None) {
+            assert!(
+                !reaches(self, object, subject, "because", None),
+                "[ANTI-Q-LURE GUARANTEE] '{slug}' lays a sublime-bearing '{subject}' \
+                 ~because~ '{object}' that would close a CYCLE among sublime-poles \
+                 ('{object}' already serves '{subject}' transitively). A cycle of \
+                 never-closing poles is a closed loop of mutual beckoning with no ground — \
+                 q-lure wearing a halo. A sublime points UP toward the ever-receding, never \
+                 back into a ring. Fix: re-aim the bearing UP the DAG (serve a HIGHER star). \
+                 (law: sublime-dag-acyclic)"
+            );
+        }
         let a = self.lay(EventRow::edge(slug, content, subject, object));
         let q_slug = format!("{slug}~q");
         let q_content = format!("{content} [{quality}]");
@@ -882,4 +902,42 @@ pub fn voltage_toward_sublime(soc: &Society, sublime: &str, as_of: Option<u64>) 
         .into_iter()
         .filter(|p| !is_occluded(soc, &p.slug, as_of))
         .count()
+}
+
+/// service_chain_of: the sublimes this sublime serves, transitively — every sublime-pole
+/// reachable UP the because-DAG from this one (the why-behind-the-why). Excludes the
+/// sublime itself. Cycle-safe (seen-set); occlusion-aware via bearings_of. Mirrors
+/// `serviceChainOf` in society.ts. (Hallie's chaining extension, 2026-07-06.)
+pub fn service_chain_of(soc: &Society, sublime: &str, as_of: Option<u64>) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    seen.insert(sublime.to_string());
+    let mut out = Vec::new();
+    let mut stack = vec![sublime.to_string()];
+    while let Some(n) = stack.pop() {
+        for b in bearings_of(soc, &n, as_of) {
+            let Some(next) = b.object.as_deref() else { continue };
+            if seen.insert(next.to_string()) {
+                out.push(next.to_string());
+                stack.push(next.to_string());
+            }
+        }
+    }
+    out
+}
+
+/// reached_sublimes_of: every sublime-pole an event ultimately sails under — its DIRECT
+/// bearings PLUS everything those bearings transitively serve up the DAG (the full
+/// why-behind-the-why). Deduplicated; cycle-safe. Mirrors `reachedSublimesOf` in society.ts.
+pub fn reached_sublimes_of(soc: &Society, event: &str, as_of: Option<u64>) -> Vec<String> {
+    let direct: Vec<String> = bearings_of(soc, event, as_of)
+        .into_iter()
+        .filter_map(|b| b.object.clone())
+        .collect();
+    let mut all: std::collections::HashSet<String> = direct.iter().cloned().collect();
+    for s in &direct {
+        for up in service_chain_of(soc, s, as_of) {
+            all.insert(up);
+        }
+    }
+    all.into_iter().collect()
 }

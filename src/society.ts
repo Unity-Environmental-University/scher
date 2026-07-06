@@ -523,9 +523,10 @@ export function excludedBy(soc: Society, beat: string): string[] {
   return prehensionsOnto(soc, beat, "q-exclusion").map((p) => p.subject!).filter(Boolean);
 }
 
-/** pathos: the q-feel reactions on a beat — emoji + count + who. */
+/** pathos: the q-feel reactions on a beat — key (the raw q-feel content, an emoji today,
+ *  a stem once verbFeels lands) + count + who. */
 export interface Pathos {
-  emoji: string;
+  key: string;
   count: number;
   by: string[];
 }
@@ -540,7 +541,7 @@ export function pathosOf(soc: Society, beat: string): Pathos[] {
     // TODO(socratic): what happens if p.content is not a single emoji, or contains whitespace within the emoji — does trim() on a multi-codepoint string work as intended?
     const emoji = p.content.trim();
     if (!emoji) continue;
-    const cur = byEmoji.get(emoji) ?? { emoji, count: 0, by: [] };
+    const cur = byEmoji.get(emoji) ?? { key: emoji, count: 0, by: [] };
     cur.count++;
     if (p.subject) cur.by.push(p.subject);
     byEmoji.set(emoji, cur);
@@ -562,7 +563,7 @@ export function reactionsOn(soc: Society, beat: string, asOf?: number): Pathos[]
   for (const p of feels) {
     const emoji = p.content.trim();
     if (!emoji) continue;
-    const cur = byEmoji.get(emoji) ?? { emoji, count: 0, by: [] };
+    const cur = byEmoji.get(emoji) ?? { key: emoji, count: 0, by: [] };
     cur.count++;
     if (p.subject) cur.by.push(p.subject);
     byEmoji.set(emoji, cur);

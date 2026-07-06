@@ -39,7 +39,7 @@ describe("DOLL A — emoji via the existing q-feel reaction shape", () => {
     beat(s, "beat-1", "Deb: shipped the thing");
     const btn = reactionStory(s, { target: "beat-1", by: "ren", emoji: "🔥" }) as HTMLButtonElement;
     btn.click();
-    expect(reactionsOn(s, "beat-1")).toEqual([{ emoji: "🔥", count: 1, by: ["ren"] }]);
+    expect(reactionsOn(s, "beat-1")).toEqual([{ key: "🔥", count: 1, by: ["ren"] }]);
   });
 
   it("BREAK IT (a real one): react → un-react → react-again does NOT restore the reaction — append-only `lay` no-ops on an existing slug, so the third click's `layP(slug, ...)` never lifts the occlusion laid by the second click. The button is honestly broken past one full cycle.", () => {
@@ -47,7 +47,7 @@ describe("DOLL A — emoji via the existing q-feel reaction shape", () => {
     beat(s, "beat-1", "Deb: shipped the thing");
     const btn = reactionStory(s, { target: "beat-1", by: "ren", emoji: "🔥" }) as HTMLButtonElement;
     btn.click(); // react — lays `slug`
-    expect(reactionsOn(s, "beat-1")).toEqual([{ emoji: "🔥", count: 1, by: ["ren"] }]);
+    expect(reactionsOn(s, "beat-1")).toEqual([{ key: "🔥", count: 1, by: ["ren"] }]);
     btn.click(); // un-react — lays `occ-${slug}`, occluding it
     expect(reactionsOn(s, "beat-1")).toEqual([]);
     btn.click(); // react again — re-lays `slug`, but the slug already exists in ink...
@@ -71,7 +71,7 @@ describe("DOLL A — emoji via the existing q-feel reaction shape", () => {
     s.layP("feel-ren-🔥-beat-1-b", "🔥", "ren", "beat-1", "q-feel");
     // pathosOf (raw, unfiltered) counts both edges but only records "ren" once per hit —
     // by[] is push-per-edge, so it appears TWICE, honestly reflecting two edges:
-    expect(pathosOf(s, "beat-1")).toEqual([{ emoji: "🔥", count: 2, by: ["ren", "ren"] }]);
+    expect(pathosOf(s, "beat-1")).toEqual([{ key: "🔥", count: 2, by: ["ren", "ren"] }]);
     // FINDING: reactionsOn/pathosOf's "count" is a COUNT OF EDGES, and "value at each
     // read" (the charter's phrase) already exists as `count` — no new node needed, the
     // read already carries a number. The only foreclosure is at the UI layer
@@ -87,11 +87,11 @@ describe("DOLL A — emoji via the existing q-feel reaction shape", () => {
       (reactionStory(s, { target, by, emoji: "🔥" }) as HTMLButtonElement).click();
     }
     const dayBeats = ["morning", "afternoon", "evening"];
-    const fireCount = dayBeats.reduce((n, b) => n + (reactionsOn(s, b).find((p) => p.emoji === "🔥")?.count ?? 0), 0);
+    const fireCount = dayBeats.reduce((n, b) => n + (reactionsOn(s, b).find((p) => p.key === "🔥")?.count ?? 0), 0);
     expect(fireCount).toBe(4);
     // "the society of 🔥" for the day, as a read, not a node: every beat + its 🔥 count.
     const societyOfFire = dayBeats
-      .map((b) => ({ beat: b, count: reactionsOn(s, b).find((p) => p.emoji === "🔥")?.count ?? 0 }))
+      .map((b) => ({ beat: b, count: reactionsOn(s, b).find((p) => p.key === "🔥")?.count ?? 0 }))
       .filter((row) => row.count > 0);
     expect(societyOfFire).toEqual([
       { beat: "morning", count: 1 },

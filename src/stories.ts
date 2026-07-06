@@ -16,7 +16,6 @@ import {
   Society,
   modeAt,
   confidence,
-  pathosOf,
   reactionsOn,
   isOccluded,
   isEstablished,
@@ -64,7 +63,7 @@ export function cardStory(soc: Society, params: CardStoryParams): Node {
       content: beat?.content ?? `(no beat: ${slug})`,
       mode: modeAt(s, slug) as Mode,
       conf: confidence(s, slug),
-      pathos: pathosOf(s, slug),
+      pathos: reactionsOn(s, slug),
     };
   });
 
@@ -86,7 +85,7 @@ export function cardStory(soc: Society, params: CardStoryParams): Node {
     );
     if (v.pathos.length) {
       const p = el("div", { class: "pathos" });
-      for (const r of v.pathos) p.appendChild(el("span", { class: "pchip" }, `${r.emoji} ${r.count}`));
+      for (const r of v.pathos) p.appendChild(el("span", { class: "pchip" }, `${r.key} ${r.count}`));
       card.appendChild(p);
     }
     return card;
@@ -877,7 +876,7 @@ export function reactionStory(soc: Society, params: ReactionStoryParams): Node {
   // of reactionsOn), and a "mine" marker when this standpoint's own reaction is live.
   const read = reading(soc, (s) => ({
     live: isLive(s),
-    count: reactionsOn(s, target).find((r) => r.emoji === emoji)?.count ?? 0,
+    count: reactionsOn(s, target).find((r) => r.key === emoji)?.count ?? 0,
   }));
 
   return project(read, (v) => {

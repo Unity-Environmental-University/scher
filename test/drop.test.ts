@@ -139,7 +139,7 @@ describe("reactionStory + reactionsOn — a typed prehension by a standpoint", (
     expect(reactionsOn(soc, "post")).toEqual([]);
 
     btn.click();                                   // ann reacts 🔥
-    expect(reactionsOn(soc, "post")).toEqual([{ emoji: "🔥", count: 1, by: ["ann"] }]);
+    expect(reactionsOn(soc, "post")).toEqual([{ key: "🔥", count: 1, by: ["ann"] }]);
     // the q-feel is the typed prehension: subject=ann, object=post, content=emoji.
     const feel = soc.get("feel-ann-🔥-post");
     expect(feel).toMatchObject({ subject: "ann", object: "post", content: "🔥" });
@@ -159,6 +159,6 @@ describe("reactionStory + reactionsOn — a typed prehension by a standpoint", (
     const soc = withBeat();
     (reactionStory(soc, { target: "post", by: "ann", emoji: "🔥" }) as HTMLButtonElement).click();
     (reactionStory(soc, { target: "post", by: "bo", emoji: "🔥" }) as HTMLButtonElement).click();
-    expect(reactionsOn(soc, "post")).toEqual([{ emoji: "🔥", count: 2, by: ["ann", "bo"] }]);
+    expect(reactionsOn(soc, "post")).toEqual([{ key: "🔥", count: 2, by: ["ann", "bo"] }]);
   });
 });

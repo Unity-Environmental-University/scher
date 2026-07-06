@@ -54,7 +54,7 @@ describe("DOLL B — a standing 'society of 🔥' node, reaction-beats prehend i
     beat(s, "b1", "one"); beat(s, "b2", "two");
     (reactionStory(s, { target: "b1", by: "ren", emoji: "🔥" }) as HTMLButtonElement).click();
     // derived filter-read (Doll A's shape) over a KNOWN corpus [b1, b2]:
-    const derived = ["b1", "b2"].filter((b) => reactionsOn(s, b).some((p) => p.emoji === "🔥"));
+    const derived = ["b1", "b2"].filter((b) => reactionsOn(s, b).some((p) => p.key === "🔥"));
     expect(derived).toEqual(["b1"]);
     // identical answer achievable with zero extra ink. The glyph-node's ONLY structural
     // advantage is when you don't have "[b1, b2]" in hand — an open-ended corpus, or a
@@ -88,7 +88,7 @@ describe("DOLL B — a standing 'society of 🔥' node, reaction-beats prehend i
     // the underlying reaction on beat-1 is completely unaffected — occluding the glyph
     // node (a node, not an edge/prehension) doesn't cascade to the index edge, let alone
     // the original q-feel:
-    expect(reactionsOn(s, "beat-1")).toEqual([{ emoji: "🔥", count: 1, by: ["ren"] }]);
+    expect(reactionsOn(s, "beat-1")).toEqual([{ key: "🔥", count: 1, by: ["ren"] }]);
     // CONFIRMS THE COST the charter half-asked about: "banning an emoji" is not free with
     // a glyph-node under today's occlusion machinery — it would need its own guard
     // (walk-from-glyph-and-occlude-each-index, or a new kind of cascading occlusion),

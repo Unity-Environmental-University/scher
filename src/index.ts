@@ -103,6 +103,9 @@ export {
   isResolved,
   cleanContent,
   distanceToHEA,
+  biographyOf,
+  type BiographyEntry,
+  type HearingStatus,
 } from "./society.js";
 
 // the reusable STORY-CONSTRUCTORS ("everything is a Story, incl. a UI component")

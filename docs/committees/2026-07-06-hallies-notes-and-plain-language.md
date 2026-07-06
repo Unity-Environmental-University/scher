@@ -141,3 +141,79 @@ verified disposition (fix, citation, or answer) with no light dissenting.
 `cargo check` (scher-core): clean, no warnings introduced.
 `cargo test` (scher-core): 7/7 unit tests + 22/22 conformance tests passing, both before
 the fix (baseline) and after (final state).
+
+---
+
+# RE-EXAMINED UNDER SOFD — 2026-07-06 (append-only)
+
+The coordinator relayed this morning's ruling (penelope-gen4
+`2026-07-06-F-A-ruled-voltage.md`): **Story's Own Frame Default** — edges laid in a story's
+course default-scope to the story's OWN frame ("that's the newtownian version"; F-B
+precedence arrives later, widening only) — and F-A ruled (a task IS a story with a lured
+End-pole; done lazy-mints the End). Hallie flagged this may change our item-3 disposition.
+
+## The body's re-examined answer: (b)-leaning — PARTIALLY DISTURBED, and Hallie's
+## instinct is topologically vindicated
+
+Our first disposition ("Now is a reader-position, not a canon pole — already ruled") stands
+as ontology. But under SOFD it acquires a mechanical exposure we verified against the code,
+not the minutes:
+
+1. **Every story now has its own frame, and a frame is the kind of thing that mints a Now**
+   (the `now-{frame}` lazy-mint precedent, which F-A just extended: the done-verb lazy-mints
+   End-poles the same way). So story-Now beats stop being a gen4-policy-private pattern and
+   become something the kernel's canon-reads can expect to MEET.
+2. **A Now node is topologically End-shaped to `find_poles` as written.** Verified in the
+   code: `find_poles` classifies poles by one-hop degree signature only — END = never any
+   edge's `b`, SOURCE = never any edge's `a`. A Now lays `now ~because~ event` (always an
+   `a`, never a `b`; nothing rests on a Now — the 2026-07-03 sitting proved a Now can never
+   bridge an interval for exactly this reason). Same signature as the HEA. So a minted
+   story-Now inside `content` lands in the ends list → `Pole::Many` → the canon reads
+   malformed — a FALSE loud fail. Now and End are **indistinguishable by the signature
+   `find_poles` uses**; the quality information that could tell them apart is folded away
+   (`Q_GROUNDING → None` = bare `because`) before the topology pass ever sees it.
+3. **The current safety is an implicit contract, nowhere stated:** callers keep Now beats
+   out of `content`. True today (verified: all `find_poles` callers are conformance tests
+   with hand-built candidate lists). Under SOFD, the pressure on that contract is real —
+   a cold cloner assembling a story's content from the story's own frame would naturally
+   sweep up the story's own Now.
+4. **One more exposure, noted while verifying:** `because_edges_from` hardcodes
+   `as_of = None` (edge_word.rs:207) — pole reads are always as-of-latest. Reading (a)'s
+   "poles AS OF the story's own frame" would need as_of/frame threading that does not exist
+   in this function today. Recorded, not built.
+
+So Hallie's TODO — "I thinjk we really do want a Now pole as well" — reads differently
+under SOFD than it did three days ago: not "store a third pole" (H2 still refuses that, and
+we still concur), but **"the topology will genuinely contain a third pole-shaped position,
+and `find_poles` cannot currently tell it from the End."** That is a real gap, not a
+misunderstanding.
+
+## What we changed, and what we fenced
+
+**Changed (cascade-free, comment-only + contract stated):** appended a reply under her TODO
+in edge_word.rs stating the re-examined reading and making the implicit contract explicit in
+`find_poles`' doc ("`content` must not include Now beats — a Now is End-shaped to this
+signature"). No behavior change; cargo test green (7 + 22).
+
+**FENCED TO HALLIE (new, exact):**
+> Under SOFD every story has its own frame, and frames mint Nows. A Now beat is
+> End-shaped to `find_poles`' one-hop signature (never a ground), so a story-Now swept
+> into the candidate set reads as a spurious second End. Two honest shapes:
+> (i) **contract** — Now beats stay out of canon `content` by stated rule (now written
+> into the doc); cheap, but every future caller must know and honor it, and a cold
+> cloner assembling content from the story's own frame is exactly the caller who won't;
+> (ii) **third pole** — `Poles` grows a `now` field and `find_poles` learns to
+> distinguish Now from End, which requires a distinguishing mark the topology pass can
+> see (a quality on Now-edges surviving the fold, or the config's expected now-name, or
+> the F-A lure-mark on the End side). That is your TODO taken literally, and H2 is not
+> violated — the pole would still be READ from topology, never stored on a row.
+> Which shape do you want? If (ii): should the distinguisher be the lured-End mark
+> (End = the pole with a lure onto it; Now = the pole without), which F-A just made
+> structural and would need no new vocabulary?
+
+The body's lean, offered not pressed: (ii) with the lure-mark distinguisher — F-A's ruling
+("a task IS a story whose End-pole is not yet actual", story-hood = "has a lured End-pole")
+already gives the topology exactly one new readable fact, and it is precisely the fact that
+separates an End from a Now. But this grows the kernel's pole law, so it is hers.
+
+— re-examined under SOFD, 2026-07-06, append-only; comment-contract landed, pole growth fenced

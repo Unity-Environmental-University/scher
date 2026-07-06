@@ -257,6 +257,23 @@ pub fn because_edges_from(soc: &Society, a: &str) -> Vec<EdgeWord> {
 // note was you confirming that direction rather than reopening it, the sittings agree with you.
 // (Full record: penelope-gen4/docs/committees/2026-07-03-now-as-third-pole.md and
 // 2026-07-03-q-grounding-joint-sitting.md — ruling "YES EVERY EVENT IS DONE to/by its author.")
+//
+// RE-EXAMINED UNDER SOFD (the sitting, later the same day, 2026-07-06): this morning's ruling
+// (Story's Own Frame Default + F-A/voltage — penelope-gen4 2026-07-06-F-A-ruled-voltage.md)
+// changes the reading above — your instinct here is topologically VINDICATED, not answered-away.
+// Under SOFD every story has its own frame, and frames mint Nows (the now-{frame} lazy-mint
+// pattern). And a Now beat is END-SHAPED to `find_poles` as written: a Now lays
+// `now ~because~ event` — always an `a`, never a `b`, nothing rests on it — which is the SAME
+// one-hop signature as the HEA. A story-Now swept into the candidate set would read as a
+// spurious second End (Pole::Many — a FALSE loud fail). The quality info that could tell them
+// apart is folded away (Q_GROUNDING → bare `because`) before the topology pass ever sees it.
+// So the topology really will contain a third pole-shaped position, and this function cannot
+// currently tell it from the End. Still not a STORED pole (H2 stands) — but the two honest
+// shapes are fenced to you in the minutes (2026-07-06-hallies-notes-and-plain-language.md,
+// SOFD section): (i) a stated contract keeping Now beats out of `content` (now written into
+// find_poles' doc below), or (ii) `Poles` grows a READ `now` field, distinguished by the
+// lure-mark F-A just made structural (End = the pole with a lure onto it; Now = the pole
+// without). The body leans (ii); it grows the kernel's pole law, so it is yours.
 
 /// The two structural poles of a canon, read from `because` topology. Either pole can be
 /// malformed independently.
@@ -290,6 +307,12 @@ fn classify(found: Vec<String>, expected: Option<&str>) -> Pole {
 /// Read both poles from the live Society's `because` topology. `content` = the candidate
 /// beats (edges and `~q` mode-beats are never a pole). `expected_end`/`expected_source` are
 /// the config's names, checked but never overriding. Topology is truth.
+///
+/// CONTRACT (stated 2026-07-06, under the SOFD ruling): `content` must NOT include Now beats
+/// (`now-{frame}` and kin). A Now is never a ground — the same one-hop signature as the End —
+/// so a Now in the candidate set reads as a spurious second End (`Pole::Many`, a false loud
+/// fail). Whether this stays a caller contract or `Poles` grows a read `now` pole (lure-mark
+/// distinguished) is fenced to Hallie in the 2026-07-06 minutes.
 pub fn find_poles<'a, I>(
     soc: &Society,
     content: I,

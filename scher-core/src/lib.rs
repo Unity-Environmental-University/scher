@@ -552,6 +552,11 @@ pub fn grounded_by(soc: &Society, row: &str) -> Vec<String> {
 /// backward-reachable from `end` over plain edges (carrying no quality — has_any_quality —
 /// and not themselves `~q` mode-beats). Mirrors `intervalOf` in society.ts.
 pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
+    let quality_tokens: std::collections::HashSet<&str> = soc
+        .all()
+        .filter(|b| b.slug.ends_with("~q") && visible_at(b, None))
+        .filter_map(|b| b.object.as_deref())
+        .collect();
     let edges: Vec<&EventRow> = soc
         .all()
         .filter(|b| {
@@ -559,10 +564,15 @@ pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
             // ANSWERED(walk 2026-07-02): an edge with only one end doesn't exist in the grammar (nodes are None,None); "plain" = both ends present, object not q-*, slug not ~q. Membership is this betweenness walk, never a stored containment edge — ~holds~ is settled-dead. — see clearness-holds-is-settled-debt.md
             b.subject.is_some()
                 && b.object.is_some()
-                // plain = carries no quality (no `~q` mode-beat — has_any_quality, structural).
-                // Formerly a `q-` content-prefix sniff on the object; replaced 2026-07-06
-                // (migration-design item 1, paired with society.ts's intervalOf).
-                && !has_any_quality(soc, &b.slug, None)
+                // Interval edges: everything but the quality machinery. Excluded: ~q
+                // mode-beats, and edges whose OBJECT is a quality token — structural
+                // ("used as the object of a visible ~q beat"), never spelled.
+                // CORRECTION (2026-07-06, event-1350 sitting): the first structural
+                // replacement used !has_any_quality(edge) — the edge's OWN mode-beat —
+                // which excluded every lay_p-ed (quality-CARRYING) edge and emptied
+                // production intervals; membership edges must carry q-grounding or the
+                // address law reads them as charges. Mirrors intervalOf in society.ts.
+                && !quality_tokens.contains(b.object.as_deref().unwrap_or(""))
                 && !b.slug.ends_with("~q")
         })
         .collect();

@@ -719,3 +719,36 @@ fn floating_charge_and_overload_read_raw_and_loudest_first() {
     assert_eq!(readings.len(), 1);
     assert_eq!(readings[0].story, "held-task");
 }
+
+// ── interval plain-edge classification (mirrors scher/test/interval-plain-edges.test.ts) ──
+// CORRECTION to migration-design item 1 (2026-07-06, event-1350 debugging sitting):
+// interval_of classifies out the quality MACHINERY (~q mode-beats; edges whose object IS a
+// quality token, read structurally) — but a quality-CARRYING edge (lay_p q-grounding) is
+// interval fabric and MUST be walked. Production membership edges carry q-grounding and
+// must: a bare edge onto an open End reads as a charge under the address law.
+#[test]
+fn interval_walks_quality_carrying_edges() {
+    let mut soc = Society::new();
+    soc.lay(EventRow::node("once", "once"));
+    soc.lay(EventRow::node("beat-a", "a"));
+    soc.lay(EventRow::node("end", "end"));
+    soc.lay_p("once~because~beat-a", "chain", "once", "beat-a", "q-grounding");
+    soc.lay_p("beat-a~because~end", "chain", "beat-a", "end", "q-grounding");
+
+    let interval = interval_of(&soc, "once", "end");
+    assert!(interval.contains(&"beat-a".to_string()), "got {interval:?}");
+}
+
+#[test]
+fn interval_excludes_edges_onto_quality_tokens() {
+    let mut soc = Society::new();
+    soc.lay(EventRow::node("once", "once"));
+    soc.lay(EventRow::node("end", "end"));
+    soc.lay_p("once~because~end", "chain", "once", "end", "q-grounding");
+    // designation-shaped smuggling: edges touching the quality token itself
+    soc.lay(EventRow::edge("end~designates", "smuggle", "end", "q-grounding"));
+    soc.lay(EventRow::edge("q-grounding~leak", "smuggle", "q-grounding", "once"));
+
+    let interval = interval_of(&soc, "once", "end");
+    assert!(!interval.contains(&"q-grounding".to_string()), "got {interval:?}");
+}

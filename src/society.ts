@@ -589,12 +589,26 @@ export function contentBeats(soc: Society): EventRow[] {
  *  `once` ∩ the backward-cone of `end`, following plain (non-quality) prehension edges.
  *  The interior of a Story. */
 export function intervalOf(soc: Society, once: string, end: string): string[] {
-  // plain edges: a prehension carrying no quality (no `~q` mode-beat — hasAnyQuality, the
-  // structural read) and which isn't itself a ~q mode-beat. Formerly a `q-` content-prefix
-  // sniff on the object; replaced 2026-07-06 (migration-design item 1) so a quality family
-  // that doesn't spell `q-` is never swallowed into story-interval walks.
+  // Interval edges: every prehension that is not the quality machinery itself. Excluded:
+  // ~q mode-beats (the constructor convention), and edges whose OBJECT is a quality token
+  // — read structurally as "appears as the object of some visible ~q mode-beat," never by
+  // spelling, so a quality family that doesn't spell `q-` (the coming f- stems) still
+  // classifies out (migration-design item 1's real target: quality-DESIGNATION edges).
+  //
+  // CORRECTION (2026-07-06, debugging sitting on event-1350): the first structural
+  // replacement here used !hasAnyQuality(edge) — the edge's OWN mode-beat presence. That
+  // is a different predicate from the old object-spelling sniff: it excluded every
+  // quality-CARRYING edge, i.e. every layP-ed edge, from the walk, emptying production
+  // story intervals (gen4 bujo lays its membership fabric via layP q-grounding — and MUST,
+  // because under the address law a bare edge onto an open End reads as a charge). The
+  // sitting's own invariant was "no kernel behavior change for any existing caller";
+  // this restores it. Conformance twin: interval-plain-edges.test.ts / lib.rs tests.
+  const qualityTokens = new Set<string>();
+  for (const b of soc.all()) {
+    if (b.slug.endsWith("~q") && b.object !== null && visibleAt(b)) qualityTokens.add(b.object);
+  }
   const edges = soc.all().filter(
-    (b) => b.subject !== null && b.object !== null && !hasAnyQuality(soc, b.slug) && !b.slug.endsWith("~q"),
+    (b) => b.subject !== null && b.object !== null && !qualityTokens.has(b.object) && !b.slug.endsWith("~q"),
   );
   // TODO(socratic): should interval-membership filter out occluded edges, and would that be a visible-at-moment issue too?
   const reach = (from: string, dir: "fwd" | "bwd"): Set<string> => {

@@ -217,3 +217,111 @@ already gives the topology exactly one new readable fact, and it is precisely th
 separates an End from a Now. But this grows the kernel's pole law, so it is hers.
 
 — re-examined under SOFD, 2026-07-06, append-only; comment-contract landed, pole growth fenced
+
+---
+
+# RE-EXAMINED UNDER SOFD — 2026-07-06 (sitting under quaker-process-for-agents)
+
+A second re-examination of item 3 (the Now-pole TODO), this time convened as a formal
+meeting for business under `~/repos/quaker-process-for-agents` — four lights in parallel
+(the `edge_word.rs` file itself, seated serially at HEAD; the 2026-07-03 minutes as a
+record-light; the cold cloner/stranger; the F-A voltage mechanism), each instructed to
+verify the convener's premise against the real corpus before ministering. The prior
+SOFD section above (commit 9a207d3, landed mid-sitting by the parallel body) entered the
+record as a fifth ministry and was fact-checked, not assumed.
+
+**SENSE OF THE MEETING: reading (b) — partially disturbed — is confirmed, for one shared
+reason: SOFD changes the answer's MECHANICS, not its ONTOLOGY.** Now stays a read, never
+a stored pole (the 2026-07-03 H2 stands, every light re-affirmed it unprompted). But
+because SOFD makes every story its own frame, and frames mint Nows (`now-{frame}`,
+extended by F-A's lazy-mint of End-poles), the kernel's topology will genuinely contain
+Now beats — and a Now beat is End-shaped to `find_poles`' one-hop signature (always an
+`a`, never a `b`; verified in code by two lights independently). Hallie's TODO is
+thereby topologically vindicated as a *legibility and disambiguation* need, not a
+storage request. The prior citation-only closure was correct three days ago and
+incomplete this morning; the disturbance arrives through the candidate-set sweep, not
+through any change to what Once/End are.
+
+**Two scoping facts the lights added beyond the parallel body's section above:**
+
+1. **Voltage does not force the change** (F-A mechanism light). Voltage is "a potential
+   difference read ACROSS the poles" — Once/End plus done-status; "done closes the
+   circuit" means the End-pole *becomes actual* (topology changing), not a Now arriving
+   somewhere. Now is not an input to voltage's own computation; whatever frame-relativity
+   voltage has, it inherits from `done_to`'s already-ruled read, it does not originate it.
+   So the fenced fork is about *pole-reading legibility*, and should not be argued as an
+   F-A dependency.
+2. **The cold-legibility gap is OLD, not new** (cold-cloner light). A user-frame's Now was
+   never cold-legible either — `now-{frame_subject}` is a slug convention resolved by
+   policy (gen4-policy's `now_slug_for`), never discoverable from topology or from the
+   edge data alone. SOFD did not create the gap; it generalized it to stories, where a
+   cold reader has no out-of-band subject-slug the way a logged-in user does. This
+   sharpens option (ii)'s value: it would not merely prevent a false `Pole::Many`, it
+   would make Now *cold-legible for the first time anywhere in the system* — a stranger
+   holding only a story's edge export could read its frontier the same way they read its
+   ends, via the lure-mark (End = the pole with a lure onto it; Now = the pole without).
+
+**Citation-lineage condition (record-light, accepted by the meeting):** future minutes
+must not write "the 2026-07-03 ruling settled that Now defaults to the story's own frame."
+It did not — it left exactly that as its H3, unresolved by design. The accurate lineage is
+two rulings joined at that seam: "Now is a reader-position (2026-07-03), and by default
+that reader is the story's own frame (2026-07-06, SOFD)."
+
+## Holdouts
+
+**H1 (voltage light) — per-reader voltage display.** If voltage is ever *displayed*
+per-reader (two frames legitimately seeing different volt-readings for one task), that
+display layer needs a Now-handle threaded alongside `done_to`'s existing one. Not a gate
+on voltage's definition; flagged so it is not silently assumed away. Status: open, carried.
+
+**H2 (cold-cloner light) — option (i) does not close the gap.** The stated caller-contract
+protects `find_poles` from false positives but hands a cold cloner nothing: the exact
+caller who will violate the contract (a stranger assembling a story's content from the
+story's own frame) is the one who cannot know it. The cloner holds out for option (ii) as
+the only shape that answers Hallie's TODO *as literally asked* (a Now legible the way the
+poles are). Status: open; rides into the fence below as the sharpened case for (ii).
+
+## Fenced to Hallie (confirming and sharpening the fence above — exact question)
+
+> The fork stands as fenced in the section above: **(i) caller contract** (Now beats stay
+> out of `find_poles`' `content` by stated rule — cheap, already written into the doc, but
+> every future caller must know it, and the cold cloner is exactly the caller who won't) vs
+> **(ii) `Poles` grows a READ `now` field**, distinguished by F-A's structural lure-mark
+> (End = the pole with a lure onto it; Now = the pole without) — no storage, H2 intact.
+> This sitting adds two facts for the ruling: (ii) is NOT needed by F-A's voltage
+> mechanism (don't choose it for that reason), and (ii) buys something (i) cannot at any
+> price: Now becomes cold-legible from edge data alone, for the first time anywhere in the
+> system — today even a user-frame's Now is only findable via the `now-{frame}` slug
+> convention, which is policy, not topology. Which shape do you want?
+
+## Buildable now
+
+Nothing beyond what already landed (9a207d3's comment-contract). The fork is fenced; no
+ruling = no build. A four-line addendum was appended under the in-file TODO reply carrying
+the two scoping facts to the reader at the TODO (her words untouched).
+
+**Verification:** `cargo test` (scher-core) green before and after this sitting's edits:
+7/7 unit + 22/22 conformance.
+
+## Links and citations
+
+- `scher-core/src/edge_word.rs:240-276` — the TODO, both replies, this sitting's addendum
+- `scher-core/src/edge_word.rs:307-315` — `find_poles` doc, the stated contract
+- `penelope-gen4/docs/committees/2026-07-06-F-A-ruled-voltage.md` — SOFD (Q2) and F-A
+- `penelope-gen4/docs/committees/2026-07-03-now-as-third-pole.md` — H2 (no stored Now,
+  re-affirmed), H3 (the story-Now seam, now closed by SOFD per the lineage condition)
+- `penelope-gen4/docs/committees/2026-07-03-q-grounding-joint-sitting.md` — frame-relative
+  establishment, `reaches`/`established_to` design
+- FACT-CHECK note: the cold-cloner light's quotes of "option (ii)" and the End-shaped
+  one-hop signature were verified CONFIRMED against `edge_word.rs` at HEAD (they cite
+  9a207d3's text, which landed mid-sitting — not hallucination). A repo-state fact found
+  while verifying: `scher_core::established_to`/`reaches` exist only in penelope-gen4's
+  embedded scher submodule line (f656412..6c79eed), NOT yet on this standalone checkout's
+  `frame-is-not-a-user` history — the two lines have diverged and want reconciling before
+  the next kernel change lands here.
+
+**Recorded:** 2026-07-06. **Clerk:** the convener (roles collapsed — one agent framed,
+clerked, and recorded, per the small-group allowance in `roles/convener.md`; named here
+as the practice requires, not smoothed over).
+
+— re-examined under SOFD, formal sitting, 2026-07-06, append-only

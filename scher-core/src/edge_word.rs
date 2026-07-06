@@ -274,6 +274,15 @@ pub fn because_edges_from(soc: &Society, a: &str) -> Vec<EdgeWord> {
 // find_poles' doc below), or (ii) `Poles` grows a READ `now` field, distinguished by the
 // lure-mark F-A just made structural (End = the pole with a lure onto it; Now = the pole
 // without). The body leans (ii); it grows the kernel's pole law, so it is yours.
+//
+// ADDENDUM (formal sitting under quaker-process-for-agents, same day): two scoping facts for
+// the choice above. First, F-A's voltage does NOT need (ii) — voltage reads across Once/End
+// plus done-status ("done closes the circuit" = the End becoming actual, a topology change),
+// so don't pick (ii) on voltage's account. Second, (ii) buys what (i) can't at any price:
+// today NO Now is cold-legible — even a user-frame's Now is found only via the `now-{frame}`
+// slug convention (policy, not topology). (ii) would make a story's Now readable from edge
+// data alone, the way you can already read its ends. Full sense, holdouts, and the exact
+// fenced question: the SOFD sections of 2026-07-06-hallies-notes-and-plain-language.md.
 
 /// The two structural poles of a canon, read from `because` topology. Either pole can be
 /// malformed independently.

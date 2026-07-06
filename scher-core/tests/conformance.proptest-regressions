@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 15bf79e7b8f969988ca7a7b23bd7cd71017f77ab751dc1f97c00bd39f55fc58b # shrinks to n = 1
+cc 63fb30ab632104eaaacb703214889fc045396d7263ed99e28eea9cf73de09e87 # shrinks to target = "ev", occ = "a", reveal = "b"

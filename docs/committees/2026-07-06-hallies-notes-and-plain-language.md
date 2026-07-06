@@ -325,3 +325,84 @@ clerked, and recorded, per the small-group allowance in `roles/convener.md`; nam
 as the practice requires, not smoothed over).
 
 — re-examined under SOFD, formal sitting, 2026-07-06, append-only
+
+---
+
+# HALLIE RULED MID-SITTING — 2026-07-06 (append-only)
+
+Her words, verbatim: **"1) is nonviable as they say. And the end is because now."**
+
+The fence above is spent. Option (i) — the caller-discipline contract — is ruled out (the
+cold-cloner light's H2 is thereby VINDICATED AND SPENT: its exact reason, "the caller who
+will violate the contract is the one who cannot know it," is the reason she cites — "as
+they say"). And she gave the distinguishing structure herself, richer than the lure-mark
+the fence proposed: **the End is because Now.**
+
+## The pole law under the ruling (tested, not just read)
+
+When a circuit closes, the holding-done event — the End becoming actual — grounds in the
+Now of its closing: the done-verb's lazy-mint lays `end ~because~ now`. Weighed against
+`find_poles`' actual mechanics and PROVED in code this sitting
+(`scher-core/tests/conformance.rs::eikon_end_is_because_now_tells_now_from_end`, green):
+
+- **The closing edge solves the Now/End indistinguishability outright for the actual
+  phase.** A Now was End-shaped because it was an `a` and never a `b`. `end ~because~ now`
+  makes the Now a GROUND (`b`) — it stops matching the End signature the moment any circuit
+  closes into it. Verified: with a story-Now in the candidate set, `find_poles` reads
+  `Pole::Many` (the documented false loud fail) before the closing edge, and clean
+  `Found(end)`/`Found(once)` after it — no string consulted, no code change needed for
+  this case. Once detection survives untouched (a Now becomes `a`-and-`b`, never `b`-only;
+  no cycle arises — nothing rests on an End, so `end → now → event → … → once` is acyclic).
+- **Two phases of one pole, each with a structural mark:** the OPEN End (task not yet
+  done) is designated by the lure onto it (F-A's story-hood mark); the ACTUAL End
+  (circuit closed) is additionally because-Now. The coordinator's question (ii) — does
+  the side-of-because test survive an End appearing on "both sides"? — resolves cleanly:
+  the lure is a different quality, not part of the because-topology `because_edges_from`
+  folds (Q_GROUNDING/Q_DEPENDS_ON/Q_OCCLUDES/Q_EXCLUSION), so an actual End remains
+  `a`-only in the grounding topology; nothing breaks.
+
+**THE POLE LAW, one sentence (now in the kernel comment above `Poles`):** Once = the
+ground of everything, resting on nothing (a `b`, never an `a`); End = the pole a lure
+lands on, which when actual is also because Now; Now = a left-side-only beat with no lure
+onto it — every mark read from topology, no string ever consulted.
+
+## Buildable now vs waiting
+
+**Landed this sitting (local, cascade-free):**
+1. `tests/conformance.rs::eikon_end_is_because_now_tells_now_from_end` — the ruling's
+   guard: proves the hazard (Now reads End-shaped) and proves her mark dissolves it.
+2. Kernel comments updated: the RULED addendum under her TODO (pole law + verbatim
+   ruling), and `find_poles`' CONTRACT doc re-glossed as an INTERIM guard, no longer a
+   live fork.
+3. (Found while verifying, unrelated to the ruling:) `emergent_un_occlusion`'s proptest
+   fixture had a latent collision — a drawn target of `"ev"` collided with the fixture's
+   hard-coded subject `"ev"`, making a self-loop that correctly never occludes: the KERNEL
+   was right, the fixture wrong. Subjects renamed `ev-1`/`ev-2` (hyphens are outside the
+   generator's alphabet); regression seed kept in `conformance.proptest-regressions` per
+   proptest convention.
+
+**Waiting on the F-A build body (its lure machinery is landing in penelope-gen4's scher
+submodule — this checkout builds nothing overlapping, per the coordinator's instruction
+and the standing gift-channel discipline, H1 of 2026-07-03):**
+- The OPEN-phase designation (telling an open End from a Now requires lure visibility,
+  which does not exist in this checkout).
+- The `Poles::now` read field itself and `find_poles` learning the full three-position
+  read. Design is minuted here; the build waits for the machinery and lands as a paired
+  commit through the gift channel.
+
+## Holdout ledger after the ruling
+
+- **H2 (cold-cloner) — SPENT** by the ruling, vindicated (its reasoning is cited in the
+  ruling itself).
+- **H1 (voltage light, per-reader voltage display) — OPEN, carried.** Untouched by this
+  ruling; still flagged so it is not silently assumed away when display work lands.
+- **Record-light's citation-lineage condition — carried,** now three rulings long: Now is
+  a reader-position (2026-07-03); the default reader is the story's own frame (2026-07-06,
+  SOFD); the actual End is because Now (2026-07-06, this ruling). H2-of-2026-07-03 (never
+  STORE Now as row structure) remains intact under all three — `end ~because~ now` is an
+  ordinary edge, not a row field.
+
+**Verification:** `cargo test` (scher-core): 7/7 unit + 23/23 conformance green (the 23rd
+is this sitting's new guard).
+
+— Hallie's ruling entered and built to its cascade-free edge, 2026-07-06, append-only

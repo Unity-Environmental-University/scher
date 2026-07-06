@@ -283,6 +283,23 @@ pub fn because_edges_from(soc: &Society, a: &str) -> Vec<EdgeWord> {
 // slug convention (policy, not topology). (ii) would make a story's Now readable from edge
 // data alone, the way you can already read its ends. Full sense, holdouts, and the exact
 // fenced question: the SOFD sections of 2026-07-06-hallies-notes-and-plain-language.md.
+//
+// RULED (Hallie, mid-sitting, 2026-07-06, verbatim): "1) is nonviable as they say. And the
+// end is because now." The caller-contract option is dead — the pole law gets taught to the
+// code — and the distinguishing mark is hers, structural: when a circuit closes, the End
+// becoming actual grounds in the Now of its closing (the done-verb's lazy-mint laying
+// `end ~because~ now`). THE POLE LAW, one sentence: Once = the ground of everything, resting
+// on nothing (a `b`, never an `a`); End = the pole a lure lands on, which when actual is also
+// because Now; Now = a left-side-only beat with no lure onto it — every mark read from
+// topology, no string ever consulted. Two phases of one End, each marked: OPEN (unactualized)
+// is designated by F-A's lure alone; ACTUAL additionally rests on Now — and that closing edge
+// is itself what un-confuses the two beats, because it makes the Now a ground (`b`), which a
+// Now otherwise never is (proved in code:
+// tests/conformance.rs::eikon_end_is_because_now_tells_now_from_end). Landed here: that
+// conformance test. Waiting on the F-A build body's lure machinery (landing in penelope-gen4's
+// scher submodule, NOT here — no overlapping build): the open-phase designation and the
+// `Poles::now` read field, since telling an OPEN End from a Now needs lure visibility this
+// checkout does not yet have.
 
 /// The two structural poles of a canon, read from `because` topology. Either pole can be
 /// malformed independently.
@@ -320,8 +337,12 @@ fn classify(found: Vec<String>, expected: Option<&str>) -> Pole {
 /// CONTRACT (stated 2026-07-06, under the SOFD ruling): `content` must NOT include Now beats
 /// (`now-{frame}` and kin). A Now is never a ground — the same one-hop signature as the End —
 /// so a Now in the candidate set reads as a spurious second End (`Pole::Many`, a false loud
-/// fail). Whether this stays a caller contract or `Poles` grows a read `now` pole (lure-mark
-/// distinguished) is fenced to Hallie in the 2026-07-06 minutes.
+/// fail). RULED (Hallie, 2026-07-06): this caller contract is an INTERIM guard only — "1) is
+/// nonviable as they say. And the end is because now." The pole law gets taught to this code:
+/// an ACTUAL End also grounds in the Now of its closing (`end ~because~ now`), which makes
+/// the Now a `b` and un-confuses it from the End by pure topology (see the pole-law comment
+/// above `Poles` and tests/conformance.rs::eikon_end_is_because_now_tells_now_from_end);
+/// the OPEN-End phase and the `Poles::now` read field wait on the F-A lure machinery.
 pub fn find_poles<'a, I>(
     soc: &Society,
     content: I,

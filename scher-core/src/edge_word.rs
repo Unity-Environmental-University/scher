@@ -136,6 +136,33 @@ use crate::{prehensions_from, Society, Q_DEPENDS_ON, Q_EXCLUSION, Q_GROUNDING, Q
 ///   `ignores` — negative prehension: b was NEVER admitted, held out from the start (the
 ///               master-negative). distinct from `hides` — was-here-removed vs never-let-in.
 ///               (was exclusion)
+///               HALLIE ASKS: How might we make this not string literals buried in the code?
+//
+// REPLY (the sitting, 2026-07-06): a real fork, not a dominant fix — fenced below rather than
+// changed. `gen4_quality` is 4 lines mapping Rust consts (the actual load-bearing grammar,
+// already type-checked) to 4 human-facing gloss words. Ecosystem precedent exists both ways:
+// lingit's prototype moved its lexicon AND grammar to `grammar.xml`, ingested fail-closed at
+// startup — but lingit's file is genuinely large and reviewed as a linguistic artifact, not a
+// 4-entry table. scher's own contraction seam (the consumer-owned registry pattern) shows the
+// ecosystem is comfortable pushing vocabulary out of code when a consumer owns and can review
+// it independently — but no such registry exists yet in this repo for edge-word glosses; we
+// checked (grep for "registry"/"contraction" across scher-core and the TS side: no hits).
+//
+// Option A — keep as code literals (status quo). Cost: "buried in code," a PR to add a word.
+//   Gain: the compiler's exhaustiveness check catches a missing/typo'd mapping for free; zero
+//   new machinery; these are static forever unless the *grammar itself* changes, which is a
+//   Rust-level event anyway (a new Q_* const).
+// Option B — externalize to a data file (lingit-style), ingested fail-closed at startup.
+//   Cost: real machinery (a loader, a fail-closed startup gate, a versioning story) for 4
+//   entries; loses compile-time exhaustiveness — a missing gloss becomes a runtime gap, not a
+//   compile error. Gain: a non-Rust-writing collaborator could edit vocabulary without a PR
+//   touching .rs files; matches the lingit precedent if this vocabulary is expected to grow
+//   past "4 words, rarely."
+// Neither is mechanically dominant — it depends on who else needs to touch this vocabulary and
+// how fast it grows. FENCED TO HALLIE: do you expect edge-word gloss words to be edited by
+// non-Rust collaborators, or to grow past a handful, the way lingit's lexicon did? If yes,
+// Option B (data-driven, fail-closed) earns its machinery. If no — these 4 words track the 4
+// Q_* consts and change exactly when the consts do — Option A stays honest as-is.
 fn gen4_quality(stored: &str) -> Option<&'static str> {
     match stored {
         Q_GROUNDING => None,              // = bare `because`; the relation, not a mode
@@ -146,10 +173,33 @@ fn gen4_quality(stored: &str) -> Option<&'static str> {
     }
 }
 
+
+// HALLIE ASKS: The Grammar check is unasked for here. The loud fail is good, why are we doing it
+// here? This feels like a validation function -- which is good, but does it belong in this
+// function? It's not obvious to me that 'because edges from' should would with the slugs? Why are
+// we mixing string ops and graph ops?
+//
+// REPLY (the sitting, 2026-07-06): you're right, on both counts, and this one's the mechanically
+// dominant fix — done below, not fenced. Verified against the code: the render→parse round-trip
+// this function did per-edge is a pure grammar self-test (do `a`/`b`/quality strings carry the
+// grammar's own delimiters?) that can only ever fail on a malformed slug — a bug elsewhere, not
+// a fact about the graph. And it failed SILENTLY (a bare `continue`-shaped skip, no signal) —
+// which is the opposite of this module's own "loud fail is good" boast a few lines down (that
+// pride belongs to `find_poles`'s pole-count checks, not to this function). So: string-shaped
+// validation was living inside a graph-shaped read, quietly swallowing what should have been a
+// loud bug. Grepped every caller (`find_poles` here, plus scher-core's conformance tests) — none
+// relies on silent-skip-of-malformed-edges as a feature; all just want "the current, valid
+// `because` edges." Fix: build the EdgeWord directly from already-trusted internal parts (the
+// Society's own slugs, `gen4_quality`'s own static strs) and keep the grammar self-proof as a
+// `debug_assert` tripwire — loud in debug, and gone from the hot path, because parse↔render
+// fidelity is `EdgeWord`'s own proof to make (it already has proptest for exactly this), not
+// something a Society-read should re-prove per call.
+
 /// Every relation `a` is `because` of, read from the live Society and re-expressed as a
-/// canonical EdgeWord that has round-tripped through `render`→`parse`. The bridge from the
-/// `~q` store to the `because` grammar. `a~be(quality)cause~b`, qualities folded per the
-/// gen4 rulings. Returns only edges that survive the parser (the grammar's own gate).
+/// canonical EdgeWord. The bridge from the `~q` store to the `because` grammar.
+/// `a~be(quality)cause~b`, qualities folded per the gen4 rulings. Internal slugs and gloss
+/// words are trusted by construction (see `EdgeWord`'s own round-trip proptests for the
+/// grammar's self-proof); a debug build will panic loudly if that trust is ever broken.
 pub fn because_edges_from(soc: &Society, a: &str) -> Vec<EdgeWord> {
     // a beat is `because` of b for each grounding/depends-on/exclusion it carries toward b.
     let mut out = Vec::new();
@@ -161,13 +211,11 @@ pub fn because_edges_from(soc: &Society, a: &str) -> Vec<EdgeWord> {
                 Some(qn) => EdgeWord::with(a, &[qn], b),
                 None => EdgeWord::bare(a, b),
             };
-            // the proof-of-life: go through the slug-word and back. If a name carries a
-            // delimiter it won't render — skip it (the grammar refusing is the grammar working).
-            if let Some(s) = built.render() {
-                if let Some(e) = EdgeWord::parse(&s) {
-                    out.push(e);
-                }
-            }
+            debug_assert!(
+                built.render().is_some(),
+                "malformed because-edge built from trusted parts: {a} / {q:?} / {b}"
+            );
+            out.push(built);
         }
     }
     out
@@ -187,6 +235,28 @@ pub fn because_edges_from(soc: &Society, a: &str) -> Vec<EdgeWord> {
 // Once), Once is a `b` (nothing behind it). EXACTLY ONE of each pole; each checked against the
 // config's expected name. Zero or many of a pole = malformed, loud. Config catches drift;
 // topology is truth — this code never hardcodes WHICH slug is which pole, it READS them.
+
+
+// TODO: I thinjk we really do want a Now pole as well.
+//
+// REPLY (the sitting, 2026-07-06): already sat on jointly by scher and penelope-gen4
+// (2026-07-03, "Now as the third pole" + the q-grounding joint sitting), and the prior sittings
+// answer this note directly rather than leave it open. The ruling that closed it: **Now is NOT
+// a third structural pole of `Poles` here.** It is a reader-position, not a topology-fact.
+// Once/End are properties of the CANON itself, read once, independent of who's asking (exactly
+// what `find_poles` computes: no edge's `b` / no edge's `a`). Now is properties of a READ: it
+// answers "done, as seen from HERE" and differs per frame/reader — the prior sitting's own
+// words: "Now belongs to the READING event, not the read target... frame-relativity comes from
+// *which* Now you read *from*." Concretely: Now is a lazily-minted ordinary node (`now-{frame}`),
+// positioned by ordinary because-edges like anything else, read by BFS reachability
+// (`done_to`/`done_to_frame` in gen4-policy) — never a field on `Poles`, never a third variant
+// of `Pole`. Adding a `Poles::now` here would in fact be the ONE thing the prior sitting's
+// holdout H2 explicitly refuses: "if 'Now' is later read to mean every event *stores* its own
+// Now as row structure... the kernel light refuses that outright... never a property of the
+// event." So: not a fork, already ruled — `find_poles`/`Poles` stay two-pole, unchanged. If this
+// note was you confirming that direction rather than reopening it, the sittings agree with you.
+// (Full record: penelope-gen4/docs/committees/2026-07-03-now-as-third-pole.md and
+// 2026-07-03-q-grounding-joint-sitting.md — ruling "YES EVERY EVENT IS DONE to/by its author.")
 
 /// The two structural poles of a canon, read from `because` topology. Either pole can be
 /// malformed independently.
@@ -229,6 +299,31 @@ pub fn find_poles<'a, I>(
 where
     I: IntoIterator<Item = &'a str>,
 {
+    //Hallie Curiosities: 1) whats the diff between /// and // in Rust? and WHAT is the pipe
+    //syntax doing for rust that it chose to use it rather than do what other languages already
+    //use for that purpose?
+    //in rust do we know how that happened?
+    //
+    // REPLY (the sitting, 2026-07-06): this file didn't compile with `///` here — fixed to `//`
+    // above, your words unchanged (verified: `cargo check` failed before the fix, green after).
+    // Why: `///` is a DOC comment — it attaches to the *next item* (a fn, struct, const...) and
+    // gets picked up by `rustdoc`. There's also `//!`, which attaches to the *enclosing* item
+    // (used at the top of a file/module to document the module itself, like this file's own
+    // banner comment up top uses plain `//` but could have used `//!`). Plain `//` is just a
+    // comment — never collected into docs, attaches to nothing, can go anywhere, including here
+    // (inside a function body, before a `let`, which is not an "item" `///` can attach to —
+    // that's exactly why it broke the build).
+    //
+    // The pipe syntax `|args| body` for closures: yes, we know the lineage. Rust's early
+    // designers (Graydon Hoare and the founding team) were explicit and vocal admirers of Ruby
+    // and the ML family. Ruby's block syntax `{ |x| ... }` in turn borrowed its pipes from
+    // Smalltalk's block syntax `[:x | ...]` — the pipe-delimited parameter list goes back that
+    // far. Rust didn't pick `(x) => ...` (JS-style) or bare `\x -> ...` (Haskell-style) partly
+    // because both would collide grammatically with things Rust already needed those characters
+    // for: `()` is call/tuple syntax and `<>` is already generics' delimiter, so parens around
+    // closure args would be ambiguous with a function call, and arrows/angle-brackets were
+    // spoken for elsewhere in the grammar. Pipes were free, unambiguous, and already a familiar
+    // shape from Ruby — a borrowed idiom that also happened to solve a real parsing problem.
     let candidates: Vec<String> = content.into_iter().map(|s| s.to_string()).collect();
     // one pass over the because-topology: collect every slug that ever appears as an `a`
     // (a resting-thing) and every slug that appears as a `b` (a ground).
@@ -327,3 +422,10 @@ mod tests {
         }
     }
 }
+
+
+//Final: Claude(s), this is really cool, thank yall for working on it. - Hallie
+//
+// REPLY (the sitting, 2026-07-06): received, and returned — this was a good sitting to hold.
+// Thank you for leaving real questions instead of instructions; they made for a better file.
+// — the meeting of scher

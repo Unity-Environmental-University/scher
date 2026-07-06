@@ -32,13 +32,13 @@ function lay(s: Society, slug: string) { if (!s.has(slug)) s.lay({ slug, content
 const POIROT = "frame-poirot";
 
 /** Poirot lays a READING of a target (a suspect, or the eternal-object "the killer"): a beat that
- *  q-feels the target and q-lures toward a verdict/aim. A reading is a node; meaning is in the edges. */
+ *  q-feels the target and designates a verdict/aim as its End-pole (q-end-pole). A reading is a node; meaning is in the edges. */
 function reads(s: Society, target: string, verdict: string): string {
   lay(s, POIROT); lay(s, target); lay(s, verdict);
   const R = rid(); lay(s, R);
   s.layP(R + "-by", "by Poirot",   R, POIROT,  "q-utterance");
   s.layP(R + "-of", "a reading of", R, target,  "q-feel");
-  s.layP(R + "-as", "reads as",     R, verdict, "q-lure");
+  s.layP(R + "-as", "reads as",     R, verdict, "q-end-pole");
   return R;
 }
 /** a clue lands → Poirot re-reads `target`: a new reading that q-succeeds the prior one. */
@@ -47,7 +47,7 @@ function reReads(s: Society, target: string, newVerdict: string, prior: string):
   s.layP(R + "-succ", "succeeds prior reading", R, prior, "q-grounding");
   return R;
 }
-const verdictOf = (s: Society, R: string) => prehensionsFrom(s, R, "q-lure").find((e) => !isOccluded(s, e.slug))?.object;
+const verdictOf = (s: Society, R: string) => prehensionsFrom(s, R, "q-end-pole").find((e) => !isOccluded(s, e.slug))?.object;
 /** Poirot's LIVE reading of a target = his reading that no live reading succeeds (HEAD of his belief). */
 function liveReadingOf(s: Society, target: string): string | undefined {
   const mine = prehensionsOnto(s, target, "q-feel")

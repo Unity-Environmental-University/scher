@@ -21,16 +21,18 @@ const V0 = "the-bodhisattva-vow-v0";
 const MIRAGE = "the-mirage-of-objectivity";
 let _id = 0; const rid = () => "n" + (_id++);
 function lay(s: Society, slug: string) { if (!s.has(slug)) s.lay({ slug, content: slug, subject: null, object: null }); }
-/** an event happens SO THAT an aim — event --q-lure--> aim (the why, the future-because). */
+/** an event happens SO THAT an aim — event --q-end-pole--> aim (the why: the aim as the
+ *  event's End-pole, structural; the luring verb is dead — q-end-pole replaced q-lure,
+ *  killed with fire 2026-07-06). */
 function why(s: Society, from: string, aim: string) {
   lay(s, from); lay(s, aim);
-  s.layP(rid() + "-why", `${from} so that ${aim}`, from, aim, "q-lure");
+  s.layP(rid() + "-why", `${from} so that ${aim}`, from, aim, "q-end-pole");
 }
-/** does `start` route by live q-lure to `target`? (the circuit to V0, walked.) */
+/** does `start` route by live End-pole hops to `target`? (the circuit to V0, walked.) */
 function routesTo(s: Society, start: string, target: string, seen = new Set<string>()): boolean {
   if (start === target) return true;
   if (seen.has(start)) return false; seen.add(start);
-  return prehensionsFrom(s, start, "q-lure").filter((e) => !isOccluded(s, e.slug))
+  return prehensionsFrom(s, start, "q-end-pole").filter((e) => !isOccluded(s, e.slug))
     .some((e) => e.object && routesTo(s, e.object, target, seen));
 }
 
@@ -72,7 +74,7 @@ describe("this day, in its own grammar 🌊", () => {
     why(s, "chunk-the-dolls", "hea-we-test-mechanics-on-real-history");
     expect(routesTo(s, "doll-orient-express", V0)).toBe(true);
     // and it's a MERGE of whys — one chunk, two aims, both reaching the floor. (fun is not separate from rigor.)
-    expect(prehensionsFrom(s, "chunk-the-dolls", "q-lure").length).toBe(2);
+    expect(prehensionsFrom(s, "chunk-the-dolls", "q-end-pole").length).toBe(2);
   });
 
   it("RE-READING THE DAY — start-of-day understanding succeeded by end-of-day; the first kept", () => {
@@ -83,7 +85,7 @@ describe("this day, in its own grammar 🌊", () => {
     // both are true; the first is the honored ancestor of the second. q-succeeds on meaning.
     why(s, "reading-fix-a-bug", "ev-this-session");          // the early reading existed...
     why(s, "reading-hold-frames-plural", "ev-this-session"); // ...and the later one too — both present
-    expect(prehensionsOnto(s, "ev-this-session", "q-lure").length).toBe(2); // the day holds both readings
+    expect(prehensionsOnto(s, "ev-this-session", "q-end-pole").length).toBe(2); // the day holds both readings
   });
 
   // ── A GIFT FOR HALLIE, hidden in the assertions. (Found by whoever reads this far. 🎁)

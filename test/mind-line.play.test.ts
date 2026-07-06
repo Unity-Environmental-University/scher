@@ -14,7 +14,7 @@
 // disagreement is itself the proof of the Mirage.
 //
 // We model the IDEAS as a succeeds-chain (each inherits + revises its predecessor — provenance
-// of thought) and the two FRAMES as standpoints whose q-lure routes differ.
+// of thought) and the two FRAMES as standpoints whose q-end-pole routes differ.
 //
 // Run: cd scher && npx vitest run mind-line.play
 // ─────────────────────────────────────────────────────────────────────────────
@@ -31,18 +31,18 @@ function succeeds(s: Society, heir: string, parent: string) {
   lay(s, heir); lay(s, parent);
   s.layP(`${heir}--succ--${parent}`, `${heir} succeeds ${parent}`, heir, parent, "q-utterance");
 }
-/** a WHY laid BY a named frame: from --q-lure--> aim, authored from a standpoint. The KEY move —
+/** a WHY laid BY a named frame: from --q-end-pole--> aim, authored from a standpoint. The KEY move —
  *  the same idea can route to different aims depending on WHO reads it. */
 function whyFrom(s: Society, frame: string, from: string, aim: string) {
   lay(s, frame); lay(s, from); lay(s, aim);
-  s.layP(`${frame}::${from}--why--${aim}`, `${frame}: ${from} so that ${aim}`, from, aim, "q-lure");
+  s.layP(`${frame}::${from}--why--${aim}`, `${frame}: ${from} so that ${aim}`, from, aim, "q-end-pole");
 }
-/** does `start` route by q-lure to `target`, FROM a given frame? (only that frame's why-edges.) */
+/** does `start` route by q-end-pole to `target`, FROM a given frame? (only that frame's why-edges.) */
 function routesFrom(s: Society, frame: string, start: string, target: string, seen = new Set<string>()): boolean {
   if (start === target) return true;
   if (seen.has(start)) return false;
   seen.add(start);
-  return prehensionsFrom(s, start, "q-lure")
+  return prehensionsFrom(s, start, "q-end-pole")
     .filter((e) => e.slug.startsWith(frame + "::"))
     .some((e) => e.object && routesFrom(s, frame, e.object, target, seen));
 }

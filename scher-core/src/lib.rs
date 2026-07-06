@@ -42,6 +42,10 @@ pub const Q_GROUNDING: &str = "q-grounding";
 pub const Q_EXCLUSION: &str = "q-exclusion";
 pub const Q_OCCLUDES: &str = "q-occludes";
 pub const Q_DEPENDS_ON: &str = "q-depends-on";
+/// The structural End-pole designation the lazy three-pole unpack lays (2026-07-06).
+/// q-lure is DEAD — killed with fire (Hallie, same ruling): it smuggled an agent and
+/// could not state its own direction. `lay_p` REFUSES it (panic, fail-closed).
+pub const Q_END_POLE: &str = "q-end-pole";
 
 /// A beat. With subject+object it is a prehension (an edge). A quality beat (slug ending
 /// `~q`, object a `q-*`) carries mode. Mirrors the `EventRow` interface in society.ts.
@@ -153,6 +157,19 @@ impl Society {
         object: &str,
         quality: &str,
     ) -> bool {
+        // DEAD GRAMMAR GUARD (blocking — mirrors society.ts assertNoLure): q-lure is DEAD
+        // (Hallie's ruling, 2026-07-06): it smuggled an agent and could not state its own
+        // direction. An event is ONE event until lazily unpacked into its three poles
+        // (Once / End / Now — "the end is because now"); End-hood is the structural
+        // Q_END_POLE designation. Fix: lay the unpack (event ~end-pole~ end, Q_END_POLE)
+        // and close with `end ~because~ now` (Q_GROUNDING).
+        assert!(
+            quality != "q-lure",
+            "[DEAD GRAMMAR] '{slug}' tries to lay q-lure — dead since 2026-07-06 (it \
+             smuggled an agent and could not state its own direction). Unpack the event \
+             into its three poles instead: lay Q_END_POLE ('{subject} ~end-pole~ end') and \
+             close with 'end ~because~ now' (Q_GROUNDING). (law: three-poles, no-luring-verb)"
+        );
         let a = self.lay(EventRow::edge(slug, content, subject, object));
         let q_slug = format!("{slug}~q");
         let q_content = format!("{content} [{quality}]");
@@ -561,35 +578,43 @@ pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
     fwd.into_iter().filter(|n| bwd.contains(n)).collect()
 }
 
-/// end_of: the End a story lures toward — the object of the story's `q-lure` edge,
-/// structurally; the lure IS the End-pole designation (F-A ruling, 2026-07-06). The old
-/// read also demanded the object's slug contain "end" (its own TODO named the
-/// "weekend-review" false crowning); no spelling is read anymore. Mirrors `endOf` in
-/// society.ts.
-// TODO(socratic): find() returns the first match in an unordered map — what defines "first", and if two q-lure edges match, should end_of pick one deterministically or error?
+/// end_of: the story's End-pole — the object of its Q_END_POLE designation (laid by the
+/// lazy three-pole unpack), structurally; no spelling is read (F-A ruling + pole law,
+/// 2026-07-06; q-lure is dead — see the lay_p guard). Mirrors `endOf` in society.ts.
+// TODO(socratic): find() returns the first match in an unordered map — what defines "first", and if two pole designations match (reopened differentials), should end_of pick one deterministically or error?
 pub fn end_of(soc: &Society, story: &str) -> Option<String> {
     soc.all()
         .find(|b| {
-            b.subject.as_deref() == Some(story) && prehends_as(soc, &b.slug, "q-lure", None)
+            b.subject.as_deref() == Some(story) && prehends_as(soc, &b.slug, Q_END_POLE, None)
         })
         .and_then(|b| b.object.clone())
 }
 
+/// end_actual: is this End-pole ACTUAL — is it because something (per the pole law, the
+/// Now of its closing: `end ~because~ now`)? Reads the un-occluded outgoing Q_GROUNDING
+/// edges FROM the End. Mirrors `endActual` in society.ts.
+pub fn end_actual(soc: &Society, end: &str, as_of: Option<u64>) -> bool {
+    prehensions_from(soc, end, Q_GROUNDING, as_of)
+        .iter()
+        .any(|p| !is_occluded(soc, &p.slug, as_of))
+}
+
 /// voltage_of: the scalar across a story's open differential — DERIVED, stored nowhere
 /// (F-A ruling, Hallie 2026-07-06: "capture strikes a voltage; marking voltage lays
-/// charge; done closes the circuit; nothing ever un-happens"). Zero when the circuit is
-/// closed (every lured End grounded) or when no differential was ever struck; otherwise
-/// 1 (the capture's own strike) + the un-occluded q-charge events laid against the story.
-/// Simple sum for now — decay/weighting is a future READ policy (the charge events stay;
-/// only the derivation would change). Mirrors `voltageOf` in society.ts.
+/// charge; done closes the circuit; nothing ever un-happens"). Zero when the event was
+/// never unpacked (one event, no differential) or when the circuit is closed (every
+/// designated End actual — because a Now); otherwise 1 (the open strike) + the
+/// un-occluded q-charge events laid against the story. Simple sum for now —
+/// decay/weighting is a future READ policy (the charge events stay; only the derivation
+/// would change). Mirrors `voltageOf` in society.ts.
 pub fn voltage_of(soc: &Society, story: &str, as_of: Option<u64>) -> u64 {
-    let open = prehensions_from(soc, story, "q-lure", as_of)
+    let open = prehensions_from(soc, story, Q_END_POLE, as_of)
         .iter()
         .filter(|p| !is_occluded(soc, &p.slug, as_of))
         .any(|p| {
             p.object
                 .as_deref()
-                .is_some_and(|end| !grounded_for_any_frame(soc, end, as_of))
+                .is_some_and(|end| !end_actual(soc, end, as_of))
         });
     if !open {
         return 0; // closed circuit, or never a story — nothing un-happened either way

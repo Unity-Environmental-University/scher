@@ -564,17 +564,17 @@ mod anti_time {
 }
 
 // ── story-hood is structural (mirrors scher/test/story-structural.test.ts) ────────────
-// F-A ruling (2026-07-06): a beat is a Story iff it q-lures somewhere — the lure edge IS
-// the End-pole designation; end_of reads its object, no spelling ever inspected.
+// F-A ruling + pole law (2026-07-06): a beat is a Story iff it has been unpacked into
+// its poles — the Q_END_POLE designation; end_of reads its object, no spelling inspected.
 #[test]
-fn end_of_reads_the_lure_structurally_never_the_spelling() {
+fn end_of_reads_the_pole_designation_never_the_spelling() {
     let mut soc = Society::new();
     soc.lay(EventRow::node("capture-milk", "capture"));
     soc.lay(EventRow::node("milk-in-fridge", "the End-pole — no 'end' spelled"));
-    soc.lay_p("cm~lures~mif", "lures its End", "capture-milk", "milk-in-fridge", "q-lure");
+    soc.lay_p("cm~end-pole~mif", "End-pole designation", "capture-milk", "milk-in-fridge", Q_END_POLE);
     assert_eq!(end_of(&soc, "capture-milk").as_deref(), Some("milk-in-fridge"));
 
-    // and 'weekend-plans' bait without a lure designates nothing:
+    // and 'weekend-plans' bait without a designation designates nothing:
     soc.lay(EventRow::node("saturday-thought", "thought"));
     soc.lay(EventRow::node("weekend-plans", "spells 'end'"));
     soc.lay(EventRow::edge("st-e1", "plain edge", "saturday-thought", "weekend-plans"));
@@ -582,33 +582,49 @@ fn end_of_reads_the_lure_structurally_never_the_spelling() {
     assert_eq!(end_of(&soc, "saturday-thought"), None);
 }
 
-// ── voltage (mirrors scher/test/voltage.test.ts) — F-A ruling, 2026-07-06 ─────────────
-// "Capture strikes a voltage; marking voltage lays charge; done closes the circuit;
-// nothing ever un-happens."
+// ── q-lure is DEAD (mirrors scher/test/lure-is-dead.test.ts) — the guard BLOCKS ───────
+// Hallie, verbatim, 2026-07-06: "Q Lure is killed with fire … a test is written that says
+// if there are any q-lures anywhere in the db it will not work and why and what to do to
+// fix it." lay_p refuses the write outright (fail-closed), naming the why and the fix.
 #[test]
-fn voltage_is_derived_across_the_open_differential_and_done_closes_it() {
+#[should_panic(expected = "DEAD GRAMMAR")]
+fn laying_q_lure_will_not_work() {
     let mut soc = Society::new();
-    // capture = Once + lure toward an unactualized End (the lure IS the designation)
+    soc.lay_p("a~lures~b", "a lure", "a", "b", "q-lure");
+}
+
+// ── voltage (mirrors scher/test/voltage.test.ts) — F-A ruling + pole law, 2026-07-06 ──
+// "Capture strikes a voltage; marking voltage lays charge; done closes the circuit;
+// nothing ever un-happens." — and: an event is ONE event until lazily unpacked into the
+// THREE poles; the end, when actual, is because Now.
+#[test]
+fn voltage_is_derived_across_the_unpacked_differential_and_done_closes_it() {
+    let mut soc = Society::new();
+    // capture = ONE event: no poles, no differential, no voltage.
     soc.lay(EventRow::node("buy-milk", "buy milk"));
+    assert_eq!(voltage_of(&soc, "buy-milk", None), 0);
+
+    // first need: the lazy three-pole unpack — End-pole minted, structurally designated.
     soc.lay(EventRow::node("buy-milk~hea", "the End-pole, not yet actual"));
-    soc.lay_p("buy-milk~lures~hea", "lures its End (frame: buy-milk)", "buy-milk", "buy-milk~hea", "q-lure");
-    assert_eq!(voltage_of(&soc, "buy-milk", None), 1); // the strike itself
+    soc.lay_p("buy-milk~end-pole~hea", "End-pole designation (frame: buy-milk)", "buy-milk", "buy-milk~hea", Q_END_POLE);
+    assert_eq!(voltage_of(&soc, "buy-milk", None), 1); // the open strike
 
     // marking voltage lays charge — append-only; the read rises
     soc.lay_p("buy-milk~charge-0", "charge", "frame-hallie", "buy-milk", "q-charge");
     soc.lay_p("buy-milk~charge-1", "noticed again", "frame-hallie", "buy-milk", "q-charge");
     assert_eq!(voltage_of(&soc, "buy-milk", None), 3);
 
-    // done: the holding-done event grounds the End-pole — circuit closed, voltage zero,
-    // every prior event still readable (nothing un-happens).
-    soc.lay_p("now-hallie~holds-done~hea", "held done", "now-hallie", "buy-milk~hea", "q-grounding");
+    // done: the pole law's closing move — the End, now actual, is because the Now of its
+    // closing. Circuit closed, voltage zero, every prior event still readable.
+    soc.lay_p("hea~because~now-hallie", "the end is because now", "buy-milk~hea", "now-hallie", Q_GROUNDING);
+    assert!(end_actual(&soc, "buy-milk~hea", None));
     assert_eq!(voltage_of(&soc, "buy-milk", None), 0);
     assert!(soc.get("buy-milk~charge-0").is_some());
-    assert!(soc.get("buy-milk~lures~hea").is_some());
+    assert!(soc.get("buy-milk~end-pole~hea").is_some());
 
-    // reopen = a NEW lure (new differential), never an un-doing.
+    // reopen = a NEW unpack (new differential), never an un-doing.
     soc.lay(EventRow::node("buy-milk~hea-1", "reopened End, not yet actual"));
-    soc.lay_p("buy-milk~lures~hea-1", "lures its End (frame: buy-milk)", "buy-milk", "buy-milk~hea-1", "q-lure");
+    soc.lay_p("buy-milk~end-pole~hea-1", "End-pole designation (frame: buy-milk)", "buy-milk", "buy-milk~hea-1", Q_END_POLE);
     assert!(voltage_of(&soc, "buy-milk", None) > 0); // open again
-    assert!(grounded_for_any_frame(&soc, "buy-milk~hea", None)); // Thursday's holding still actual
+    assert!(end_actual(&soc, "buy-milk~hea", None)); // Thursday's holding still actual
 }

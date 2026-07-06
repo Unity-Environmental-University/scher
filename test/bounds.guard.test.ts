@@ -22,7 +22,7 @@
 import { describe, it, expect } from "vitest";
 import { Society, prehensionsFrom, prehensionsOnto, isOccluded } from "../src/society.js";
 
-// the prehension qualities — the acts of taking-up prior data. (q-lure is NOT here: luring is the
+// the prehension qualities — the acts of taking-up prior data. (q-end-pole is NOT here: luring is the
 // eternal object's act, not a prehension. This is the "remove lure from the valid edges" Hallie asked.)
 const PREHENSIONS = ["q-grounding", "q-feel", "q-receives", "q-occludes", "q-resolves"] as const;
 

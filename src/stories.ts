@@ -24,6 +24,7 @@ import {
   intervalOf,
   endOf,
   isStory,
+  unpackPoles,
   type Mode,
   type Quality,
 } from "./society.js";
@@ -579,16 +580,15 @@ export function listStory(soc: Society, params: ListStoryParams): Node {
 }
 
 // ── REIFY — make a told-short card an ACTUAL story-as-story. ────────────────────
-// A card is a Story told short. Reifying it gives it BOUNDS: an End beat (the duration's
-// far edge) and a q-lure from the beat to that End — the exact triple that makes isStory
-// true. After reify, a View Card reads it as a Frame: the interior is whatever falls in
-// intervalOf(beat, end) by betweenness. This is the only write reify makes, and it's
-// append-only — the Once is the beat itself; the End and the lure are laid beside it.
-// (No domain here: pure Once/End/betweenness grammar. A view's reify button presses this.)
+// A card is a Story told short. Reifying it is the EXPLICIT story elaboration — one of
+// the pole law's "first needs" — so it IS the lazy three-pole unpack (2026-07-06: an
+// event is one event until unpacked; q-lure is dead, End-hood is the structural
+// q-end-pole designation). After reify, a View Card reads it as a Frame: the interior is
+// whatever falls in intervalOf(beat, end) by betweenness. Append-only — the Once is the
+// beat itself; the End and its designation are laid beside it.
+// (No domain here: pure pole grammar. A view's reify button presses this.)
 export function reify(soc: Society, beat: string): void {
-  const end = `${beat}-end`;
-  soc.lay({ slug: end, content: `…The End of ${beat} — its duration's far edge (always further in).`, subject: null, object: null });
-  soc.layP(`${beat}-lure`, `${beat} lures toward its End`, beat, end, "q-lure");
+  unpackPoles(soc, beat, `${beat}-end`);
 }
 
 // ── VIEW CARD STORY — "a card, and if it contains cards, it renders like one." ──

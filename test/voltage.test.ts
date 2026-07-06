@@ -2,68 +2,78 @@
 // voltage.test.ts — "Capture strikes a voltage; marking voltage lays charge; done
 // closes the circuit; nothing ever un-happens."
 //   — Hallie's F-A ruling, 2026-07-06 (docs/committees/2026-07-06-F-A-ruled-voltage.md)
+// and, same morning, the pole law: "An event is one event until it's lazily unpacked
+// into the THREE poles" — the end, when actual, is because Now.
 //
-// A task IS a story whose End-pole is not yet actual. Voltage is read ACROSS the poles,
-// stored in neither; charge is the append-only write it derives from; done = a
-// holding-done event grounds the End; reopen = a new lure, never an un-doing.
+// Voltage is read ACROSS the unpacked differential, stored in nowhere; charge is the
+// append-only write it derives from; done = `end ~because~ now` (the End actual because
+// the Now of its closing); reopen = a new unpack, never an un-doing.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
 import {
   Society,
-  captureTask,
+  unpackPoles,
   layCharge,
   voltageOf,
+  endActual,
   isStory,
   endOf,
-  groundedForAnyFrame,
   prehensionsOnto,
   reopenTask,
 } from "../src/index.js";
 
-describe("task-as-story: capture · charge · done · reopen", () => {
-  it("capture strikes a voltage: the task is a story with an open differential", () => {
+const capture = (s: Society, slug: string, content: string) =>
+  s.lay({ slug, content, subject: null, object: null });
+
+describe("three poles: capture · charge · done · reopen", () => {
+  it("a capture is ONE event; the unpack opens the differential and voltage reads present", () => {
     const s = new Society();
-    const t = captureTask(s, "buy-milk", "buy milk");
-    expect(isStory(s, "buy-milk")).toBe(true); // one mechanism, two former problems
-    expect(endOf(s, "buy-milk")).toBe(t.end);
-    expect(groundedForAnyFrame(s, t.end)).toBe(false); // the End is not yet actual
-    expect(voltageOf(s, "buy-milk")).toBe(1); // the strike itself — open, present
+    capture(s, "buy-milk", "buy milk");
+    expect(voltageOf(s, "buy-milk")).toBe(0); // one event — no poles, no differential
+    const p = unpackPoles(s, "buy-milk"); // first need: explicit story elaboration
+    expect(isStory(s, "buy-milk")).toBe(true);
+    expect(endOf(s, "buy-milk")).toBe(p.end);
+    expect(endActual(s, p.end)).toBe(false); // the End is not yet actual (scripted)
+    expect(voltageOf(s, "buy-milk")).toBe(1); // the open strike — voltage present
   });
 
-  it("marking voltage lays charge; the derived read rises; no duplicate task is minted", () => {
+  it("a charge is FIRST NEED: it unpacks lazily, and the derived read rises — never a duplicate task", () => {
     const s = new Society();
-    captureTask(s, "buy-milk", "buy milk");
-    layCharge(s, "buy-milk", "frame-hallie");
-    expect(voltageOf(s, "buy-milk")).toBe(2);
+    capture(s, "buy-milk", "buy milk");
+    layCharge(s, "buy-milk", "frame-hallie"); // no prior unpack — the charge performs it
+    expect(isStory(s, "buy-milk")).toBe(true); // unpacked by first need
+    expect(voltageOf(s, "buy-milk")).toBe(2); // 1 (open) + 1 charge
     layCharge(s, "buy-milk", "frame-hallie", "noticed again at the fridge");
     expect(voltageOf(s, "buy-milk")).toBe(3); // re-noticing = more charge, same differential
     expect(s.has("buy-milk~charge-0") && s.has("buy-milk~charge-1")).toBe(true);
   });
 
-  it("done closes the circuit: voltage reads zero, every prior event stays readable", () => {
+  it("done closes the circuit — end because now — voltage zero, every prior event readable", () => {
     const s = new Society();
-    const t = captureTask(s, "buy-milk", "buy milk");
+    capture(s, "buy-milk", "buy milk");
+    const p = unpackPoles(s, "buy-milk");
     layCharge(s, "buy-milk", "frame-hallie");
     layCharge(s, "buy-milk", "frame-hallie");
-    // the holding-done event lands as/grounds the End-pole (a q-grounding onto the End):
-    s.layP(`now-hallie~holds-done~${t.end}`, "held done (frame: buy-milk)", "now-hallie", t.end, "q-grounding");
-    expect(groundedForAnyFrame(s, t.end)).toBe(true);
+    // the pole law's closing move: the End, now actual, is because the Now of its closing.
+    s.layP(`${p.end}~because~now-hallie`, "the end is because now (frame: buy-milk)", p.end, "now-hallie", "q-grounding");
+    expect(endActual(s, p.end)).toBe(true);
     expect(voltageOf(s, "buy-milk")).toBe(0); // circuit closed
-    // nothing un-happened: the charges and the lure are all still in the log, readable.
+    // nothing un-happened: the charges and the designation are all still in the log.
     expect(prehensionsOnto(s, "buy-milk", "q-charge").length).toBe(2);
-    expect(s.get(t.lure)).toBeDefined();
+    expect(s.get(p.pole)).toBeDefined();
   });
 
-  it("reopen strikes a NEW differential; Thursday's holding stays actual forever", () => {
+  it("reopen is a NEW unpack (new differential); Thursday's holding stays actual forever", () => {
     const s = new Society();
-    const t = captureTask(s, "buy-milk", "buy milk");
-    s.layP(`now-hallie~holds-done~${t.end}`, "held done Thursday", "now-hallie", t.end, "q-grounding");
+    capture(s, "buy-milk", "buy milk");
+    const p = unpackPoles(s, "buy-milk");
+    s.layP(`${p.end}~because~now-hallie`, "held done Thursday", p.end, "now-hallie", "q-grounding");
     expect(voltageOf(s, "buy-milk")).toBe(0);
-    const r = reopenTask(s, "buy-milk"); // a new lure — never an un-doing
-    expect(r.end).not.toBe(t.end);
+    const r = reopenTask(s, "buy-milk"); // a new differential — never an un-doing
+    expect(r.end).not.toBe(p.end);
     expect(voltageOf(s, "buy-milk")).toBe(1); // open again across the new differential
-    expect(groundedForAnyFrame(s, t.end)).toBe(true); // Thursday's holding still actual
-    expect(endOf(s, "buy-milk")).toBeDefined(); // still a story, both lures readable
+    expect(endActual(s, p.end)).toBe(true); // Thursday's holding still actual
+    expect(endActual(s, r.end)).toBe(false); // the new End is open
   });
 });

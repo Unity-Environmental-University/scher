@@ -9,7 +9,7 @@
 //   succeeds(s, heir, parent)   — the crown/idea/branch passes (a commit on the line)
 //   heads(s, root)              — the live tip(s); >1 = a fork (succession war)
 //   occlude(s, target, by)      — a named event shadows a member (frame-scoped, reversible)
-//   lure(s, from, aim) / routesTo — the why, and whether it reaches V=0
+//   why(s, from, aim) / routesTo — the why, and whether it reaches V=0
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { Society, prehensionsFrom, prehensionsOnto, isOccluded } from "./society.js";
@@ -65,19 +65,22 @@ export function occlude(s: Society, target: string, by: string): void {
 /** is `target` occluded right now? (a thin re-export so dolls need only import from play.) */
 export function occluded(s: Society, target: string): boolean { return isOccluded(s, target); }
 
-/** `from` happens SO THAT `aim` can be — a why (q-lure, the future-because). */
-export function lure(s: Society, from: string, aim: string): void {
+/** `from` happens SO THAT `aim` can be — a why: the aim stands as an End-pole of
+ *  `from`'s happening (q-end-pole, the structural future-because; there is no luring
+ *  verb — q-lure killed with fire, Hallie 2026-07-06: it smuggled an agent and could
+ *  not state its own direction). */
+export function why(s: Society, from: string, aim: string): void {
   node(s, from); node(s, aim);
-  s.layP(pid() + "-why", `${from} so that ${aim}`, from, aim, "q-lure");
+  s.layP(pid() + "-why", `${from} so that ${aim}`, from, aim, "q-end-pole");
 }
 
-/** does `start` reach `target` by live q-lure hops? (the why-circuit, walked — does it reach V=0?) */
+/** does `start` reach `target` by live End-pole-ward hops? (the why-circuit, walked — does it reach V=0?) */
 export function routesTo(s: Society, start: string, target: string, seen = new Set<string>()): boolean {
-  // TODO(socratic): `start === target` says a why-circuit of length zero always closes — is every event trivially its own aim, or should reaching V=0 require at least one live lure?
+  // TODO(socratic): `start === target` says a why-circuit of length zero always closes — is every event trivially its own aim, or should reaching V=0 require at least one live why-edge?
   if (start === target) return true;
   if (seen.has(start)) return false;
   seen.add(start);
-  return prehensionsFrom(s, start, "q-lure")
+  return prehensionsFrom(s, start, "q-end-pole")
     .filter((e) => !isOccluded(s, e.slug))
     .some((e) => e.object != null && routesTo(s, e.object, target, seen));
 }

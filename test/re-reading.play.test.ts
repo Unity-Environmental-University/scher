@@ -6,7 +6,7 @@
 //
 // THE FIND: an event is perished data (fixed). But a READING of it — why it happened, what
 // it was FOR, from a position — is itself a FIRST-CLASS EVENT, a beat. It prehends the event,
-// it lures toward an aim, it is authored by a frame. And because a reading is an event, it can
+// it aims at an End (q-end-pole), it is authored by a frame. And because a reading is an event, it can
 // be RE-read, occluded, and SUCCEEDED: "my updated understanding" is a reading-beat that
 // q-succeeds my earlier reading-beat. Hindsight is HEAD advancing on the branch of MEANING.
 //
@@ -20,8 +20,8 @@
 //     R  (a beat — the reading itself, an event)
 //     R --q-utterance--> F   (authored BY this frame/standpoint)
 //     R --q-feel-------> E   (this reading is OF this event)   [q-feel: the felt prehension of it]
-//     R --q-lure-------> A   (this reading aims the event toward A — the why)
-//   a re-reading R2 by F: R2 --q-utterance--> F, R2 --q-feel--> E, R2 --q-lure--> A2,
+//     R --q-end-pole-------> A   (this reading aims the event toward A — the why)
+//   a re-reading R2 by F: R2 --q-utterance--> F, R2 --q-feel--> E, R2 --q-end-pole--> A2,
 //     and  R2 --q-grounding--> R1   (R2 succeeds R1 — meaning's HEAD advances; R1 an ancestor)
 //
 // Run: cd scher && npx vitest run re-reading.play
@@ -45,7 +45,7 @@ function reading(s: Society, frame: string, event: string, aim: string): string 
   lay(s, R);
   s.layP(R + "-by",   "authored by",   R, frame, "q-utterance"); // R --q-utterance--> F
   s.layP(R + "-of",   "a reading of",  R, event, "q-feel");      // R --q-feel--> E
-  s.layP(R + "-aims", "aims toward",   R, aim,   "q-lure");      // R --q-lure--> A
+  s.layP(R + "-aims", "aims toward",   R, aim,   "q-end-pole");      // R --q-end-pole--> A
   return R;
 }
 /** a re-reading: a NEW reading by the same frame that q-succeeds (grounds-over) the old one. */
@@ -62,7 +62,7 @@ function authorOf(s: Society, R: string): string | undefined {
 }
 /** the aim (why) a reading points at. */
 function aimOf(s: Society, R: string): string | undefined {
-  return prehensionsFrom(s, R, "q-lure").find((e) => !isOccluded(s, e.slug))?.object ?? undefined;
+  return prehensionsFrom(s, R, "q-end-pole").find((e) => !isOccluded(s, e.slug))?.object ?? undefined;
 }
 /** every reading OF an event (any frame): the beats that q-feel onto E. */
 function readingsOf(s: Society, event: string): string[] {

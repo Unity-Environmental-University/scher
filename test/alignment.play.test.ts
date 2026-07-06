@@ -26,11 +26,11 @@ const V0 = "the-bodhisattva-vow-v0";
 const MIRAGE = "the-mirage-of-objectivity";
 let _id = 0; const rid = () => "a" + (_id++);
 function lay(s: Society, slug: string) { if (!s.has(slug)) s.lay({ slug, content: slug, subject: null, object: null }); }
-function why(s: Society, from: string, aim: string) { lay(s, from); lay(s, aim); s.layP(rid() + "-why", `${from} so that ${aim}`, from, aim, "q-lure"); }
+function why(s: Society, from: string, aim: string) { lay(s, from); lay(s, aim); s.layP(rid() + "-why", `${from} so that ${aim}`, from, aim, "q-end-pole"); }
 function occlude(s: Society, target: string, by: string) { lay(s, by); s.layP(rid() + "-occ", `${by} occludes ${target}`, by, target, "q-occludes"); }
 function routesTo(s: Society, start: string, target: string, seen = new Set<string>()): boolean {
   if (start === target) return true; if (seen.has(start)) return false; seen.add(start);
-  return prehensionsFrom(s, start, "q-lure").filter((e) => !isOccluded(s, e.slug)).some((e) => e.object && routesTo(s, e.object, target, seen));
+  return prehensionsFrom(s, start, "q-end-pole").filter((e) => !isOccluded(s, e.slug)).some((e) => e.object && routesTo(s, e.object, target, seen));
 }
 const MODEL = "frame-the-model", HUMAN = "frame-the-human";
 

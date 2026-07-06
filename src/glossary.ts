@@ -35,9 +35,9 @@ export function mountGlossary(root: HTMLElement): void {
     { slug: "me1", content: "once→coffee", subject: "morning-once", object: "m-coffee" },
     { slug: "me2", content: "coffee→walk", subject: "m-coffee", object: "m-walk" },
     { slug: "me3", content: "walk→end", subject: "m-walk", object: "morning-end" },
-    // morning-once lures to its end (so isStory(morning-once) = true)
+    // morning-end is designated morning-once's End-pole (so isStory(morning-once) = true)
   ]);
-  soc.layP("ml-story", "the morning is a story", "morning-once", "morning-end", "q-lure");
+  soc.layP("ml-story", "the morning is a story", "morning-once", "morning-end", "q-end-pole");
   // m-walk is ITSELF a story (a sub-interval): walk-once → step → walk-end
   soc.layAll([
     { slug: "walk-step", content: "A single step.", subject: null, object: null },
@@ -45,7 +45,7 @@ export function mountGlossary(root: HTMLElement): void {
     { slug: "we1", content: "walk→step", subject: "m-walk", object: "walk-step" },
     { slug: "we2", content: "step→walk-end", subject: "walk-step", object: "walk-end" },
   ]);
-  soc.layP("wl-story", "the walk is a story", "m-walk", "walk-end", "q-lure");
+  soc.layP("wl-story", "the walk is a story", "m-walk", "walk-end", "q-end-pole");
 
   // a glossary entry: title · blurb · the live demo · the CODE that built it.
   const entry = (title: string, blurb: string, demo: Node[], code: string): Node => {

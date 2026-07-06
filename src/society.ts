@@ -46,7 +46,11 @@ export type KernelQuality =
   // frame, so the marker trends redundant. Still fully usable until a future roadmap point;
   // reads keep honoring it. New writers should know the stock is scheduled, not eternal.
   | "q-grounding"
-  | "q-lure"
+  // q-lure is DEAD — killed with fire (Hallie, 2026-07-06): it smuggled an agent (who
+  // lures?) and could not state its own direction. It is NOT in this union and layP
+  // REFUSES it (assertNoLure, below — blocking, unlike the containment holler). The
+  // three-pole unpack replaces it: q-end-pole designates a pole, structurally.
+  | "q-end-pole"
   | "q-exclusion"
   | "q-utterance"
   | "q-feel"
@@ -86,6 +90,52 @@ export type Mode = "established" | "scripted";
 // edges) — this is scher speaking about its own past mistake, not a generic lint. It does
 // not block (won't break a running tool); it hollers, loudly, with the fix, because scher
 // would rather a caller hear the lesson than repeat it quietly.
+// ── DEAD GRAMMAR GUARD: q-lure is killed with fire ──────────────────────────────
+// Hallie's ruling, 2026-07-06 (verbatim: "Q Lure is killed with fire thousands of times
+// as it has been before"). Unlike the containment guard below, this one REFUSES — it does
+// not holler and continue, because a laid lure would silently re-teach the dead grammar
+// to every read downstream.
+//
+// WHY q-lure is dead: it smuggled an agent (who does the luring?) and could not state its
+// own direction (does the Once lure the End, or the End the Once?). The pole law replaces
+// it: an event is ONE event until lazily unpacked into its THREE poles — Once (the ground
+// of everything, rests on nothing), End (when actual, is because Now), Now. End-hood is
+// STRUCTURAL: the q-end-pole designation the unpack lays — never a lure edge, never a
+// slug or content spelling.
+//
+// WHAT TO DO if you hit this: unpack the event into its poles (unpackPoles, or the
+// done-verb's lazy unpack in gen4-policy's mark_done) and let the End close via
+// `end ~because~ now` (q-grounding). If you are migrating old data, re-lay each lure as
+// the unpack shape; the lure rows themselves stay in old logs as testimony, but no new
+// society may carry them — assertNoLureInSociety scans for smuggled ones.
+export function assertNoLure(slug: string, quality: Quality): void {
+  if (quality !== "q-lure") return;
+  throw new Error(
+    `[DEAD GRAMMAR] '${slug}' tries to lay q-lure. q-lure is DEAD (Hallie's ruling, ` +
+    `2026-07-06): it smuggled an agent and could not state its own direction. An event is ` +
+    `ONE event until lazily unpacked into its three poles (Once / End / Now — "the end is ` +
+    `because now"); End-hood is the structural q-end-pole designation laid by the unpack. ` +
+    `Fix: unpackPoles(soc, event) (or gen4-policy mark_done's lazy unpack), then close ` +
+    `with 'end ~because~ now' (q-grounding). (law: three-poles, no-luring-verb)`,
+  );
+}
+
+/** assertNoLureInSociety: the db-wide guard — throws if ANY q-lure exists anywhere in
+ *  this society (however it got in: raw lay, seed, fetched canon). Same why/fix as
+ *  assertNoLure; lists the offending mode-beats so the migration is a grep, not a hunt. */
+export function assertNoLureInSociety(soc: Society): void {
+  const lures = soc.all().filter((b) => b.object === "q-lure" && b.subject !== null);
+  if (lures.length === 0) return;
+  throw new Error(
+    `[DEAD GRAMMAR] this society carries ${lures.length} q-lure mode-beat(s): ` +
+    `${lures.map((b) => b.slug).join(", ")}. q-lure is DEAD (Hallie's ruling, 2026-07-06): ` +
+    `it smuggled an agent and could not state its own direction. Fix each one: unpack its ` +
+    `event into the three poles (Once / End / Now) — lay 'event ~q-end-pole~ end' via ` +
+    `unpackPoles and close with 'end ~because~ now' (q-grounding); then drop or occlude ` +
+    `the lure rows in the source log. (law: three-poles, no-luring-verb)`,
+  );
+}
+
 export function assertNotMembershipContainment(slug: string, quality: Quality): void {
   if (quality !== "q-containment") return;
   if (/(?:-in|@in)$/.test(slug)) {
@@ -145,6 +195,7 @@ export class Society {
   // I lay only the missing half and report true — is a half-mode-carrying prehension a state I mean to
   // permit, or a corruption the append-only law just made unfixable?
   layP(slug: string, content: string, subject: string, object: string, quality: Quality): boolean {
+    assertNoLure(slug, quality); // BLOCKS: q-lure is dead grammar (Hallie, 2026-07-06)
     assertNotMembershipContainment(slug, quality);
     // TODO(socratic): does the quality belong in the '~q' beat's content (as "[${quality}]"), or is it already fully encoded by the object field?
     const a = this.lay({ slug, content, subject, object });
@@ -464,14 +515,14 @@ export function reactionsOn(soc: Society, beat: string, asOf?: number): Pathos[]
   return [...byEmoji.values()].sort((a, b) => b.count - a.count);
 }
 
-/** is_story: does `beat` have a lured End-pole? Story-hood is STRUCTURAL (F-A ruling,
- *  2026-07-06, docs/committees/2026-07-06-F-A-ruled-voltage.md): the q-lure edge itself
- *  IS the End-pole designation — its object is the story's End, whatever it is spelled.
- *  The old read also demanded the object's slug contain the letters "end" (the
- *  "weekend-plans" false positive its own TODO named); no spelling is read anymore. */
+/** is_story: has `beat` been UNPACKED into its poles? Story-hood is STRUCTURAL (F-A
+ *  ruling + pole law, 2026-07-06): an event is one event until lazily unpacked into its
+ *  three poles; the unpack lays a q-end-pole designation whose object is the story's End.
+ *  The old read keyed on a q-lure toward a slug spelling "end" — the lure is killed with
+ *  fire (assertNoLure) and no spelling is read anymore ("weekend-plans" confers nothing). */
 export function isStory(soc: Society, beat: string): boolean {
-  // TODO(socratic): should isStory also check that the lure is not occluded, or is the existence of a lure-edge enough regardless of occlusion?
-  return prehensionsFrom(soc, beat, "q-lure").length > 0;
+  // TODO(socratic): should isStory also check that the designation is not occluded, or is the existence of a pole-edge enough regardless of occlusion?
+  return prehensionsFrom(soc, beat, "q-end-pole").length > 0;
 }
 
 /** content beats: subject===null and not a '~q' mode-beat — the nodes, not the edges. */
@@ -510,89 +561,110 @@ export function intervalOf(soc: Society, once: string, end: string): string[] {
   return [...fwd].filter((n) => bwd.has(n));
 }
 
-/** the End-beat a story lures toward — the object of its q-lure edge, structurally; the
- *  lure IS the designation (F-A ruling, 2026-07-06). No spelling is read. */
+/** the story's End-pole — the object of its q-end-pole designation (laid by the unpack),
+ *  structurally; no spelling is read (F-A ruling + pole law, 2026-07-06). */
 export function endOf(soc: Society, story: string): string | null {
-  // TODO(socratic): should endOf return null if the lure is occluded, or is the presence of any lure-edge the right answer?
-  // TODO(socratic): if a story lures to multiple end-beats, [0] returns only the first — is that intentional or a bug?
-  const lure = prehensionsFrom(soc, story, "q-lure")[0];
-  return lure?.object ?? null;
+  // TODO(socratic): should endOf return null if the designation is occluded, or is the presence of any pole-edge the right answer?
+  // TODO(socratic): if a story carries multiple pole-designations (reopened differentials), [0] returns only the first — is that intentional or a bug?
+  const pole = prehensionsFrom(soc, story, "q-end-pole")[0];
+  return pole?.object ?? null;
 }
 
-// ── TASK-AS-STORY · CHARGE · VOLTAGE (F-A ruling, Hallie 2026-07-06) ──────────────────
+// ── THREE-POLE UNPACK · CHARGE · VOLTAGE (F-A ruling + pole law, Hallie 2026-07-06) ──
 // "Capture strikes a voltage; marking voltage lays charge; done closes the circuit;
-// nothing ever un-happens." (docs/committees/2026-07-06-F-A-ruled-voltage.md)
+// nothing ever un-happens." (docs/committees/2026-07-06-F-A-ruled-voltage.md) — and, same
+// morning: "An event is one event until it's lazily unpacked into the THREE poles."
 //
-// A task IS a story whose End-pole is not yet actual. Capture = the Once-pole plus a
-// q-lure toward an unactualized End (the lure IS the designation — isStory/endOf read it
-// structurally). The openness is VOLTAGE — read ACROSS the poles, stored in neither.
-// Marking voltage lays CHARGE (append-only event); the displayed scalar is derived, never
-// stored. Done = a holding-done event grounds the End-pole (the circuit closes); voltage
-// then reads zero while every prior event stays readable forever. Reopen = a NEW lure
-// (a new differential), never an un-doing.
+// A captured event is ONE event — no poles minted, no story apparatus — until FIRST NEED
+// (the first operation requiring the differential: a charge, a done-verb, an explicit
+// story elaboration). The unpack lays the three-pole structure: the event stands as its
+// own Once (the ground of everything, rests on nothing); an End-pole is minted, not yet
+// actual (its Mode reads "scripted" — the honest existing mechanism), designated by the
+// STRUCTURAL q-end-pole edge (never a lure — killed with fire, see assertNoLure — and
+// never a slug or content spelling). The Now-relation is the pole law's closing move:
+// when the End becomes actual it is BECAUSE the Now of its closing (`end ~because~ now`,
+// q-grounding) — laid by the done-verb, never at unpack.
+//
+// The openness is VOLTAGE — read ACROSS the poles, stored in neither. Marking voltage
+// lays CHARGE (append-only event); the scalar is derived, never stored. Done closes the
+// circuit (End because Now) → voltage reads zero while every prior event stays readable
+// forever. Reopen = a NEW unpack (new differential), never an un-doing.
 //
 // NOTE (occlusion-of-now-connections): nothing here depends on its presence or absence —
 // it is OUT of this ruling, chartered as a gen5 roadmap feature in the ruling minute.
 
-/** what one captureTask laid. */
-export interface TaskCapture {
+/** what one unpack laid. */
+export interface PoleUnpack {
+  /** the event, standing as its own Once-pole. */
   once: string;
-  /** the unactualized End-pole designation (the lure's object). */
+  /** the End-pole, not yet actual (Mode "scripted" until it closes because a Now). */
   end: string;
-  /** the q-lure edge slug (the designation itself). */
-  lure: string;
+  /** the q-end-pole designation edge (the structural End-hood, laid by this unpack). */
+  pole: string;
 }
 
-/** captureTask: lay a task as a story — the Once-pole (a complete occasion, done to its
- *  author forever) plus the lure toward an unactualized End. `end` defaults to the
- *  `${once}~hea` constructor convention (policy-owned naming, the layP/`now-{frame}`
- *  shape — reads never parse it; the lure edge is what designates). Idempotent per lay. */
-export function captureTask(soc: Society, once: string, content: string, end = `${once}~hea`): TaskCapture {
-  soc.lay({ slug: once, content, subject: null, object: null });
-  soc.lay({ slug: end, content: `the End-pole of ${once}, not yet actual`, subject: null, object: null });
+/** unpackPoles: lazily unpack ONE event into its three-pole structure (first need only —
+ *  callers that can wait should wait; a captured-and-abandoned event stays one event
+ *  forever). Idempotent: an already-unpacked event returns its existing poles. `end`
+ *  defaults to the `${event}~hea` constructor convention (an ADDRESS, the layP/`now-{frame}`
+ *  shape — reads never parse it; the q-end-pole edge is what designates). */
+export function unpackPoles(soc: Society, event: string, end = `${event}~hea`): PoleUnpack {
+  const existing = prehensionsFrom(soc, event, "q-end-pole")[0];
+  if (existing) return { once: event, end: existing.object!, pole: existing.slug };
+  soc.lay({ slug: end, content: `the End-pole of ${event}, not yet actual`, subject: null, object: null });
   // Q2 (Story's Own Frame Default, ruled-for-now): edges laid in a story's course carry
   // the story's own frame as EXPLICIT ink — visible, greppable, never parsed by a read.
-  const lure = `${once}~lures~${end}`;
-  soc.layP(lure, `lures its End (frame: ${once})`, once, end, "q-lure");
-  return { once, end, lure };
+  const pole = `${event}~end-pole~${end}`;
+  soc.layP(pole, `End-pole designation (frame: ${event})`, event, end, "q-end-pole");
+  return { once: event, end, pole };
 }
 
-/** layCharge: the append-only charge event — `by` marks voltage against `story`. Never a
- *  duplicate task: re-noticing is additional charge across the existing differential.
+/** endActual: is this End-pole ACTUAL — is it because something (per the pole law, the
+ *  Now of its closing)? Reads the un-occluded outgoing q-grounding edges FROM the End.
+ *  Before the done-verb lays `end ~because~ now`, the End rests on nothing it grounds
+ *  from — scripted, open, a differential. */
+export function endActual(soc: Society, end: string, asOf?: number): boolean {
+  return prehensionsFrom(soc, end, "q-grounding", asOf).some((p) => !isOccluded(soc, p.slug, asOf));
+}
+
+/** layCharge: the append-only charge event — `by` marks voltage against `story`. FIRST
+ *  NEED: a charge requires the differential, so an un-unpacked event unpacks here. Never
+ *  a duplicate task: re-noticing is additional charge across the existing differential.
  *  Returns the charge edge's slug (monotone layer counter, the mark_done redone shape). */
 export function layCharge(soc: Society, story: string, by: string, content = "charge"): string {
+  unpackPoles(soc, story); // lazy unpack on first need (idempotent)
   const n = prehensionsOnto(soc, story, "q-charge").length;
   const slug = `${story}~charge-${n}`;
   soc.layP(slug, content, by, story, "q-charge");
   return slug;
 }
 
-/** voltageOf: the scalar across the open differential — DERIVED, stored nowhere. Zero when
- *  the circuit is closed (every lured End grounded — the holding-done landed) or when no
- *  differential was ever struck; otherwise 1 (the capture's own strike) + the un-occluded
- *  charge events laid against the story. Simple sum for now — decay/weighting is a future
- *  READ policy (the events stay; only the derivation would change). Closure reads
- *  groundedForAnyFrame on the End; a per-frame voltage (read from a reader's Now) is
- *  F-B-adjacent and deliberately not minted here. */
+/** voltageOf: the scalar across the open differential — DERIVED, stored nowhere. Zero
+ *  when the event was never unpacked (one event, no differential) or when the circuit is
+ *  closed (every designated End actual — because a Now); otherwise 1 (the open strike) +
+ *  the un-occluded charge events laid against the story. Simple sum for now —
+ *  decay/weighting is a future READ policy (the charge events stay; only the derivation
+ *  would change). A per-frame voltage (read from a reader's Now) is F-B-adjacent and
+ *  deliberately not minted here. */
 export function voltageOf(soc: Society, story: string, asOf?: number): number {
-  const lures = prehensionsFrom(soc, story, "q-lure", asOf).filter((p) => !isOccluded(soc, p.slug, asOf));
-  const open = lures.some((l) => !groundedForAnyFrame(soc, l.object!, asOf));
-  if (!open) return 0; // closed circuit, or never a story — nothing un-happened either way
+  const poles = prehensionsFrom(soc, story, "q-end-pole", asOf).filter((p) => !isOccluded(soc, p.slug, asOf));
+  const open = poles.some((p) => !endActual(soc, p.object!, asOf));
+  if (!open) return 0; // never unpacked, or closed circuit — nothing un-happened either way
   const charges = prehensionsOnto(soc, story, "q-charge", asOf).filter((p) => !isOccluded(soc, p.slug, asOf));
   return 1 + charges.length;
 }
 
-/** reopenTask: strike a NEW differential across the same subject matter — a new lure to a
- *  fresh unactualized End. Never an un-doing: the prior End stays grounded forever
+/** reopenTask: strike a NEW differential across the same subject matter — a fresh unpack
+ *  to a fresh unactualized End. Never an un-doing: the prior End stays actual forever
  *  (Thursday's holding stays actual); no occlusion, no erasure, only a new opening. */
-export function reopenTask(soc: Society, story: string): TaskCapture {
-  const n = prehensionsFrom(soc, story, "q-lure").length;
+export function reopenTask(soc: Society, story: string): PoleUnpack {
+  const n = prehensionsFrom(soc, story, "q-end-pole").length;
   const end = `${story}~hea-${n}`;
   soc.lay({ slug: end, content: `the End-pole of ${story} (reopened), not yet actual`, subject: null, object: null });
-  const lure = `${story}~lures~${end}`;
-  // Q2 frame mark, same ink as captureTask.
-  soc.layP(lure, `lures its End (frame: ${story})`, story, end, "q-lure");
-  return { once: story, end, lure };
+  const pole = `${story}~end-pole~${end}`;
+  // Q2 frame mark, same ink as unpackPoles.
+  soc.layP(pole, `End-pole designation (frame: ${story})`, story, end, "q-end-pole");
+  return { once: story, end, pole };
 }
 
 /** author_of: the subject of a q-utterance prehension onto `beat` (who said it). */

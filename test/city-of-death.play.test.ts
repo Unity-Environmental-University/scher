@@ -30,10 +30,10 @@ function fragmentOf(s: Society, fragment: string, being: string) {
 function fragmentsOf(s: Society, being: string): string[] {
   return prehensionsOnto(s, being, "q-feel").filter((e) => !isOccluded(s, e.slug)).map((e) => e.subject!);
 }
-/** a fragment lures toward the shared aim (all twelve pull at the same End). */
-function lures(s: Society, fragment: string, aim: string) { lay(s, fragment); lay(s, aim); s.layP(rid() + "-aim", `${fragment} pulls toward ${aim}`, fragment, aim, "q-lure"); }
+/** a fragment aims at the shared End (all twelve carry the same End-pole designation). */
+function aims(s: Society, fragment: string, aim: string) { lay(s, fragment); lay(s, aim); s.layP(rid() + "-aim", `${fragment} pulls toward ${aim}`, fragment, aim, "q-end-pole"); }
 function aimsAt(s: Society, fragment: string, aim: string): boolean {
-  return prehensionsFrom(s, fragment, "q-lure").some((e) => !isOccluded(s, e.slug) && e.object === aim);
+  return prehensionsFrom(s, fragment, "q-end-pole").some((e) => !isOccluded(s, e.slug) && e.object === aim);
 }
 /** authenticity claimed BY a frame (a buyer): this painting reads as "the real Mona Lisa" from here. */
 function authenticTo(s: Society, painting: string, buyer: string) { lay(s, painting); lay(s, buyer); s.layP(rid() + "-auth", `${painting} authentic to ${buyer}`, buyer, painting, "q-grounding"); }
@@ -54,11 +54,11 @@ describe("City of Death — Scaroth splintered across time 🛸🎨", () => {
     expect(new Set(fragmentsOf(s, SCAROTH)).size).toBe(12);
   });
 
-  it("THE SHARED PULL — every fragment lures toward ONE aim (un-splinter; stop the explosion)", () => {
+  it("THE SHARED PULL — every fragment aims at ONE End (un-splinter; stop the explosion)", () => {
     const s = new Society();
     for (const era of ["egypt-pharaoh", "renaissance-count-scarlioni", "paris-1979-scarlioni"])
-      fragmentOf(s, era, SCAROTH), lures(s, era, "aim-reunite-and-undo-the-explosion");
-    // all fragments, across millennia, pull at the SAME End — a society with one shared lure.
+      fragmentOf(s, era, SCAROTH), aims(s, era, "aim-reunite-and-undo-the-explosion");
+    // all fragments, across millennia, pull at the SAME End — a society with one shared End-pole.
     // (This is what lets a scattered self ACT as one: the aim is the same from every era.)
     for (const era of ["egypt-pharaoh", "renaissance-count-scarlioni", "paris-1979-scarlioni"])
       expect(aimsAt(s, era, "aim-reunite-and-undo-the-explosion")).toBe(true);

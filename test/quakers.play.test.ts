@@ -8,7 +8,7 @@
 // split was, at root, a Mirage question among Friends: is the floor the Inner Light, or
 // Scripture? — and the grammar holds both readings without granting either the seat.
 //
-// Built on the new play lib (succeeds / heads / occlude / lure / routesTo) — so the doll
+// Built on the new play lib (succeeds / heads / occlude / why / routesTo) — so the doll
 // reads as history, not plumbing. Sourced: quakerinfo.org, qhpress.org, pym.org, en.wikipedia.
 //
 // Run: cd scher && npx vitest run quakers.play
@@ -16,7 +16,7 @@
 
 import { describe, it, expect } from "vitest";
 import { Society, prehensionsOnto, isOccluded } from "../src/society.js";
-import { succeeds, heads, node, lure, routesTo } from "../src/play.js";
+import { succeeds, heads, node, why, routesTo } from "../src/play.js";
 
 const V0 = "the-bodhisattva-vow-v0";
 
@@ -43,9 +43,9 @@ describe("The Society of Friends, Fox to today 🕊️", () => {
     const s = new Society();
     // each branch routes its authority toward a DIFFERENT floor-candidate. The grammar holds both;
     // neither gets the objective seat (that seat would be the Mirage — no Friend can stand on it).
-    lure(s, "hicksite-inward-light", "floor-the-inner-light");
-    lure(s, "orthodox-scripture", "floor-the-scripture");
-    lure(s, "floor-the-inner-light", V0);
+    why(s, "hicksite-inward-light", "floor-the-inner-light");
+    why(s, "orthodox-scripture", "floor-the-scripture");
+    why(s, "floor-the-inner-light", V0);
     // the Hicksite route reaches its floor; the Orthodox route reaches a DIFFERENT one. Both real
     // readings of "where Quaker authority rests" — the disagreement is the thing, not a bug.
     expect(routesTo(s, "hicksite-inward-light", "floor-the-inner-light")).toBe(true);

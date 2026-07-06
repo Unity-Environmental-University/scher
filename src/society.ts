@@ -54,6 +54,10 @@ export type KernelQuality =
   | "q-depends-on"
   | "q-resolves"
   | "q-occludes"
+  // F-A ruling (2026-07-06): "marking voltage lays charge" — the append-only charge event
+  // (particle-shaped write) voltageOf derives its scalar from (field-shaped read). Kernel
+  // name is CHARGE; the user-facing word "voltage" is UI vocabulary, kept out of the wire.
+  | "q-charge"
   // graduated 2026-07-03: assigneesOf now reads this quality (it used to read a slug shape no
   // live store had ever laid — checked against gen3.beat, canon.event, the prehension graphs —
   // while real q-assigned-to edges existed). q-due stays lateral: real edges exist but no
@@ -513,6 +517,82 @@ export function endOf(soc: Society, story: string): string | null {
   // TODO(socratic): if a story lures to multiple end-beats, [0] returns only the first — is that intentional or a bug?
   const lure = prehensionsFrom(soc, story, "q-lure")[0];
   return lure?.object ?? null;
+}
+
+// ── TASK-AS-STORY · CHARGE · VOLTAGE (F-A ruling, Hallie 2026-07-06) ──────────────────
+// "Capture strikes a voltage; marking voltage lays charge; done closes the circuit;
+// nothing ever un-happens." (docs/committees/2026-07-06-F-A-ruled-voltage.md)
+//
+// A task IS a story whose End-pole is not yet actual. Capture = the Once-pole plus a
+// q-lure toward an unactualized End (the lure IS the designation — isStory/endOf read it
+// structurally). The openness is VOLTAGE — read ACROSS the poles, stored in neither.
+// Marking voltage lays CHARGE (append-only event); the displayed scalar is derived, never
+// stored. Done = a holding-done event grounds the End-pole (the circuit closes); voltage
+// then reads zero while every prior event stays readable forever. Reopen = a NEW lure
+// (a new differential), never an un-doing.
+//
+// NOTE (occlusion-of-now-connections): nothing here depends on its presence or absence —
+// it is OUT of this ruling, chartered as a gen5 roadmap feature in the ruling minute.
+
+/** what one captureTask laid. */
+export interface TaskCapture {
+  once: string;
+  /** the unactualized End-pole designation (the lure's object). */
+  end: string;
+  /** the q-lure edge slug (the designation itself). */
+  lure: string;
+}
+
+/** captureTask: lay a task as a story — the Once-pole (a complete occasion, done to its
+ *  author forever) plus the lure toward an unactualized End. `end` defaults to the
+ *  `${once}~hea` constructor convention (policy-owned naming, the layP/`now-{frame}`
+ *  shape — reads never parse it; the lure edge is what designates). Idempotent per lay. */
+export function captureTask(soc: Society, once: string, content: string, end = `${once}~hea`): TaskCapture {
+  soc.lay({ slug: once, content, subject: null, object: null });
+  soc.lay({ slug: end, content: `the End-pole of ${once}, not yet actual`, subject: null, object: null });
+  // Q2 (Story's Own Frame Default, ruled-for-now): edges laid in a story's course carry
+  // the story's own frame as EXPLICIT ink — visible, greppable, never parsed by a read.
+  const lure = `${once}~lures~${end}`;
+  soc.layP(lure, `lures its End (frame: ${once})`, once, end, "q-lure");
+  return { once, end, lure };
+}
+
+/** layCharge: the append-only charge event — `by` marks voltage against `story`. Never a
+ *  duplicate task: re-noticing is additional charge across the existing differential.
+ *  Returns the charge edge's slug (monotone layer counter, the mark_done redone shape). */
+export function layCharge(soc: Society, story: string, by: string, content = "charge"): string {
+  const n = prehensionsOnto(soc, story, "q-charge").length;
+  const slug = `${story}~charge-${n}`;
+  soc.layP(slug, content, by, story, "q-charge");
+  return slug;
+}
+
+/** voltageOf: the scalar across the open differential — DERIVED, stored nowhere. Zero when
+ *  the circuit is closed (every lured End grounded — the holding-done landed) or when no
+ *  differential was ever struck; otherwise 1 (the capture's own strike) + the un-occluded
+ *  charge events laid against the story. Simple sum for now — decay/weighting is a future
+ *  READ policy (the events stay; only the derivation would change). Closure reads
+ *  groundedForAnyFrame on the End; a per-frame voltage (read from a reader's Now) is
+ *  F-B-adjacent and deliberately not minted here. */
+export function voltageOf(soc: Society, story: string, asOf?: number): number {
+  const lures = prehensionsFrom(soc, story, "q-lure", asOf).filter((p) => !isOccluded(soc, p.slug, asOf));
+  const open = lures.some((l) => !groundedForAnyFrame(soc, l.object!, asOf));
+  if (!open) return 0; // closed circuit, or never a story — nothing un-happened either way
+  const charges = prehensionsOnto(soc, story, "q-charge", asOf).filter((p) => !isOccluded(soc, p.slug, asOf));
+  return 1 + charges.length;
+}
+
+/** reopenTask: strike a NEW differential across the same subject matter — a new lure to a
+ *  fresh unactualized End. Never an un-doing: the prior End stays grounded forever
+ *  (Thursday's holding stays actual); no occlusion, no erasure, only a new opening. */
+export function reopenTask(soc: Society, story: string): TaskCapture {
+  const n = prehensionsFrom(soc, story, "q-lure").length;
+  const end = `${story}~hea-${n}`;
+  soc.lay({ slug: end, content: `the End-pole of ${story} (reopened), not yet actual`, subject: null, object: null });
+  const lure = `${story}~lures~${end}`;
+  // Q2 frame mark, same ink as captureTask.
+  soc.layP(lure, `lures its End (frame: ${story})`, story, end, "q-lure");
+  return { once: story, end, lure };
 }
 
 /** author_of: the subject of a q-utterance prehension onto `beat` (who said it). */

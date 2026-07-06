@@ -581,3 +581,34 @@ fn end_of_reads_the_lure_structurally_never_the_spelling() {
     soc.lay_p("st-dep", "waits on", "saturday-thought", "weekend-plans", "q-depends-on");
     assert_eq!(end_of(&soc, "saturday-thought"), None);
 }
+
+// ── voltage (mirrors scher/test/voltage.test.ts) — F-A ruling, 2026-07-06 ─────────────
+// "Capture strikes a voltage; marking voltage lays charge; done closes the circuit;
+// nothing ever un-happens."
+#[test]
+fn voltage_is_derived_across_the_open_differential_and_done_closes_it() {
+    let mut soc = Society::new();
+    // capture = Once + lure toward an unactualized End (the lure IS the designation)
+    soc.lay(EventRow::node("buy-milk", "buy milk"));
+    soc.lay(EventRow::node("buy-milk~hea", "the End-pole, not yet actual"));
+    soc.lay_p("buy-milk~lures~hea", "lures its End (frame: buy-milk)", "buy-milk", "buy-milk~hea", "q-lure");
+    assert_eq!(voltage_of(&soc, "buy-milk", None), 1); // the strike itself
+
+    // marking voltage lays charge — append-only; the read rises
+    soc.lay_p("buy-milk~charge-0", "charge", "frame-hallie", "buy-milk", "q-charge");
+    soc.lay_p("buy-milk~charge-1", "noticed again", "frame-hallie", "buy-milk", "q-charge");
+    assert_eq!(voltage_of(&soc, "buy-milk", None), 3);
+
+    // done: the holding-done event grounds the End-pole — circuit closed, voltage zero,
+    // every prior event still readable (nothing un-happens).
+    soc.lay_p("now-hallie~holds-done~hea", "held done", "now-hallie", "buy-milk~hea", "q-grounding");
+    assert_eq!(voltage_of(&soc, "buy-milk", None), 0);
+    assert!(soc.get("buy-milk~charge-0").is_some());
+    assert!(soc.get("buy-milk~lures~hea").is_some());
+
+    // reopen = a NEW lure (new differential), never an un-doing.
+    soc.lay(EventRow::node("buy-milk~hea-1", "reopened End, not yet actual"));
+    soc.lay_p("buy-milk~lures~hea-1", "lures its End (frame: buy-milk)", "buy-milk", "buy-milk~hea-1", "q-lure");
+    assert!(voltage_of(&soc, "buy-milk", None) > 0); // open again
+    assert!(grounded_for_any_frame(&soc, "buy-milk~hea", None)); // Thursday's holding still actual
+}

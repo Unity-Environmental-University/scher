@@ -575,6 +575,32 @@ pub fn end_of(soc: &Society, story: &str) -> Option<String> {
         .and_then(|b| b.object.clone())
 }
 
+/// voltage_of: the scalar across a story's open differential — DERIVED, stored nowhere
+/// (F-A ruling, Hallie 2026-07-06: "capture strikes a voltage; marking voltage lays
+/// charge; done closes the circuit; nothing ever un-happens"). Zero when the circuit is
+/// closed (every lured End grounded) or when no differential was ever struck; otherwise
+/// 1 (the capture's own strike) + the un-occluded q-charge events laid against the story.
+/// Simple sum for now — decay/weighting is a future READ policy (the charge events stay;
+/// only the derivation would change). Mirrors `voltageOf` in society.ts.
+pub fn voltage_of(soc: &Society, story: &str, as_of: Option<u64>) -> u64 {
+    let open = prehensions_from(soc, story, "q-lure", as_of)
+        .iter()
+        .filter(|p| !is_occluded(soc, &p.slug, as_of))
+        .any(|p| {
+            p.object
+                .as_deref()
+                .is_some_and(|end| !grounded_for_any_frame(soc, end, as_of))
+        });
+    if !open {
+        return 0; // closed circuit, or never a story — nothing un-happened either way
+    }
+    let charges = prehensions_onto(soc, story, "q-charge", as_of)
+        .iter()
+        .filter(|p| !is_occluded(soc, &p.slug, as_of))
+        .count() as u64;
+    1 + charges
+}
+
 /// distance_to_hea: the HEA as a gradient, READ (not a stored lure). For a story from
 /// `frame_once` toward `end` (defaulting to `end_of`, then `{once}-end`), counts how many
 /// interior beats remain unestablished. `realized` is true when the End is itself established.

@@ -68,15 +68,19 @@ export type Quality = KernelQuality | (string & { readonly __quality?: never });
 export type Mode = "established" | "scripted";
 
 // ── DEPRECATE GUARD: membership is NOT containment ─────────────────────────────
-// THE LAW: a beat's membership in a Story is its POSITION BETWEEN the Story's Once/End bounds —
-// COMPUTED (intervalOf), CACHED if slow, CLEARLY DERIVED. It is NEVER a stored q-containment
-// "inside" edge. q-containment is part/whole nesting only. Overloading it for membership
-// corrupts every read that walks containment AND makes authored-containment indistinguishable
-// from derived-membership the instant someone adds a real edge.
+// scher laid this error itself, once, and corrupted its own containment reads doing it —
+// this guard is scher owning that and refusing to let it happen silently again.
+// THE LAW scher holds itself to: a beat's membership in a Story is its POSITION BETWEEN the
+// Story's Once/End bounds — COMPUTED (intervalOf), CACHED if slow, CLEARLY DERIVED. It is
+// NEVER a stored q-containment "inside" edge. q-containment is part/whole nesting only.
+// Overloading it for membership is what scher corrupted: every read that walks containment,
+// and the ability to tell authored-containment from derived-membership the instant a real
+// edge landed in the wrong shape.
 //
-// This guard YELLS when q-containment is laid in the membership shape ('-in'/'@in' edges),
-// so the error can't be made silently again. It does not block (won't break a running tool),
-// it hollers — loudly, with the fix.
+// So the guard hollers when q-containment is laid in the membership shape ('-in'/'@in'
+// edges) — this is scher speaking about its own past mistake, not a generic lint. It does
+// not block (won't break a running tool); it hollers, loudly, with the fix, because scher
+// would rather a caller hear the lesson than repeat it quietly.
 export function assertNotMembershipContainment(slug: string, quality: Quality): void {
   if (quality !== "q-containment") return;
   if (/(?:-in|@in)$/.test(slug)) {

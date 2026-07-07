@@ -211,15 +211,15 @@ proptest! {
         // used to make this edge a self-loop, which correctly never occludes (the law
         // this test's own third clause asserts), failing the fixture, not the kernel.
         // Found 2026-07-06 (regression seed kept below per proptest convention).
-        s.lay_p(&occ, "occludes", "ev-1", &target, Q_OCCLUDES);
+        s.lay_p(&occ, "occludes", "ev-1", &target, Q_OCCLUDES).unwrap();
         prop_assert!(is_occluded(&s, &target, None));
         // occlude the occluder → target revealed (one level)
-        s.lay_p(&reveal, "occludes the occluder", "ev-2", &occ, Q_OCCLUDES);
+        s.lay_p(&reveal, "occludes the occluder", "ev-2", &occ, Q_OCCLUDES).unwrap();
         prop_assert!(!is_occluded(&s, &target, None));
 
         // a self-loop {subject==object} is NOT occlusion
         let mut s2 = Society::seeded(&[EventRow::node(&target, &target)]);
-        s2.lay_p("loop", "self", &target, &target, Q_OCCLUDES);
+        s2.lay_p("loop", "self", &target, &target, Q_OCCLUDES).unwrap();
         prop_assert!(!is_occluded(&s2, &target, None));
     }
 }
@@ -230,7 +230,7 @@ proptest! {
 fn occlude_hides_then_self_is_not_occluded() {
     let mut s = Society::seeded(&[EventRow::node("a", "a")]);
     assert!(!is_occluded(&s, "a", None));
-    s.lay_p("ev-occ", "E occludes a", "E", "a", Q_OCCLUDES);
+    s.lay_p("ev-occ", "E occludes a", "E", "a", Q_OCCLUDES).unwrap();
     assert!(is_occluded(&s, "a", None));
     assert!(!is_occluded(&s, "ev-occ", None)); // the occluder itself stands in light
 }
@@ -239,7 +239,7 @@ fn occlude_hides_then_self_is_not_occluded() {
 fn occlusion_is_society_scoped() {
     // the frame IS the society: x occluded HERE stands in full light in another society.
     let mut s1 = Society::seeded(&[EventRow::node("x", "x")]);
-    s1.lay_p("occ-x", "occludes x", "E", "x", Q_OCCLUDES);
+    s1.lay_p("occ-x", "occludes x", "E", "x", Q_OCCLUDES).unwrap();
     let s2 = Society::seeded(&[EventRow::node("x", "x")]);
     assert!(is_occluded(&s1, "x", None));
     assert!(!is_occluded(&s2, "x", None));
@@ -250,11 +250,11 @@ fn undo_is_an_append_not_an_erasure() {
     // TS society.prop: "superseding a grounding flips establishment to false but keeps both
     // beats in the log" — reframed to occlusion, the live grammar.
     let mut soc = Society::seeded(&[EventRow::node("target", "target")]);
-    soc.lay_p("g0", "frame grounds", "frame", "target", Q_GROUNDING);
+    soc.lay_p("g0", "frame grounds", "frame", "target", Q_GROUNDING).unwrap();
     assert!(is_established(&soc, "target", None));
     let size_after_ground = soc.size();
 
-    soc.lay_p("occ-g0", "occludes g0", "frame", "g0", Q_OCCLUDES);
+    soc.lay_p("occ-g0", "occludes g0", "frame", "g0", Q_OCCLUDES).unwrap();
     assert!(is_occluded(&soc, "g0", None));
     assert!(!is_established(&soc, "target", None)); // re-reads as scripted
     assert_eq!(soc.size(), size_after_ground + 2); // GREW (edge + ~q) — nothing erased
@@ -601,14 +601,14 @@ fn end_of_reads_the_pole_designation_never_the_spelling() {
     let mut soc = Society::new();
     soc.lay(EventRow::node("capture-milk", "capture"));
     soc.lay(EventRow::node("milk-in-fridge", "the End-pole — no 'end' spelled"));
-    soc.lay_p("cm~end-pole~mif", "End-pole designation", "capture-milk", "milk-in-fridge", Q_END_POLE);
+    soc.lay_p("cm~end-pole~mif", "End-pole designation", "capture-milk", "milk-in-fridge", Q_END_POLE).unwrap();
     assert_eq!(end_of(&soc, "capture-milk").as_deref(), Some("milk-in-fridge"));
 
     // and 'weekend-plans' bait without a designation designates nothing:
     soc.lay(EventRow::node("saturday-thought", "thought"));
     soc.lay(EventRow::node("weekend-plans", "spells 'end'"));
     soc.lay(EventRow::edge("st-e1", "plain edge", "saturday-thought", "weekend-plans"));
-    soc.lay_p("st-dep", "waits on", "saturday-thought", "weekend-plans", "q-depends-on");
+    soc.lay_p("st-dep", "waits on", "saturday-thought", "weekend-plans", "q-depends-on").unwrap();
     assert_eq!(end_of(&soc, "saturday-thought"), None);
 }
 
@@ -620,7 +620,7 @@ fn end_of_reads_the_pole_designation_never_the_spelling() {
 #[should_panic(expected = "DEAD GRAMMAR")]
 fn laying_q_lure_will_not_work() {
     let mut soc = Society::new();
-    soc.lay_p("a~lures~b", "a lure", "a", "b", "q-lure");
+    soc.lay_p("a~lures~b", "a lure", "a", "b", "q-lure").unwrap();
 }
 
 // ── voltage (mirrors scher/test/voltage.test.ts) — the 2026-07-06 pole rulings ────────
@@ -638,32 +638,32 @@ fn voltage_is_grounded_and_discharge_propagates() {
     // first need: the lazy three-pole unpack — End designated; the story's own Now,
     // because its Once ("Now is because events"; convener's proposal, standing).
     soc.lay(EventRow::node("buy-milk~hea", "the End-pole, not yet actual"));
-    soc.lay_p("buy-milk~end-pole~hea", "End-pole designation (frame: buy-milk)", "buy-milk", "buy-milk~hea", Q_END_POLE);
+    soc.lay_p("buy-milk~end-pole~hea", "End-pole designation (frame: buy-milk)", "buy-milk", "buy-milk~hea", Q_END_POLE).unwrap();
     let now = story_now("buy-milk");
     soc.lay(EventRow::node(&now, "the story's own Now"));
-    soc.lay_p(&format!("{now}~because~buy-milk"), "now is because events", &now, "buy-milk", Q_GROUNDING);
+    soc.lay_p(&format!("{now}~because~buy-milk"), "now is because events", &now, "buy-milk", Q_GROUNDING).unwrap();
     assert_eq!(voltage_of(&soc, "buy-milk", None, None), 1); // the open strike
 
     // charge: a BARE edge onto the open End, woven into the story's lineage (SOFD).
     soc.lay(EventRow::edge("buy-milk~hea~charge-0", "charge", "frame-hallie", "buy-milk~hea"));
-    soc.lay_p(&format!("{now}~because~buy-milk~hea~charge-0"), "witnessed", &now, "buy-milk~hea~charge-0", Q_GROUNDING);
+    soc.lay_p(&format!("{now}~because~buy-milk~hea~charge-0"), "witnessed", &now, "buy-milk~hea~charge-0", Q_GROUNDING).unwrap();
     assert_eq!(charges_on(&soc, "buy-milk~hea", None).len(), 1);
     assert_eq!(voltage_of(&soc, "buy-milk", None, None), 2);
 
     // Bob's lineage witnesses story and charge — his ground reads 2 as well:
     soc.lay(EventRow::node("now-bob", "Bob's Now"));
-    soc.lay_p("now-bob~because~buy-milk", "bob witnessed", "now-bob", "buy-milk", Q_GROUNDING);
-    soc.lay_p("now-bob~because~charge0", "bob witnessed the charge", "now-bob", "buy-milk~hea~charge-0", Q_GROUNDING);
+    soc.lay_p("now-bob~because~buy-milk", "bob witnessed", "now-bob", "buy-milk", Q_GROUNDING).unwrap();
+    soc.lay_p("now-bob~because~charge0", "bob witnessed the charge", "now-bob", "buy-milk~hea~charge-0", Q_GROUNDING).unwrap();
     assert_eq!(voltage_of(&soc, "buy-milk", Some("now-bob"), None), 2);
 
     // done: end ~because~ storyNow. Closed for the story's own frame (SOFD) — but Bob
     // reads RESIDUAL voltage until the closing establishes to him: no global zeroing.
     let closing = format!("buy-milk~hea~because~{now}");
-    soc.lay_p(&closing, "the end is because now", "buy-milk~hea", &now, Q_GROUNDING);
+    soc.lay_p(&closing, "the end is because now", "buy-milk~hea", &now, Q_GROUNDING).unwrap();
     assert!(end_actual(&soc, "buy-milk~hea", None));
     assert_eq!(voltage_of(&soc, "buy-milk", None, None), 0); // closed where it closed
     assert_eq!(voltage_of(&soc, "buy-milk", Some("now-bob"), None), 2); // done, still discharging
-    soc.lay_p("now-bob~because~closing", "the closing reached bob", "now-bob", &closing, Q_GROUNDING);
+    soc.lay_p("now-bob~because~closing", "the closing reached bob", "now-bob", &closing, Q_GROUNDING).unwrap();
     assert_eq!(voltage_of(&soc, "buy-milk", Some("now-bob"), None), 0); // discharged to Bob
 
     // the closed circuit IS a closed because-path End → Now → Once:
@@ -682,8 +682,8 @@ fn a_quality_prehension_onto_a_naked_pole_will_not_work() {
     let mut soc = Society::new();
     soc.lay(EventRow::node("task", "a task"));
     soc.lay(EventRow::node("task~hea", "open End"));
-    soc.lay_p("task~end-pole~hea", "designation", "task", "task~hea", Q_END_POLE);
-    soc.lay_p("cmt~feels~hea", "comment parked on the pole", "commenter", "task~hea", "q-feel");
+    soc.lay_p("task~end-pole~hea", "designation", "task", "task~hea", Q_END_POLE).unwrap();
+    soc.lay_p("cmt~feels~hea", "comment parked on the pole", "commenter", "task~hea", "q-feel").unwrap();
 }
 
 // ── the algedonic reads (mirror scher/test/algedonic.test.ts) — Beer's channel ────────
@@ -694,19 +694,19 @@ fn floating_charge_and_overload_read_raw_and_loudest_first() {
         soc.lay(EventRow::node(t, t));
         let (end, now) = (format!("{t}~hea"), story_now(t));
         soc.lay(EventRow::node(&end, "open End"));
-        soc.lay_p(&format!("{t}~end-pole~{end}"), "designation", t, &end, Q_END_POLE);
+        soc.lay_p(&format!("{t}~end-pole~{end}"), "designation", t, &end, Q_END_POLE).unwrap();
         soc.lay(EventRow::node(&now, "story now"));
-        soc.lay_p(&format!("{now}~because~{t}"), "now is because events", &now, t, Q_GROUNDING);
+        soc.lay_p(&format!("{now}~because~{t}"), "now is because events", &now, t, Q_GROUNDING).unwrap();
         // one charge each, woven:
         let c = format!("{end}~charge-0");
         soc.lay(EventRow::edge(&c, "charge", "frame-vik", &end));
-        soc.lay_p(&format!("{now}~because~{c}"), "witnessed", &now, &c, Q_GROUNDING);
+        soc.lay_p(&format!("{now}~because~{c}"), "witnessed", &now, &c, Q_GROUNDING).unwrap();
     }
     // a second charge makes the orphan louder:
     soc.lay(EventRow::edge("orphan-task~hea~charge-1", "more", "frame-tam", "orphan-task~hea"));
     // one live frame holds held-task's lineage only:
     soc.lay(EventRow::node("now-priya", "priya's Now"));
-    soc.lay_p("now-priya~holds", "priya holds it", "now-priya", &story_now("held-task"), Q_GROUNDING);
+    soc.lay_p("now-priya~holds", "priya holds it", "now-priya", &story_now("held-task"), Q_GROUNDING).unwrap();
 
     let floating = floating_charge(&soc, &["now-priya"], None);
     assert_eq!(floating.len(), 1);
@@ -732,8 +732,8 @@ fn interval_walks_quality_carrying_edges() {
     soc.lay(EventRow::node("once", "once"));
     soc.lay(EventRow::node("beat-a", "a"));
     soc.lay(EventRow::node("end", "end"));
-    soc.lay_p("once~because~beat-a", "chain", "once", "beat-a", "q-grounding");
-    soc.lay_p("beat-a~because~end", "chain", "beat-a", "end", "q-grounding");
+    soc.lay_p("once~because~beat-a", "chain", "once", "beat-a", "q-grounding").unwrap();
+    soc.lay_p("beat-a~because~end", "chain", "beat-a", "end", "q-grounding").unwrap();
 
     let interval = interval_of(&soc, "once", "end");
     assert!(interval.contains(&"beat-a".to_string()), "got {interval:?}");
@@ -744,7 +744,7 @@ fn interval_excludes_edges_onto_quality_tokens() {
     let mut soc = Society::new();
     soc.lay(EventRow::node("once", "once"));
     soc.lay(EventRow::node("end", "end"));
-    soc.lay_p("once~because~end", "chain", "once", "end", "q-grounding");
+    soc.lay_p("once~because~end", "chain", "once", "end", "q-grounding").unwrap();
     // designation-shaped smuggling: edges touching the quality token itself
     soc.lay(EventRow::edge("end~designates", "smuggle", "end", "q-grounding"));
     soc.lay(EventRow::edge("q-grounding~leak", "smuggle", "q-grounding", "once"));
@@ -760,7 +760,7 @@ fn interval_excludes_edges_onto_quality_tokens() {
 
 fn make_sublime(soc: &mut Society, name: &str) {
     soc.lay(EventRow::node(name, name));
-    soc.lay_p(&format!("{name}~pole"), name, name, name, Q_SUBLIME_POLE);
+    soc.lay_p(&format!("{name}~pole"), name, name, name, Q_SUBLIME_POLE).unwrap();
 }
 
 #[test]
@@ -770,18 +770,26 @@ fn sublime_pole_is_designated_and_never_closes() {
     assert!(is_sublime_pole(&soc, "horizon", None));
     // bearings + voltage from an event
     soc.lay(EventRow::node("work", "work"));
-    soc.lay_p("work~bear", "bearing", "work", "horizon", "because");
+    soc.lay_p("work~bear", "bearing", "work", "horizon", "because").unwrap();
     assert_eq!(bearings_of(&soc, "work", None).len(), 1);
     assert_eq!(voltage_toward_sublime(&soc, "horizon", None), 1);
 }
 
 #[test]
-#[should_panic(expected = "sublime-never-closes")]
 fn closing_a_sublime_will_not_work() {
     let mut soc = Society::new();
     make_sublime(&mut soc, "horizon");
     soc.lay(EventRow::node("now", "now"));
-    soc.lay_p("close", "close", "horizon", "now", Q_GROUNDING);
+    let refused = soc.lay_p("close", "close", "horizon", "now", Q_GROUNDING);
+    let err = refused.expect_err("closing a sublime-pole must be REFUSED, not silently laid");
+    assert!(err.contains("sublime-never-closes"), "refusal must name its law: {err}");
+
+    // ANTI-Q-LURE GUARANTEE, mechanism-not-content (Hallie's ruling 2026-07-07): a refusal
+    // is not a seizure — the kernel stays usable for the very next operation. Prove it by
+    // laying something else successfully right after the refused write, in the SAME society.
+    let laid = soc.lay(EventRow::node("still-usable", "the kernel did not seize"));
+    assert!(laid, "society must remain writable after a refused sublime-closing write");
+    assert!(soc.has("still-usable"));
 }
 
 #[test]
@@ -790,8 +798,8 @@ fn sublimes_chain_and_service_chain_walks_up_the_dag() {
     make_sublime(&mut soc, "a");
     make_sublime(&mut soc, "b");
     make_sublime(&mut soc, "c");
-    soc.lay_p("a~serves~b", "serves", "a", "b", "because");
-    soc.lay_p("b~serves~c", "serves", "b", "c", "because");
+    soc.lay_p("a~serves~b", "serves", "a", "b", "because").unwrap();
+    soc.lay_p("b~serves~c", "serves", "b", "c", "because").unwrap();
 
     let mut chain = service_chain_of(&soc, "a", None);
     chain.sort();
@@ -799,21 +807,27 @@ fn sublimes_chain_and_service_chain_walks_up_the_dag() {
 
     // an event bearing a inherits toward all of a, b, c
     soc.lay(EventRow::node("event", "event"));
-    soc.lay_p("event~bear~a", "bearing", "event", "a", "because");
+    soc.lay_p("event~bear~a", "bearing", "event", "a", "because").unwrap();
     let mut reached = reached_sublimes_of(&soc, "event", None);
     reached.sort();
     assert_eq!(reached, vec!["a".to_string(), "b".to_string(), "c".to_string()]);
 }
 
 #[test]
-#[should_panic(expected = "sublime-dag-acyclic")]
 fn a_cycle_among_sublimes_will_not_work() {
     let mut soc = Society::new();
     make_sublime(&mut soc, "a");
     make_sublime(&mut soc, "b");
     make_sublime(&mut soc, "c");
-    soc.lay_p("a~serves~b", "serves", "a", "b", "because");
-    soc.lay_p("b~serves~c", "serves", "b", "c", "because");
+    soc.lay_p("a~serves~b", "serves", "a", "b", "because").unwrap();
+    soc.lay_p("b~serves~c", "serves", "b", "c", "because").unwrap();
     // c → a closes the ring a → b → c → a. REFUSE.
-    soc.lay_p("c~serves~a", "serves", "c", "a", "because");
+    let refused = soc.lay_p("c~serves~a", "serves", "c", "a", "because");
+    let err = refused.expect_err("closing a sublime-DAG cycle must be REFUSED, not silently laid");
+    assert!(err.contains("sublime-dag-acyclic"), "refusal must name its law: {err}");
+
+    // ANTI-Q-LURE GUARANTEE, mechanism-not-content: the kernel stays usable right after —
+    // prove it by successfully laying another, non-cyclic edge in the same society.
+    soc.lay(EventRow::node("still-usable", "the kernel did not seize"));
+    assert!(soc.has("still-usable"), "society must remain writable after a refused cyclic write");
 }

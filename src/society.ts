@@ -225,18 +225,32 @@ export function assertNotMembershipContainment(slug: string, quality: Quality): 
 // close it or mark it as done. If you mean to actualize an End, use an End-pole
 // instead (designate it with q-end-pole and close it with `end ~because~ now`).
 // A sublime's purpose is to ORIENT pursuit, not to be reached. (law: sublime-never-closes)
-export function assertSublimeNeverCloses(soc: Society, slug: string, subject: string, object: string, quality: Quality): void {
+// REFUSAL, NOT A THROW (Hallie's ruling, 2026-07-07: "a scream with no ears is not a scream,
+// it's a seizure"). This used to `throw`; layP caught nothing, so any uncaught throw here was
+// effectively also a seizure wherever it landed in an event loop with no surrounding
+// try/catch. The RULE is unchanged — only the mechanism of refusal, from an exception to a
+// returned message layP can act on. Returns the violation message, or null if the write is fine.
+export function checkSublimeNeverCloses(soc: Society, slug: string, subject: string, object: string, quality: Quality): string | null {
   // q-sublime-pole designation itself is structural; it is exempt (like q-end-pole).
-  if (quality === "q-sublime-pole") return;
+  if (quality === "q-sublime-pole") return null;
   // Trying to lay a q-grounding OUT of a sublime-pole (sublime as subject)
   if (subject !== null && isSublimePole(soc, subject) && quality === "q-grounding") {
-    throw new Error(
+    return (
       `[ANTI-Q-LURE GUARANTEE] '${slug}' tries to close the sublime-pole '${subject}' ` +
       `with q-grounding. A sublime is NEVER ACTUAL — it is a receding horizon, not a ` +
       `destination. Sublimes orient pursuit; they do not actualize. (law: ` +
-      `sublime-never-closes)`,
+      `sublime-never-closes)`
     );
   }
+  return null;
+}
+
+/** @deprecated kept only so any external caller relying on the throwing shape still gets an
+ *  error (now clearly attributed) rather than silent success; layP itself no longer calls
+ *  this — it calls checkSublimeNeverCloses and refuses without throwing. */
+export function assertSublimeNeverCloses(soc: Society, slug: string, subject: string, object: string, quality: Quality): void {
+  const violation = checkSublimeNeverCloses(soc, slug, subject, object, quality);
+  if (violation) throw new Error(violation);
 }
 
 // ── SUBLIME-DAG GUARD: stars point UP, never into a ring ─────────────────────────
@@ -261,22 +275,33 @@ export function assertSublimeNeverCloses(soc: Society, slug: string, subject: st
 // BFS (its `seen` set), so this is O(edges) per lay — bounded, not a perf worry at this
 // scale. If the sublime-DAG ever grows large enough to matter, this becomes a test-time +
 // best-effort check (noted in the design), but at ledger scale the walk is cheap.
-export function assertSublimeAcyclic(soc: Society, slug: string, subject: string, object: string, quality: Quality): void {
+// REFUSAL, NOT A THROW — same ruling and reasoning as checkSublimeNeverCloses above. Returns
+// the violation message, or null if the write is fine.
+export function checkSublimeAcyclic(soc: Society, slug: string, subject: string, object: string, quality: Quality): string | null {
   // Only bearing edges (bare because) between two sublime-poles can form a sublime-cycle.
-  if (quality !== "because") return;
-  if (!isSublimePole(soc, subject) || !isSublimePole(soc, object)) return;
+  if (quality !== "because") return null;
+  if (!isSublimePole(soc, subject) || !isSublimePole(soc, object)) return null;
   // Would this edge close a cycle? If `object` already reaches `subject` via because, yes.
   if (reaches(soc, object, subject, "because")) {
-    throw new Error(
+    return (
       `[ANTI-Q-LURE GUARANTEE] '${slug}' lays a sublime-bearing '${subject}' ~because~ ` +
       `'${object}' that would close a CYCLE among sublime-poles ('${object}' already ` +
       `serves '${subject}' transitively). A cycle of never-closing poles is a closed loop ` +
       `of mutual beckoning with no ground — q-lure wearing a halo. A sublime points UP ` +
       `toward the ever-receding, never back into a ring. Fix: re-aim the bearing UP the ` +
       `DAG (serve a HIGHER star), or reconsider which star is the deeper one. (law: ` +
-      `sublime-dag-acyclic)`,
+      `sublime-dag-acyclic)`
     );
   }
+  return null;
+}
+
+/** @deprecated kept only so any external caller relying on the throwing shape still gets an
+ *  error (now clearly attributed) rather than silent success; layP itself no longer calls
+ *  this — it calls checkSublimeAcyclic and refuses without throwing. */
+export function assertSublimeAcyclic(soc: Society, slug: string, subject: string, object: string, quality: Quality): void {
+  const violation = checkSublimeAcyclic(soc, slug, subject, object, quality);
+  if (violation) throw new Error(violation);
 }
 
 /** isSublimePole: is `node` a designated sublime-pole (object of an un-occluded

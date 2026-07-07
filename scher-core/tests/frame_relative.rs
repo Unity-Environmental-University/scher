@@ -14,8 +14,8 @@ fn seed() -> Society {
         EventRow::node("b", "b"),
         EventRow::node("c", "c"),
     ]);
-    soc.lay_p("e1", "now touches a", "now-r", "a", Q_GROUNDING);
-    soc.lay_p("e2", "a rests on b", "a", "b", Q_GROUNDING);
+    soc.lay_p("e1", "now touches a", "now-r", "a", Q_GROUNDING).unwrap();
+    soc.lay_p("e2", "a rests on b", "a", "b", Q_GROUNDING).unwrap();
     soc
 }
 
@@ -31,9 +31,9 @@ fn reaches_walks_chains_and_refuses_what_is_not_there() {
 #[test]
 fn occlusion_breaks_the_walk_and_unocclusion_restores_it() {
     let mut soc = seed();
-    soc.lay_p("shadow", "retract e2", "retractor", "e2", "q-occludes");
+    soc.lay_p("shadow", "retract e2", "retractor", "e2", "q-occludes").unwrap();
     assert!(!reaches(&soc, "now-r", "b", Q_GROUNDING, None));
-    soc.lay_p("shadow2", "retract the retraction", "restorer", "shadow", "q-occludes");
+    soc.lay_p("shadow2", "retract the retraction", "restorer", "shadow", "q-occludes").unwrap();
     assert!(reaches(&soc, "now-r", "b", Q_GROUNDING, None));
 }
 

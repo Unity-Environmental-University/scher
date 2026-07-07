@@ -169,6 +169,19 @@ impl Society {
     /// Lay a prehension co-prehending a quality: the edge and its `~q` mode-beat. Mirrors
     /// `layP`. Returns true if either the edge or its `~q` was a genuine append.
     // TODO(socratic): if the edge already exists but its `~q` doesn't (or vice versa), lay_p welds a fresh mode onto an old prehension — should re-laying with a DIFFERENT quality really return true while leaving the original quality standing, with no read to notice the disagreement?
+    /// Lay a prehension, refusing (not panicking) if it would violate the anti-q-lure
+    /// guarantee (sublime-never-closes / sublime-dag-acyclic). Hallie's ruling, 2026-07-07
+    /// ("a scream with no ears is not a scream, it's a seizure"): a bad write from ANY
+    /// caller must be REFUSED and made legible as a correctable miss, never punished by
+    /// panicking the whole shared kernel (a `panic!`/`assert!` inside a write held under a
+    /// lock poisons that lock for every subsequent caller — a seizure, not a refusal).
+    /// The RULE is unchanged (a sublime may never close; sublime-chains stay acyclic) —
+    /// only the CONSEQUENCE of violating it changed, from process-ending panic to a
+    /// `Result::Err` the caller can act on and recover from. The other guards in this
+    /// function (DEAD GRAMMAR, ADDRESS LAW) are out of scope for this ruling and keep
+    /// panicking via `assert!` as before — they are caller bugs at construction time, not
+    /// live-traffic-reachable races the way the two sublime guards are (see
+    /// docs/committees/2026-07-07-*.md, event-1828, event-1830).
     pub fn lay_p(
         &mut self,
         slug: &str,
@@ -176,7 +189,7 @@ impl Society {
         subject: &str,
         object: &str,
         quality: &str,
-    ) -> bool {
+    ) -> Result<bool, String> {
         // DEAD GRAMMAR GUARD (blocking — mirrors society.ts assertNoLure): q-lure is DEAD
         // (Hallie's ruling, 2026-07-06): it smuggled an agent and could not state its own
         // direction. An event is ONE event until lazily unpacked into its three poles
@@ -217,14 +230,16 @@ impl Society {
         // never-closing, receding horizon — a "star for navigation, not a destination to
         // land" (Hallie). Attempting to close it with q-grounding violates the anti-q-lure
         // guarantee. Q_SUBLIME_POLE designation itself is exempt (like Q_END_POLE).
-        if quality != Q_SUBLIME_POLE {
-            assert!(
-                quality != Q_GROUNDING || !is_sublime_pole(self, subject, None),
+        if quality != Q_SUBLIME_POLE
+            && quality == Q_GROUNDING
+            && is_sublime_pole(self, subject, None)
+        {
+            return Err(format!(
                 "[ANTI-Q-LURE GUARANTEE] '{slug}' tries to close the sublime-pole '{subject}' \
                  with q-grounding. A sublime is NEVER ACTUAL — it is a receding horizon, not a \
                  destination. Sublimes orient pursuit; they do not actualize. (law: \
                  sublime-never-closes)"
-            );
+            ));
         }
         // SUBLIME-DAG GUARD (blocking — mirrors society.ts assertSublimeAcyclic, Hallie's
         // 2026-07-06 chaining extension): sublimes may CHAIN (A ~because~ B = A serves B),
@@ -234,9 +249,12 @@ impl Society {
         // bounded reachability walk: if `object` already reaches `subject` through
         // sublime-poles, the new edge closes a cycle. A sublime points UP toward the
         // ever-receding, never back into a ring.
-        if quality == "because" && is_sublime_pole(self, subject, None) && is_sublime_pole(self, object, None) {
-            assert!(
-                !reaches(self, object, subject, "because", None),
+        if quality == "because"
+            && is_sublime_pole(self, subject, None)
+            && is_sublime_pole(self, object, None)
+            && reaches(self, object, subject, "because", None)
+        {
+            return Err(format!(
                 "[ANTI-Q-LURE GUARANTEE] '{slug}' lays a sublime-bearing '{subject}' \
                  ~because~ '{object}' that would close a CYCLE among sublime-poles \
                  ('{object}' already serves '{subject}' transitively). A cycle of \
@@ -244,13 +262,13 @@ impl Society {
                  q-lure wearing a halo. A sublime points UP toward the ever-receding, never \
                  back into a ring. Fix: re-aim the bearing UP the DAG (serve a HIGHER star). \
                  (law: sublime-dag-acyclic)"
-            );
+            ));
         }
         let a = self.lay(EventRow::edge(slug, content, subject, object));
         let q_slug = format!("{slug}~q");
         let q_content = format!("{content} [{quality}]");
         let q = self.lay(EventRow::edge(&q_slug, &q_content, slug, quality));
-        a || q
+        Ok(a || q)
     }
 
     /// Bulk-lay; one rev bump for the batch (matches `layAll`).

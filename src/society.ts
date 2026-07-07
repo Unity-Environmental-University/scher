@@ -25,6 +25,10 @@ export interface EventRow {
   object: string | null;
   /** when the local society witnessed this beat (the client's own db_witnessed). */
   witnessed?: number;
+  /** WHO laid this beat — the capturing/editing frame's subject (or a causing event's slug
+   *  when machinery lays). CONSTITUTIVE, not relational (Hallie's ruling, 2026-07-07
+   *  braid-of-societies: "no statement is not spoken from"). Mirrors scher-core's EventRow.laid_by. */
+  laid_by?: string | null;
 }
 
 // The qualities the kernel itself branches behavior on — isOccluded/isGrounded/dependsOn/

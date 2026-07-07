@@ -64,6 +64,14 @@ pub struct EventRow {
     /// when the local society witnessed this beat (the client's own db_witnessed). Set by
     /// `lay` if absent — readers should treat `Some(_)` as authoritative.
     pub witnessed: Option<u64>,
+    /// WHO laid this beat — the capturing/editing frame's subject (or a causing event's
+    /// slug when machinery lays). CONSTITUTIVE, not relational (Hallie's ruling, 2026-07-07
+    /// braid-of-societies: "no statement is not spoken from" — the author is part of the
+    /// event's own character, never recovered by parsing a slug). Exactly parallel to
+    /// `witnessed`: an inline property set at lay time, read without a graph walk. The
+    /// authorship EVENT+edge (`gen4_policy::lay_authorship`) still rides alongside this as
+    /// testimony/process history (ruling 13) — this field is the substance read.
+    pub laid_by: Option<String>,
 }
 
 impl EventRow {
@@ -76,6 +84,7 @@ impl EventRow {
             subject: None,
             object: None,
             witnessed: None,
+            laid_by: None,
         }
     }
 
@@ -88,12 +97,19 @@ impl EventRow {
             subject: Some(subject.into()),
             object: Some(object.into()),
             witnessed: None,
+            laid_by: None,
         }
     }
 
     /// `with_witnessed(t)` — set an explicit witnessing moment.
     pub fn with_witnessed(mut self, t: u64) -> Self {
         self.witnessed = Some(t);
+        self
+    }
+
+    /// `with_laid_by(frame)` — set the authoring frame inline, at construction time.
+    pub fn with_laid_by(mut self, frame: &str) -> Self {
+        self.laid_by = Some(frame.into());
         self
     }
 }
@@ -251,6 +267,25 @@ impl Society {
 
     pub fn get(&self, slug: &str) -> Option<&EventRow> {
         self.rows.get(slug)
+    }
+
+    /// Set `laid_by` on an already-laid row, ONCE. The one narrow exception to the
+    /// append-only law's "never overwrite" reading — justified the same way `insert`
+    /// backfills `witnessed` on a beat that didn't carry one yet: this fills an *absent*
+    /// constitutive property, it never changes an already-set one. Refuses (returns false,
+    /// no-op) if the row doesn't exist or already carries a `laid_by` — authorship, once
+    /// spoken, does not get respoken. Exists because callers lay the content event and
+    /// record authorship as two separate calls (`lay` then `lay_authorship`); Whitehead's
+    /// "no statement is not spoken from" wants the inline field to land on that SAME row,
+    /// not a fresh one — and Society has no other route back to a laid row's fields.
+    pub fn set_laid_by(&mut self, slug: &str, layer: &str) -> bool {
+        match self.rows.get_mut(slug) {
+            Some(row) if row.laid_by.is_none() => {
+                row.laid_by = Some(layer.to_string());
+                true
+            }
+            _ => false,
+        }
     }
 
     /// All beats (a snapshot; iteration order is unspecified, like a Map's values()).

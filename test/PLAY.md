@@ -41,6 +41,13 @@ cd scher && npm test                        # run everything (the dolls + the re
   bug found while stress-testing it; (b) a standing glyph-node buys unbounded aggregation, costs a
   ban-cascade nobody built; (c) emoji-as-charge-content, checked live against the naked-pole address
   law. Minutes: `docs/committees/2026-07-06-emoji-charge-dolls.md`.
+- **grounded-capture** — "no floating events" (Hallie's ruling, 2026-07-07): a doll's ungrounded
+  note gets refused at the door; a miss becomes a task and the because-edge is walked; a sublime
+  pulls work toward it and stays never-actual even while grounded-in; crew and human notes both
+  ground the same trub yet stay tellable apart by authorship; the STOPGAP auto-trub-from-text shape
+  over-mints three near-identical trubs for one real miss (a picture for the taste-deferral); and a
+  named chafe — `event~because~ground` (capture's orientation) does NOT make `isEstablished(event)`
+  true, because that read walks the SAME quality in the OPPOSITE direction (`frame~because~event`).
 
 ## How to add one
 Copy the shape of any doll. The discipline (learned the hard way, 2026-06-26):

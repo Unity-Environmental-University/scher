@@ -57,8 +57,8 @@ pub const Q_SUBLIME_POLE: &str = "q-sublime-pole";
 pub struct EventRow {
     pub slug: String,
     pub content: String,
-    /// the BULLET — a short human headline, distinct from content. Optional.
-    pub title: Option<String>,
+    /// the NAME — what this beat IS (short human headline, distinct from content). Optional.
+    pub name: Option<String>,
     pub subject: Option<String>,
     pub object: Option<String>,
     /// when the local society witnessed this beat (the client's own db_witnessed). Set by
@@ -84,7 +84,7 @@ impl EventRow {
         EventRow {
             slug: slug.into(),
             content: content.into(),
-            title: None,
+            name: None,
             subject: None,
             object: None,
             witnessed: None,
@@ -98,7 +98,7 @@ impl EventRow {
         EventRow {
             slug: slug.into(),
             content: content.into(),
-            title: None,
+            name: None,
             subject: Some(subject.into()),
             object: Some(object.into()),
             witnessed: None,

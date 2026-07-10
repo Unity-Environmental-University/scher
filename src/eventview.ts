@@ -19,7 +19,7 @@
 import { el, on } from "./dom.js";
 import { project } from "./projection.js";
 import { reading, readCard, cardStory, type CardRead, type ModeArm } from "./stories.js";
-import { Society, isEstablished, isSublimePole } from "./society.js";
+import { Society, isEstablished, isSublimePole, bearingsOf, storyBearingsOf } from "./society.js";
 
 /** the three faces. INTERIOR = becoming; SUPERJECT = datum-for-the-next; PROPOSITION =
  *  not-yet-actual (renders as superject + a not-yet skin). */
@@ -42,6 +42,38 @@ export function readEventView(soc: Society, slug: string): EventViewRead {
   const base = readCard(soc, slug);
   const isProposition = !isEstablished(soc, slug) || isSublimePole(soc, slug);
   return { ...base, isProposition };
+}
+
+/** nextAlong: the RELATIONAL lure-read committee-eventview added (2026-07-10), distinct
+ *  from `isProposition` on purpose — see the note above EventViewRead.isProposition and
+ *  BRIEF.md's ghost-row/in-service-of committee (CLEARNESS-ghostrow-ontology.md, fork 3).
+ *
+ *  isProposition asks a PER-BEAT question ("is this beat, alone, not-yet-actual?") and is
+ *  true for nearly every open todo on an ungrounded board — that's a true fact about the
+ *  beat but NOT what "a ghost row attached to its todo" means. nextAlong asks a RELATIONAL
+ *  question instead: "does this beat (or a story it belongs to) SERVE a sublime-pole worth
+ *  previewing as a lure beside it?" — Hallie's "next thing along, attached to the todo row"
+ *  / the ghost-chain-toward-the-sea image. Built entirely on the ghost-row committee's
+ *  already-landed kernel reads (bearingsOf/storyBearingsOf, society.ts ~1217-1252); no new
+ *  kernel primitive. Returns the FIRST direct bearing if the beat has one of its own,
+ *  else the first bearing inherited via a containing story, else null (an ordinary open
+ *  todo with nothing downstream to preview — the common case, and correctly undashed).
+ *
+ *  This is a READ ONLY — it does not decide skin or attachment DOM; callers (board.ts)
+ *  decide whether/how to render a row for the returned bearing. Kept as an eventview.ts
+ *  export (not folded into isProposition) because the two answer different questions and
+ *  a caller may legitimately want either or both: isProposition for "skin this row that IS
+ *  rendering," nextAlong for "should I render an attached ghost row at all." */
+export function nextAlong(soc: Society, slug: string, asOf?: number): { slug: string; viaStory: boolean } | null {
+  const firstDirect = bearingsOf(soc, slug, asOf)[0];
+  if (firstDirect?.object) {
+    return { slug: firstDirect.object, viaStory: false };
+  }
+  const firstInherited = storyBearingsOf(soc, slug, asOf)[0];
+  if (firstInherited?.object) {
+    return { slug: firstInherited.object, viaStory: true };
+  }
+  return null;
 }
 
 /** the TASTE arm for the superject/proposition faces: given the structural read, render

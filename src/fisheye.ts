@@ -59,7 +59,12 @@ export interface FisheyeOpts {
   /** CSS transition-duration the frozen spring/friction shape plays over — the timescale
    *  knob (see harvested file's SHAPE VS CLOCK note). Hallie's final default: 2760. */
   transitionMs?: number;
-  /** CSS easing function OR 'spring' (default) to use the physics model. */
+  /** Settle character: a raw CSS easing string, OR one of two built-in models —
+   *  'kachunk' (Hallie's default, 2026-07-10): easy glide, squash-and-stretch at both
+   *  ends, a decisive overshoot-and-lock "KaChunk" that reads as set-in-place; mass
+   *  deepens the wind-up and firms the landing (see sampleKachunkCurve).
+   *  'spring': the ported damped-spring + Coulomb-friction physics model; here mass
+   *  drives ENDPOINT FRICTION (later breakaway, firmer settle — see frictionForMass). */
   easing?: string;
   /** Spring stiffness (k). Hallie's final default: 715. */
   stiffness?: number;
@@ -111,7 +116,7 @@ const DEFAULT_OPTS: Required<
   transformOrigin: "bottom center",
   driveOn: ["focus", "hover"],
   transitionMs: 2760,
-  easing: "spring",
+  easing: "kachunk",
   stiffness: 715,
   damping: 27,
   mass: 5.9,
@@ -325,6 +330,89 @@ export function frictionForMass(
   };
 }
 
+// ── KACHUNK SETTLE (Hallie, 2026-07-10) ─────────────────────────────────────────
+// Hallie's felt spec for the settle character: "I want the snap to feel like it's
+// DONE MOVING, and the glide to feel EASY — slight overshoot to regular at the
+// beginning maybe with a little squash and stretch, and the same at the end. I want
+// a KaChunk. When you something is set in place."
+//
+// So the curve has THREE beats, and the squash-and-stretch lives at BOTH ends:
+//   1. ANTICIPATION (start): a tiny dip below 0 — the element squashes back a hair
+//      before it launches (the wind-up of a KaChunk). Rendered as CSS linear() values
+//      < 0, which is legal and reads as a real overshoot-the-other-way.
+//   2. EASY GLIDE (middle): a smooth, unhurried ease across most of the travel —
+//      nothing gripping or laggy here; the weight is all AT THE ENDS (this is why the
+//      mass->friction endpoint reading and the KaChunk agree — both put the character
+//      at the endpoints and leave the mid-glide easy).
+//   3. KACHUNK (end): a slight overshoot PAST 1 (the stretch), then a DECISIVE
+//      quadratic snap back down to 1 and lock — not a long floaty decay. The fast
+//      lock is what makes it read "set in place / done moving" instead of "still
+//      settling."
+//
+// Mass modulates the ENDPOINTS (consistent with Hallie's MASS DECISION): a heavier
+// element winds up deeper (bigger anticipation dip) and lands harder (bigger overshoot
+// + tighter lock) — "come out of its socket a little heavier and land a little heavier,"
+// now expressed as a bigger KaChunk. The mid-glide is mass-independent (constant, easy).
+// mass undefined / <= 0 -> baseline KaChunk (the shared default feel).
+const KACHUNK_BASE_ANTICIP = 0.03; // baseline start-dip depth (fraction below 0).
+const KACHUNK_BASE_OVERSHOOT = 0.06; // baseline end-overshoot height (fraction past 1).
+const KACHUNK_ANTICIP_END = 0.12; // fraction of travel the anticipation beat occupies.
+const KACHUNK_SNAP_AT = 0.86; // fraction of travel where the overshoot-and-lock beat begins.
+
+/** Per-element KaChunk intensity from mass: heavier -> deeper wind-up + bigger, firmer
+ *  landing. sqrt-shaped and bounded (same "no runaway" judgment as frictionForMass);
+ *  mass 1 = baseline, mass 4 = 2x the dip/overshoot amplitude. */
+export function kachunkIntensityForMass(mass: number | undefined): { anticip: number; overshoot: number } {
+  const scale = mass === undefined || mass <= 0 ? 1 : Math.max(0.5, Math.sqrt(mass));
+  return {
+    anticip: KACHUNK_BASE_ANTICIP * scale,
+    overshoot: KACHUNK_BASE_OVERSHOOT * scale,
+  };
+}
+
+/** Sample the KaChunk settle curve as a normalized 0->1 point array (endpoints pinned
+ *  to exactly 0 and 1; interior dips below 0 and rises above 1 for the squash/stretch).
+ *  Playing this over any transitionMs is a pure time-stretch — glide DURATION is
+ *  independent of the shape, so mass never makes the motion slower, only chunkier. */
+export function sampleKachunkCurve(mass: number | undefined, numSamples = 48): number[] {
+  const { anticip, overshoot } = kachunkIntensityForMass(mass);
+  const pts: number[] = [];
+  for (let i = 0; i <= numSamples; i++) {
+    const t = i / numSamples;
+    let y: number;
+    if (t < KACHUNK_ANTICIP_END) {
+      // beat 1: squash back below 0 and return (half sine down-and-up).
+      const u = t / KACHUNK_ANTICIP_END;
+      y = -anticip * Math.sin(u * Math.PI);
+    } else if (t < KACHUNK_SNAP_AT) {
+      // beat 2: easy glide, smoothstep from 0 to ~1.
+      const u = (t - KACHUNK_ANTICIP_END) / (KACHUNK_SNAP_AT - KACHUNK_ANTICIP_END);
+      y = u * u * (3 - 2 * u);
+    } else {
+      // beat 3: overshoot past 1, then a DECISIVE quadratic snap back to 1 and lock.
+      const u = (t - KACHUNK_SNAP_AT) / (1 - KACHUNK_SNAP_AT);
+      let over: number;
+      if (u < 0.35) {
+        const w = u / 0.35; // quick rise to the overshoot peak
+        over = overshoot * (w * w * (3 - 2 * w));
+      } else {
+        const w = (u - 0.35) / 0.65; // quadratic (not smoothstep) decay = crisp lock, not float
+        over = overshoot * (1 - w) * (1 - w);
+      }
+      y = 1 + over;
+    }
+    pts.push(Math.round(y * 10000) / 10000);
+  }
+  pts[0] = 0;
+  pts[pts.length - 1] = 1;
+  return pts;
+}
+
+/** KaChunk settle as a CSS linear() easing string (see sampleKachunkCurve). */
+export function sampleKachunkToLinear(mass: number | undefined, numSamples = 48): string {
+  return `linear(${sampleKachunkCurve(mass, numSamples).join(", ")})`;
+}
+
 // SHAPE VS CLOCK: the physics is integrated ONCE at a fixed reference duration long
 // enough to fully settle, producing a frozen normalized 0->1 linear() curve. transitionMs
 // is then purely the CSS transition-duration that frozen shape plays over (a true uniform
@@ -377,39 +465,43 @@ export function createFisheye(
     window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const transitionDuration = reduceMotion ? "0s" : `${transitionMs}ms`;
-  let transitionEasing: string;
-  if (reduceMotion) {
-    transitionEasing = "linear";
-  } else if (easing === "spring") {
-    transitionEasing =
-      staticFriction > 0 || dynamicFriction > 0
-        ? sampleFrictionSpringToLinear(stiffness, damping, mass, staticFriction, dynamicFriction, SHAPE_REFERENCE_MS, 48)
+
+  // Base (mass-unspecified) settle curve for the chosen model. A per-element mass
+  // entry re-samples this with that element's endpoint weight folded in (see
+  // computeElementEasing); rows with no mass entry reuse this shared string.
+  function sampleEasingForMass(m: number | undefined): string {
+    if (easing === "kachunk") {
+      // Hallie's default: KaChunk. Mass deepens the wind-up + firms the landing.
+      return sampleKachunkToLinear(m, 48);
+    }
+    if (easing === "spring") {
+      // ported physics: mass drives endpoint FRICTION (later breakaway, firmer settle).
+      const { staticFriction: sf, dynamicFriction: df } = frictionForMass(staticFriction, dynamicFriction, m);
+      return sf > 0 || df > 0
+        ? sampleFrictionSpringToLinear(stiffness, damping, mass, sf, df, SHAPE_REFERENCE_MS, 48)
         : sampleSpringToLinear(stiffness, damping, mass, SHAPE_REFERENCE_MS, 48);
-  } else {
-    transitionEasing = easing;
+    }
+    return easing; // raw CSS easing string, mass-independent.
   }
+
+  const transitionEasing = reduceMotion ? "linear" : sampleEasingForMass(undefined);
 
   // PER-ELEMENT EASING (Hallie's MASS DECISION): when perElementMass varies, the
   // shared transitionEasing above isn't enough — a heavier row needs its OWN
-  // friction-scaled curve (later breakaway, firmer settle), sampled once per
-  // distinct mass value and memoized (sampleFrictionSpringCurve's internal Euler
-  // integration is the expensive part; re-running it per element with the SAME mass
-  // would be pure waste). Elements with no mass entry (or the same mass as the
-  // shared default) reuse transitionEasing untouched — no sampling cost when
-  // perElementMass is omitted, matching the doc comment's "identical output, no
-  // extra cost" promise.
+  // mass-shaped curve (KaChunk: deeper wind-up + firmer land; spring: later breakaway
+  // + firmer settle), sampled once per distinct mass value and memoized (the integrator
+  // / curve build is the expensive part; re-running it per element with the SAME mass
+  // would be pure waste). Elements with no mass entry reuse the shared transitionEasing
+  // untouched — no extra sampling when perElementMass is omitted. A raw CSS easing
+  // string is mass-independent, so per-element sampling is skipped entirely there.
   const easingByMassCache = new Map<number, string>();
   function computeElementEasing(index: number): string {
-    if (reduceMotion || easing !== "spring") return transitionEasing;
+    if (reduceMotion || (easing !== "spring" && easing !== "kachunk")) return transitionEasing;
     const m = perElementMass?.[index];
     if (m === undefined || m <= 0) return transitionEasing;
     const cached = easingByMassCache.get(m);
     if (cached) return cached;
-    const { staticFriction: sf, dynamicFriction: df } = frictionForMass(staticFriction, dynamicFriction, m);
-    const sampled =
-      sf > 0 || df > 0
-        ? sampleFrictionSpringToLinear(stiffness, damping, mass, sf, df, SHAPE_REFERENCE_MS, 48)
-        : sampleSpringToLinear(stiffness, damping, mass, SHAPE_REFERENCE_MS, 48);
+    const sampled = sampleEasingForMass(m);
     easingByMassCache.set(m, sampled);
     return sampled;
   }

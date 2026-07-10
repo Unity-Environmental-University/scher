@@ -27,6 +27,9 @@ import {
   sampleFrictionSpringToLinear,
   gaussianFalloff,
   frictionForMass,
+  kachunkIntensityForMass,
+  sampleKachunkCurve,
+  sampleKachunkToLinear,
 } from "../src/fisheye.js";
 import { Society } from "../src/society.js";
 import { listStory } from "../src/stories.js";
@@ -119,6 +122,56 @@ describe("fisheye.ts — spring+friction curve shape (Hallie's final params)", (
     expect(near).toBeLessThan(peak);
     expect(near).toBeGreaterThan(far);
     expect(far).toBeCloseTo(1.0, 2);
+  });
+});
+
+describe("KaChunk settle (Hallie, 2026-07-10) — easy glide, squash+stretch both ends, decisive lock", () => {
+  it("has squash at the start (dips below 0) and stretch at the end (rises above 1)", () => {
+    const c = sampleKachunkCurve(undefined, 48);
+    // endpoints pinned exactly.
+    expect(c[0]).toBe(0);
+    expect(c[c.length - 1]).toBe(1);
+    // ANTICIPATION / squash: an early interior sample is negative (wind-up back
+    // before launch).
+    expect(Math.min(...c)).toBeLessThan(0);
+    const dipIdx = c.indexOf(Math.min(...c));
+    expect(dipIdx).toBeGreaterThan(0);
+    expect(dipIdx).toBeLessThan(c.length / 4); // the dip is early
+    // OVERSHOOT / stretch: a late interior sample exceeds 1 (past target before lock).
+    expect(Math.max(...c)).toBeGreaterThan(1);
+    const peakIdx = c.indexOf(Math.max(...c));
+    expect(peakIdx).toBeGreaterThan((c.length * 3) / 4); // the overshoot is near the end
+    expect(peakIdx).toBeLessThan(c.length - 1);
+  });
+
+  it("locks DECISIVELY after the overshoot — the return to 1 is a fast snap, not a long float", () => {
+    const c = sampleKachunkCurve(undefined, 48);
+    const peakIdx = c.indexOf(Math.max(...c));
+    // from the overshoot peak, the curve returns to within a hair of 1 within a few
+    // samples (a KaChunk lock), rather than drifting down over most of the tail.
+    const settleWithin = c.findIndex((v, i) => i > peakIdx && Math.abs(v - 1) < 0.005);
+    expect(settleWithin).toBeGreaterThan(peakIdx);
+    expect(settleWithin - peakIdx).toBeLessThanOrEqual(5); // snaps home fast
+  });
+
+  it("heavier mass deepens the wind-up and firms the landing (bigger dip + bigger overshoot)", () => {
+    const light = kachunkIntensityForMass(1);
+    const heavy = kachunkIntensityForMass(4); // sqrt(4)=2x
+    expect(heavy.anticip).toBeCloseTo(light.anticip * 2, 6);
+    expect(heavy.overshoot).toBeCloseTo(light.overshoot * 2, 6);
+    // and the sampled curve reflects it: heavier dips lower and overshoots higher.
+    const lc = sampleKachunkCurve(1, 48);
+    const hc = sampleKachunkCurve(4, 48);
+    expect(Math.min(...hc)).toBeLessThan(Math.min(...lc));
+    expect(Math.max(...hc)).toBeGreaterThan(Math.max(...lc));
+    // both still start at 0 and end at 1 — mass changes the CHUNK, not the endpoints.
+    expect(hc[0]).toBe(0);
+    expect(hc[hc.length - 1]).toBe(1);
+  });
+
+  it("mass undefined / 0 give the baseline KaChunk (the shared default feel)", () => {
+    expect(kachunkIntensityForMass(undefined)).toEqual(kachunkIntensityForMass(0));
+    expect(sampleKachunkToLinear(undefined, 48).startsWith("linear(")).toBe(true);
   });
 });
 

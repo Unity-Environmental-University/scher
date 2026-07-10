@@ -98,6 +98,57 @@ export interface EventViewParams {
   standpoint?: string;
   onOpen?: (slug: string) => void;
   onReify?: (slug: string) => void;
+  /** INLINE-OPEN (committee-eventview, card-interior-superject fleet, 2026-07-10):
+   *  when supplied, a SUPERJECT/PROPOSITION row renders an additional affordance that
+   *  expands the row to show that same occasion's INTERIOR *in place*, without becoming
+   *  the standing frame — the crux move Hallie's card sketch names "peek into a
+   *  downstream, don't navigate to it." This is INTENTIONALLY separate from `onOpen`:
+   *  onOpen is a caller-routed "make this the new significator" navigation (board.ts's
+   *  job); inlineOpenArm is scher's own bounded, in-place expansion (this file's job).
+   *  A caller wanting the full card anatomy (↑upstreams / name+desc+tags / ↓downstreams)
+   *  supplies THIS arm — typically `(v) => eventView(soc, {slug: v.slug, mode:'interior',
+   *  modeArm, depth: depth+1, ...})` — and scher enforces the depth cap below; the arm
+   *  itself never has to know or check the cap. Omit to get a plain, non-expandable row
+   *  (e.g. once the cap is reached — see `depth`). */
+  inlineOpenArm?: (v: EventViewRead) => Node;
+  /** RECURSION CAP — same idiom as stories.ts's frameStory(soc, params, depth=0): an
+   *  INTERNAL counter, never set past 0 by an outside caller. `inlineOpenArm` is only
+   *  offered (rendered as an affordance) while `depth < INLINE_OPEN_DEPTH_CAP`; at the
+   *  cap, the row renders plain (no expand affordance) — matching the brief's "openable
+   *  ~1-2 recursions deep... you do NOT navigate-to it / make it the standing frame."
+   *  Bounding here, not in the caller's arm, means the cap is enforced ONCE, structurally,
+   *  the same way frameStory enforces its one-level cap once rather than per-caller. */
+  depth?: number;
+  /** the CARD ANATOMY reads for INTERIOR mode (committee-eventview, 2026-07-10): Hallie's
+   *  final sketch — ↑upstreams / name+desc+tags / ↓downstreams-as-superject-rows / expand.
+   *  These are supplied by the CALLER (stories.ts owns upstreamsOf/downstreamsOf/tagsOf —
+   *  see CLEARNESS-eventview-boundary.md ¶1: the ontology reads are stories.ts/society.ts's,
+   *  not eventview.ts's) rather than read directly here, so this file never has to guess
+   *  which edge-kind "downstream" means (reversed-because? contains? enables? — an open
+   *  question flagged in fleet-card-anatomy's requires/contains/enables sketch) or
+   *  duplicate a read another file-advocate owns. Omit any of the three to render that
+   *  section empty (a caller previewing a bare beat with no assembled reads yet still gets
+   *  a valid, if sparse, interior card — never a throw). */
+  upstreams?: { slug: string; label?: string }[];
+  downstreams?: { slug: string; label?: string }[];
+  tags?: string[];
+  /** the TASTE arm for each downstream SUB-CARD row's left STATE-CHANGE GLYPH (task/
+   *  dropped/migrated/... — "what kind," per the checkbox-unification decision) — distinct
+   *  from the row's right DONE-check (rendered structurally below as a plain checked/
+   *  unchecked slot; whether/how it's interactive is Penelope's callback wiring via
+   *  onDownstreamDone, not scher's taste). Required only when `downstreams` is non-empty
+   *  AND the caller wants glyphs rendered (omit for a glyph-less plain list). */
+  downstreamGlyphArm?: (slug: string) => Node;
+  /** per-downstream-row DONE state — a plain read the caller supplies (scher does not
+   *  decide what "done" means for an arbitrary downstream; that's a quality/mode read
+   *  owned by stories.ts/society.ts, same reasoning as upstreams/downstreams above). */
+  isDownstreamDone?: (slug: string) => boolean;
+  /** downstream row callbacks — both OPTIONAL, both OMIT-TO-DISABLE: */
+  onDownstreamDone?: (slug: string) => void;
+  onDownstreamHide?: (slug: string) => void;
+  /** "Expand to Grounding Info" — the bottom affordance that drills DEEPER than the
+   *  1-2 level inline-open cap allows (a real navigate, not a peek). Omit to hide it. */
+  onExpandGrounding?: (slug: string) => void;
   /** MASS HOOK (tentative — RECESS-2 hunch, twice-confirmed, BRIEF.md "task mass made
    *  SOMATIC"): an OPTIONAL per-occasion weight for the superject/proposition row. This
    *  is STRUCTURE only — a number the row carries as `data-mass` + a `--mass` CSS var —
@@ -112,15 +163,35 @@ export interface EventViewParams {
   mass?: number;
 }
 
+/** INLINE-OPEN RECURSION CAP — the crux number (committee-eventview, card-interior-
+ *  superject fleet, 2026-07-10). frameStory caps its ONE nesting concept ("story-beat
+ *  contains story-beat") at depth < 1. EventView's inline-open is the SAME idiom applied
+ *  to "downstream row peeks into its own interior": depth 0 (a plain interior card,
+ *  freshly opened by the user or the standing frame) may inline-open ITS downstream rows
+ *  to depth 1; depth 1's downstream rows render WITHOUT the expand affordance at all —
+ *  no drill-in stub, just a plain closed row, because inline-open (unlike frameStory's
+ *  drill-in) is a PEEK, not a promise of "more exists past here, click through." A
+ *  separate, deliberate `onOpen`/`onExpandGrounding` navigation is always available past
+ *  the cap for a reader who wants to go deeper — that's a re-centering action, not this
+ *  one. Set to 1 (not 0) because the brief explicitly asks for "~1-2 recursions deep." */
+const INLINE_OPEN_DEPTH_CAP = 1;
+
 /** eventView: the harness. Dispatches on `mode` — scher's structure, never the caller's
- *  choice of copy. INTERIOR delegates to cardStory (it already IS the interior render;
- *  no duplication). SUPERJECT is a compact row built fresh here (a card is too heavy —
- *  full content, pathos chips, an openable click-target — for "a datum in a list").
+ *  choice of copy. INTERIOR builds the full CARD ANATOMY (Hallie's final sketch: ↑upstreams
+ *  / name+desc+tags / ↓downstreams-as-superject-rows / expand) around cardStory's existing
+ *  face render (content/mode/pathos) — cardStory still owns the FACE, this harness adds the
+ *  bracket sections around it, structurally, from caller-supplied reads (see
+ *  EventViewParams.upstreams/downstreams/tags — why they're caller-supplied, not read here).
+ *  SUPERJECT is a compact row built fresh here (a card is too heavy — full content, pathos
+ *  chips, an openable click-target — for "a datum in a list"); it may also carry an
+ *  INLINE-OPEN affordance (see inlineOpenArm/depth) that expands the row to its own interior
+ *  IN PLACE, capped at INLINE_OPEN_DEPTH_CAP, WITHOUT re-centering the standing frame.
  *  PROPOSITION renders the identical superject skeleton and adds ONLY a structural
  *  not-yet-actual marker (a class + data-attribute); the VISUAL skin (dashed border,
  *  faint opacity, "if…" phrasing) is the caller's CSS/taste, not scher's. */
 export function eventView(soc: Society, params: EventViewParams): Node {
   const { slug, mode } = params;
+  const depth = params.depth ?? 0;
 
   if (mode === "interior") {
     if (!params.modeArm) {
@@ -131,7 +202,94 @@ export function eventView(soc: Society, params: EventViewParams): Node {
       ...(params.onOpen ? { onOpen: params.onOpen } : {}),
       ...(params.onReify ? { onReify: params.onReify } : {}),
     };
-    return cardStory(soc, { slug, modeArm: params.modeArm, ...common });
+    const face = cardStory(soc, { slug, modeArm: params.modeArm, ...common });
+
+    // no anatomy reads supplied at all: caller gets the bare face (still a valid,
+    // if sparse, interior render — never a throw; see the params doc).
+    if (!params.upstreams && !params.downstreams && !params.tags) return face;
+
+    const card = el("div", { class: `event-view interior depth-${depth}`, data: { slug } });
+
+    // ── ↑ UPSTREAMS (bearings / because-in) ──
+    if (params.upstreams?.length) {
+      const up = el("div", { class: "eventview-upstreams" });
+      for (const u of params.upstreams) {
+        up.appendChild(el("div", { class: "eventview-upstream-row", data: { slug: u.slug } }, u.label ?? u.slug));
+      }
+      card.appendChild(up);
+    }
+
+    // ── FACE (name + description via cardStory) + TAGS edge-strip ──
+    const faceWrap = el("div", { class: "eventview-face" });
+    faceWrap.appendChild(face);
+    if (params.tags?.length) {
+      const strip = el("div", { class: "eventview-tags" });
+      for (const t of params.tags) strip.appendChild(el("div", { class: "eventview-tag" }, t));
+      faceWrap.appendChild(strip);
+    }
+    card.appendChild(faceWrap);
+
+    // ── ↓ DOWNSTREAMS (what this grounds) — each a bordered SUPERJECT sub-card row:
+    //    left state-glyph (WHAT KIND) + text + right done-check (IS IT DONE) + hide tab.
+    //    Two marks, not one confusing checkbox — resolves the checkbox trub (brief ¶ "ALSO
+    //    resolves the checkbox trub"). ──
+    if (params.downstreams?.length) {
+      const down = el("div", { class: "eventview-downstreams" });
+      for (const d of params.downstreams) {
+        const dRow = el("div", { class: "eventview-downstream-row", data: { slug: d.slug } });
+        const glyphSlot = el("div", { class: "eventview-downstream-glyph" });
+        if (params.downstreamGlyphArm) glyphSlot.appendChild(params.downstreamGlyphArm(d.slug));
+        dRow.appendChild(glyphSlot);
+        dRow.appendChild(el("div", { class: "eventview-downstream-text" }, d.label ?? d.slug));
+        const done = params.isDownstreamDone ? params.isDownstreamDone(d.slug) : false;
+        const checkSlot = el("div", {
+          class: `eventview-downstream-check${done ? " done" : ""}`,
+          attrs: { role: "checkbox", "aria-checked": String(done) },
+        });
+        if (params.onDownstreamDone) on(checkSlot, "click", () => params.onDownstreamDone!(d.slug));
+        dRow.appendChild(checkSlot);
+        if (params.onDownstreamHide) {
+          const hideTab = el("button", { class: "eventview-downstream-hide" }, "Hide");
+          on(hideTab, "click", (e) => {
+            e.stopPropagation();
+            params.onDownstreamHide!(d.slug);
+          });
+          dRow.appendChild(hideTab);
+        }
+        // INLINE-OPEN: only offered below the cap. At/past the cap the row is a plain,
+        // non-expandable superject row — a peek, capped, never a promise of infinite depth.
+        if (params.inlineOpenArm && depth < INLINE_OPEN_DEPTH_CAP) {
+          let openNode: Node | null = null;
+          const slot = el("div", { class: "eventview-downstream-interior-slot" });
+          const trigger = el("button", { class: "eventview-downstream-peek" }, "▾ peek");
+          on(trigger, "click", (e) => {
+            e.stopPropagation();
+            const isOpen = slot.classList.toggle("open");
+            trigger.textContent = isOpen ? "▴ close" : "▾ peek";
+            if (isOpen) {
+              if (!openNode) {
+                openNode = params.inlineOpenArm!(readEventView(soc, d.slug));
+                slot.appendChild(openNode);
+              }
+            }
+          });
+          dRow.appendChild(trigger);
+          dRow.appendChild(slot);
+        }
+        down.appendChild(dRow);
+      }
+      card.appendChild(down);
+    }
+
+    // ── BOTTOM: "Expand to Grounding Info" — drill deeper (a real navigate, past the
+    //    inline-open cap; distinct from the peek above). ──
+    if (params.onExpandGrounding) {
+      const expand = el("button", { class: "eventview-expand-grounding" }, "Expand to Grounding Info");
+      on(expand, "click", () => params.onExpandGrounding!(slug));
+      card.appendChild(expand);
+    }
+
+    return card;
   }
 
   // superject AND proposition share one structural spread — proposition = superject + skin.
@@ -163,6 +321,26 @@ export function eventView(soc: Society, params: EventViewParams): Node {
     if (params.mass !== undefined) row.style.setProperty("--mass", String(params.mass));
     if (params.onOpen) on(row, "click", () => params.onOpen!(slug));
     row.appendChild(superjectArm(v));
+
+    // INLINE-OPEN affordance at the top level too — a bare superject row (e.g. a board
+    // list item, not a downstream sub-row) can offer the same peek-inline, same cap rule.
+    if (params.inlineOpenArm && depth < INLINE_OPEN_DEPTH_CAP) {
+      let openNode: Node | null = null;
+      const slot = el("div", { class: "eventview-inline-interior-slot" });
+      const trigger = el("button", { class: "eventview-peek" }, "▾ peek");
+      on(trigger, "click", (e) => {
+        e.stopPropagation();
+        const isOpen = slot.classList.toggle("open");
+        trigger.textContent = isOpen ? "▴ close" : "▾ peek";
+        if (isOpen && !openNode) {
+          openNode = params.inlineOpenArm!(v);
+          slot.appendChild(openNode);
+        }
+      });
+      row.appendChild(trigger);
+      row.appendChild(slot);
+    }
+
     return row;
   }).node;
 }

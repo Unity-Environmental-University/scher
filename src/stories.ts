@@ -21,6 +21,7 @@ import {
   reactionsOn,
   isOccluded,
   isEstablished,
+  prehensionsFrom,
   prehensionsOnto,
   intervalOf,
   endOf,
@@ -71,6 +72,104 @@ export function readCard(soc: Society, slug: string): CardRead {
  *  wants a default (e.g. a demo, a test) supplies its own, because the copy is Penelope's, not
  *  scher's, to author. */
 export type ModeArm = (v: CardRead) => Node;
+
+// ── CARD-INTERIOR READS — upstreams / downstreams / tags ────────────────────────
+// Hallie's card anatomy (fleet-card-anatomy sketch, 2026-07-10): ↑UPSTREAMS (the
+// ~because~-in bearings), the name+description+TAGS edge-strip, ↓DOWNSTREAMS (this
+// event's own light-cone out). All three are pure (Society, slug) -> shape reads —
+// no DOM, no English, same discipline as readCard/readEventView. Board.ts's
+// computeUpstreamDownstream (event-3037, the Faraday-cage rule) did this ad hoc,
+// app-side, duplicating a read that belongs here — upstreamsOf/downstreamsOf are
+// that read PROMOTED to scher so board.ts (and any future caller: a minimap, a
+// triage card) gets it for free instead of re-deriving the because-edge walk.
+//
+// FARADAY-CAGE RULE preserved exactly: only a beat's OWN direct because-edges show
+// — closing-edges (the End-pole machinery, subject/object shaped `hea-*`) are
+// structural plumbing, not a real relationship, and are filtered here at the read,
+// not left to every caller to remember to filter.
+const BECAUSE_QUALITY: Quality = "q-grounding";
+
+/** upstreamsOf: events THIS beat has a because-edge TO (what led here — the
+ *  ~because~-in bearings a reader climbs to see why). Closing-edges excluded. */
+export function upstreamsOf(soc: Society, slug: string, asOf?: number): string[] {
+  return prehensionsFrom(soc, slug, BECAUSE_QUALITY, asOf)
+    .filter((p) => p.object && !p.object.startsWith("hea-"))
+    .map((p) => p.object as string);
+}
+
+/** downstreamsOf: events that have a because-edge TO this beat (this event's own
+ *  light-cone out — what it grounds). Closing-edges excluded. Each entry is a
+ *  candidate DOWNSTREAM ROW per the card anatomy: a superject-face reading of that
+ *  event, rendered as a bordered sub-card by the caller's taste arm. */
+export function downstreamsOf(soc: Society, slug: string, asOf?: number): string[] {
+  return prehensionsOnto(soc, slug, BECAUSE_QUALITY, asOf)
+    .filter((p) => p.subject && !p.subject.startsWith("hea-"))
+    .map((p) => p.subject as string);
+}
+
+/** tagsOf: this beat's ad-hoc qualities, laid through the q-tag- / q-collection-
+ *  reserved-prefix door (cf47da6, api/src/bujo_write.rs) — a bujo SECTION is a
+ *  story-plus-a-quality (q-collection-shopping), and a bare tag is q-tag-<name>.
+ *  Reads the quality VALUE off each prehension touching this beat (either side —
+ *  a tag can be laid subject=beat or object=beat, same as any lateral edge) and
+ *  keeps only the ones matching the reserved prefixes. This is reading structured
+ *  data (the quality field, via prehendsAs's own `~q` convention), never parsing a
+ *  slug — the QUERIES.md discipline this file already holds throughout. Returns
+ *  the bare tag name (the quality string with its reserved prefix stripped) once
+ *  per distinct tag, occluded prehensions excluded. */
+export interface TagRead {
+  /** the bare tag name, prefix stripped (e.g. "shopping" from "q-collection-shopping"). */
+  name: string;
+  /** which reserved door this tag came through. */
+  kind: "tag" | "collection";
+  /** the full quality string, for a caller that wants to re-query or re-lay it. */
+  quality: string;
+}
+
+const TAG_PREFIX = "q-tag-";
+const COLLECTION_PREFIX = "q-collection-";
+
+export function tagsOf(soc: Society, slug: string, asOf?: number): TagRead[] {
+  const seen = new Set<string>();
+  const out: TagRead[] = [];
+  const touching = soc.all().filter(
+    (b) => (b.subject === slug || b.object === slug) && b.subject !== null && b.object !== null,
+  );
+  for (const p of touching) {
+    if (isOccluded(soc, p.slug, asOf)) continue;
+    const q = soc.get(`${p.slug}~q`);
+    if (!q) continue;
+    const quality = q.object;
+    if (!quality) continue;
+    let kind: TagRead["kind"] | null = null;
+    let name = "";
+    if (quality.startsWith(TAG_PREFIX)) { kind = "tag"; name = quality.slice(TAG_PREFIX.length); }
+    else if (quality.startsWith(COLLECTION_PREFIX)) { kind = "collection"; name = quality.slice(COLLECTION_PREFIX.length); }
+    if (!kind || seen.has(quality)) continue;
+    seen.add(quality);
+    out.push({ name, kind, quality });
+  }
+  return out;
+}
+
+/** readCardInterior: the READ the card's interior mode needs, assembled — the
+ *  same beat-level facts readCard already reads (content/mode/pathos) PLUS the
+ *  three anatomy reads above. One call for eventview.ts's interior arm to build
+ *  the whole card from, instead of four separate reads each re-deriving. */
+export interface CardInteriorRead extends CardRead {
+  upstreams: string[];
+  downstreams: string[];
+  tags: TagRead[];
+}
+
+export function readCardInterior(soc: Society, slug: string, asOf?: number): CardInteriorRead {
+  return {
+    ...readCard(soc, slug),
+    upstreams: upstreamsOf(soc, slug, asOf),
+    downstreams: downstreamsOf(soc, slug, asOf),
+    tags: tagsOf(soc, slug, asOf),
+  };
+}
 
 export interface CardStoryParams {
   slug: string;

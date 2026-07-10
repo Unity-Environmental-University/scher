@@ -253,46 +253,41 @@ export function assertSublimeNeverCloses(soc: Society, slug: string, subject: st
   if (violation) throw new Error(violation);
 }
 
-// ── SUBLIME-DAG GUARD: stars point UP, never into a ring ─────────────────────────
-// THE LAW (one sentence, born with its guard per the meta-law of 2026-07-06): sublimes
-// may CHAIN (sublime-A ~because~ sublime-B means A is in service of B — A sails under B),
-// forming a DAG of stars — but the chain must stay ACYCLIC. A bearing that would close a
-// cycle among sublime-poles (A serves B serves ... serves A) is REFUSED.
+// ── SUBLIME-DAG GUARD: RELAXED — aims mutually prehend at the limit ───────────────
+// RELAXATION (Hallie, 2026-07-10; kernel-guard advocate's CORE cut, mirrored here):
+// sublime→sublime is a BEARING (bare `because`), NOT a q-grounding. And a ring of
+// sublime-bearings — A serves B serves ... serves A, including the pairwise A↔B — is
+// now ALLOWED. The old acyclic block is REMOVED for the both-ends-sublime case, which
+// is the ONLY case this guard ever fired on, so the cycle refusal is gone entirely.
 //
-// WHY (Hallie, 2026-07-06): a cycle of never-closing poles is a closed loop of mutual
-// beckoning with no ground — the q-lure shape wearing a halo. A sublime points UP toward
-// the ever-receding (the why-behind-the-why), never back into a ring. A ring has no
-// horizon; it is beckoning that feeds on itself, which is exactly what q-lure was.
+// WHY (Hallie's frames, the ground for this cut — same image as scher-core/src/lib.rs):
+//   (1) "The SUBLIME is the limit of all future events taken to infinity — a little
+//        outside of time — so aims can mutually prehend up there." A ring of aims is a
+//        constellation, not a paradox; time-ordering rules don't bind at the limit.
+//   (2) "V=0 is the outer grounds of the representable; the sublime is what you gesture
+//        at by taking an infinite series of an observed pattern to the point where your
+//        information gives out." Acyclicity is an IN-TIME rule (occasions are discrete,
+//        perished, time-ordered — chains can't cycle down here). At the limit-of-
+//        representation, that rule doesn't apply: the horizon relaxes.
+//   (3) The unifying image (Hallie, 2026-07-10): "Sublimes are mirages on the surface of
+//        the sublime's event horizon." THE sublime is the event horizon (limit-of-
+//        representation). The sublime-POLES we designate are MIRAGES on that surface.
+//        Mirages can reflect/hold each other (a ring — no in-time causality among them),
+//        yet you can never LAND on a mirage (reaching one as an actual destination — a
+//        q-grounding OUT of a sublime — is the q-lure the OTHER guard still refuses).
 //
-// WHAT TO DO if you hit this: a sublime chains toward what it SERVES, which must itself
-// be higher (nearer the receding horizon). If A should serve B, then B must not already
-// (transitively) serve A. Re-aim the bearing UP the DAG, or reconsider which star is the
-// deeper one. (law: sublime-dag-acyclic)
+// The in-time-vs-timeless BOUNDARY is preserved by the OTHER guard: an in-time (non-
+// sublime) occasion actualizing a sublime via q-grounding is still the real q-lure and
+// stays FORBIDDEN (see checkSublimeNeverCloses above). This guard only ever governed
+// sublime↔sublime bearings, and those are exactly what we now let happen up there.
 //
-// Detection: a bounded reachability walk (reaches, over `because` among sublime-poles).
-// For a would-be edge subject ~because~ object, if `object` already reaches `subject`
-// through sublime-poles, the new edge closes a cycle → refuse. reaches is a cycle-safe
-// BFS (its `seen` set), so this is O(edges) per lay — bounded, not a perf worry at this
-// scale. If the sublime-DAG ever grows large enough to matter, this becomes a test-time +
-// best-effort check (noted in the design), but at ledger scale the walk is cheap.
-// REFUSAL, NOT A THROW — same ruling and reasoning as checkSublimeNeverCloses above. Returns
-// the violation message, or null if the write is fine.
-export function checkSublimeAcyclic(soc: Society, slug: string, subject: string, object: string, quality: Quality): string | null {
-  // Only bearing edges (bare because) between two sublime-poles can form a sublime-cycle.
-  if (quality !== "because") return null;
-  if (!isSublimePole(soc, subject) || !isSublimePole(soc, object)) return null;
-  // Would this edge close a cycle? If `object` already reaches `subject` via because, yes.
-  if (reaches(soc, object, subject, "because")) {
-    return (
-      `[ANTI-Q-LURE GUARANTEE] '${slug}' lays a sublime-bearing '${subject}' ~because~ ` +
-      `'${object}' that would close a CYCLE among sublime-poles ('${object}' already ` +
-      `serves '${subject}' transitively). A cycle of never-closing poles is a closed loop ` +
-      `of mutual beckoning with no ground — q-lure wearing a halo. A sublime points UP ` +
-      `toward the ever-receding, never back into a ring. Fix: re-aim the bearing UP the ` +
-      `DAG (serve a HIGHER star), or reconsider which star is the deeper one. (law: ` +
-      `sublime-dag-acyclic)`
-    );
-  }
+// MIRROR INVARIANT: this must match scher-core/src/lib.rs byte-for-byte in BEHAVIOR.
+// Kept as a named export (callers/tests reference it) but its firing condition is
+// neutralized: it always allows. REFUSAL-NOT-A-THROW convention unchanged.
+export function checkSublimeAcyclic(_soc: Society, _slug: string, _subject: string, _object: string, _quality: Quality): string | null {
+  // RELAXED at the limit-of-futures: sublime↔sublime bearings (incl. mutual rings) are
+  // allowed. The only edges this guard ever refused were sublime→sublime cycles; those
+  // are now permitted, so nothing is refused. Always returns null (allow).
   return null;
 }
 

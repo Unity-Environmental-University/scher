@@ -40,6 +40,36 @@ export function reading<T>(soc: Society, read: (s: Society) => T): Read<T> {
 // Reads ONE beat (its content + its determined mode + its pathos) and projects a
 // card. Reusable: point it at any slug. The card IS the reading of that beat-Story.
 
+/** the READ: pure (Society, slug) → structural shape. No English, no symbols — just what's
+ *  true of the beat. This is the half of cardStory that belongs to scher (a scher-read per
+ *  the reads/spreads boundary, CLEARNESS-reads-spreads.md 2026-07-10: mode-DETECTION is a
+ *  scher-read that "survives clean"; mode-COPY/VISUAL is Penelope taste). */
+export interface CardRead {
+  slug: string;
+  content: string;
+  mode: Mode;
+  conf: number;
+  pathos: { key: string; count: number }[];
+}
+
+export function readCard(soc: Society, slug: string): CardRead {
+  const beat = soc.get(slug);
+  // TODO(socratic): why does modeAt return something that needs `as Mode` cast — is the query's return type too wide, or is modeAt sometimes returning a non-Mode value that should be caught?
+  return {
+    slug,
+    content: beat?.content ?? `(no beat: ${slug})`,
+    mode: modeAt(soc, slug) as Mode,
+    conf: confidence(soc, slug),
+    pathos: reactionsOn(soc, slug),
+  };
+}
+
+/** the TASTE arm: given the structural read, render the mode's copy/symbol. Caller-supplied
+ *  — cardStory does not hard-code English here. No default is baked into scher; a caller that
+ *  wants a default (e.g. a demo, a test) supplies its own, because the copy is Penelope's, not
+ *  scher's, to author. */
+export type ModeArm = (v: CardRead) => Node;
+
 export interface CardStoryParams {
   slug: string;
   /** optional: standpoint label shown on the card (whose reading this is). */
@@ -51,21 +81,17 @@ export interface CardStoryParams {
   // TODO(socratic): why is standpoint optional here but optional again in CardStoryParams — isn't the param interface the already-optional place, so the ? in the rendering is redundant?
   /** optional: reify this told-short card into an actual story (lay End + lure). */
   onReify?: (slug: string) => void;
+  /** the TASTE: given the structural CardRead, render the mode slot's node (copy, symbols,
+   *  phrasing — Penelope's voice). REQUIRED — cardStory does not choose words for you; the
+   *  reading (mode as data) is scher's, the gloss is the caller's. */
+  modeArm: ModeArm;
 }
 
 export function cardStory(soc: Society, params: CardStoryParams): Node {
   const { slug } = params;
-  // the card is a projection of a reading: (content, mode, pathos) of this beat.
-  const read = reading(soc, (s) => {
-    const beat = s.get(slug);
-    // TODO(socratic): why does modeAt return something that needs `as Mode` cast — is the query's return type too wide, or is modeAt sometimes returning a non-Mode value that should be caught?
-    return {
-      content: beat?.content ?? `(no beat: ${slug})`,
-      mode: modeAt(s, slug) as Mode,
-      conf: confidence(s, slug),
-      pathos: reactionsOn(s, slug),
-    };
-  });
+  // the card is a projection of a reading: (content, mode, pathos) of this beat — pure
+  // structure, no taste. (the scher-read half of the reads/spreads boundary.)
+  const read = reading(soc, (s) => readCard(s, slug));
 
   return project(read, (v) => {
     const card = el("div", {
@@ -75,14 +101,10 @@ export function cardStory(soc: Society, params: CardStoryParams): Node {
     if (params.onOpen) on(card, "click", () => params.onOpen!(slug));
     card.appendChild(el("div", { class: "slug" }, slug));
     card.appendChild(el("div", { class: "content" }, v.content));
-    // TODO(socratic): why are there only two branches (established vs scripted) when Mode may have more values — is this a contract that modeAt guarantees only these two, or is the else-case handling multiple modes differently?
-    card.appendChild(
-      el("div", { class: `mode ${v.mode}` },
-        v.mode === "established"
-          ? `✓ established — an actual met this (conf ${v.conf.toFixed(2)})`
-          : `○ scripted — a lure, ungrounded`,
-      ),
-    );
+    // the mode SLOT is structural (scher); its CONTENTS are the caller's taste arm.
+    const modeSlot = el("div", { class: `mode ${v.mode}` });
+    modeSlot.appendChild(params.modeArm(v));
+    card.appendChild(modeSlot);
     if (v.pathos.length) {
       const p = el("div", { class: "pathos" });
       for (const r of v.pathos) p.appendChild(el("span", { class: "pchip" }, `${r.key} ${r.count}`));
@@ -264,6 +286,9 @@ export interface FrameStoryParams {
   endLabel?: string;
   /** the standpoint reading this frame. */
   standpoint?: string;
+  /** the TASTE arm for any interior beats rendered as cards (leaf beats, and drill-in
+   *  affordances at the depth cap). Threaded down to cardStory — see CardStoryParams.modeArm. */
+  modeArm: ModeArm;
 }
 
 export function frameStory(soc: Society, params: FrameStoryParams, depth = 0): Node {
@@ -292,13 +317,20 @@ export function frameStory(soc: Society, params: FrameStoryParams, depth = 0): N
     // TODO(socratic): cardParams builds an object conditionally — why not always include standpoint (even if undefined) and let the card ignore it, rather than building two different shapes?
     // pass standpoint only when defined (exactOptionalPropertyTypes)
     const sp = params.standpoint;
-    const cardParams = (slug: string) => (sp !== undefined ? { slug, standpoint: sp } : { slug });
+    const cardParams = (slug: string) =>
+      (sp !== undefined ? { slug, standpoint: sp, modeArm: params.modeArm } : { slug, modeArm: params.modeArm });
     for (const slug of v.interior) {
       const beatIsStory = isStory(soc, slug);
       // TODO(socratic): depth < 1 means depth 0 gets recursion but depth 1+ doesn't — but why is 1 the cap instead of allowing more levels, and what does "unreadable" look like in practice?
       if (beatIsStory && depth < 1) {
         // ONE LEVEL of recursion: nest a sub-frame for this interior story.
-        body.appendChild(frameStory(soc, sp !== undefined ? { once: slug, standpoint: sp } : { once: slug }, depth + 1));
+        body.appendChild(frameStory(
+          soc,
+          sp !== undefined
+            ? { once: slug, standpoint: sp, modeArm: params.modeArm }
+            : { once: slug, modeArm: params.modeArm },
+          depth + 1,
+        ));
       } else if (beatIsStory) {
         // depth cap reached: a story-beat becomes a drill-in affordance, NOT another bracket.
         const card = cardStory(soc, cardParams(slug));
@@ -563,14 +595,21 @@ export interface ListStoryParams {
   item?: (soc: Society, slug: string) => Node;
   standpoint?: string;
   class?: string;
+  /** the TASTE arm, used only by the default per-item card render (ignored if `item` is
+   *  supplied — the caller's own `item` owns its own taste then). */
+  modeArm?: ModeArm;
 }
 
 export function listStory(soc: Society, params: ListStoryParams): Node {
   const container = el("div", { class: `story-list ${params.class ?? ""}` });
   const read = reading(soc, (s) => params.slice(s));
   // TODO(socratic): renderItem conditionally includes standpoint to match frameStory's cardParams pattern — is there a reason these two can't both always pass standpoint (even if undefined) and let the downstream ignore it?
-  const renderItem = params.item ?? ((s: Society, slug: string) =>
-    cardStory(s, params.standpoint !== undefined ? { slug, standpoint: params.standpoint } : { slug }));
+  const renderItem = params.item ?? ((s: Society, slug: string) => {
+    if (!params.modeArm) throw new Error("listStory: default card render needs params.modeArm (the taste arm) when no params.item is supplied");
+    return cardStory(s, params.standpoint !== undefined
+      ? { slug, standpoint: params.standpoint, modeArm: params.modeArm }
+      : { slug, modeArm: params.modeArm });
+  });
   projectList(read, container, {
     key: (slug) => slug,
     render: (slug) => renderItem(soc, slug),
@@ -606,10 +645,12 @@ export interface ViewCardParams {
   /** reify: make this told-short card an actual story (lay its End + duration + between).
    *  Given, the card shows a "reify" affordance. The caller re-renders after. */
   onReify?: (slug: string) => void;
+  /** the TASTE arm — threaded to cardStory (leaf) and frameStory (interior cards). */
+  modeArm: ModeArm;
 }
 
 export function viewCardStory(soc: Society, params: ViewCardParams): Node {
-  const { slug, standpoint: sp, onOpen, onReify } = params;
+  const { slug, standpoint: sp, onOpen, onReify, modeArm } = params;
   // TODO(socratic): why build common conditionally instead of always passing the optionals (even if undefined) to cardStory and frameStory — does passing undefined break something?
   const common = {
     ...(sp !== undefined ? { standpoint: sp } : {}),
@@ -621,9 +662,9 @@ export function viewCardStory(soc: Society, params: ViewCardParams): Node {
     // already a story — tell it long (no reify affordance; it's already bounded).
     const { onReify: _drop, ...frameCommon } = common as typeof common & { onReify?: unknown };
     void _drop;
-    return frameStory(soc, { once: slug, ...frameCommon });
+    return frameStory(soc, { once: slug, ...frameCommon, modeArm });
   }
-  return cardStory(soc, { slug, ...common });
+  return cardStory(soc, { slug, ...common, modeArm });
 }
 
 // ── BOARD STORY — "a board is a row of Lists, each over its own slice." ─────────
@@ -647,14 +688,21 @@ export interface BoardStoryParams {
   item?: (soc: Society, slug: string) => Node;
   standpoint?: string;
   class?: string;
+  /** the TASTE arm, used only by the default per-item render (ignored if `item` is
+   *  supplied — the caller's own `item` owns its own taste then). */
+  modeArm?: ModeArm;
 }
 
 export function boardStory(soc: Society, params: BoardStoryParams): Node {
   const board = el("div", { class: `story-board ${params.class ?? ""}` });
   const sp = params.standpoint;
   // TODO(socratic): why does boardStory pass standpoint conditionally to viewCardStory (matching listStory), but what if both could unconditionally pass all optionals?
-  const renderItem = params.item ?? ((s: Society, slug: string) =>
-    viewCardStory(s, sp !== undefined ? { slug, standpoint: sp } : { slug }));
+  const renderItem = params.item ?? ((s: Society, slug: string) => {
+    if (!params.modeArm) throw new Error("boardStory: default card render needs params.modeArm (the taste arm) when no params.item is supplied");
+    return viewCardStory(s, sp !== undefined
+      ? { slug, standpoint: sp, modeArm: params.modeArm }
+      : { slug, modeArm: params.modeArm });
+  });
 
   for (const col of params.columns) {
     const column = el("div", { class: "board-column" });
@@ -718,6 +766,8 @@ export interface DropStoryParams {
   buckets: DropBucket[];
   /** how to render each target card (default: a View Card — leaf→card, story→frame). */
   item?: (soc: Society, slug: string) => Node;
+  /** the TASTE arm, used only by the default `item` render (ignored if `item` is supplied). */
+  modeArm?: ModeArm;
 }
 
 /** dropStory: a lane of targets, each a drop-zone that, on drop of A, blooms a small
@@ -727,7 +777,10 @@ export interface DropStoryParams {
  *  when the society appends, so the drop only ever LAYS — the re-derivation is the cards'
  *  own, by construction. Returns the lane node. */
 export function dropStory(soc: Society, params: DropStoryParams): Node {
-  const drawCard = params.item ?? ((s: Society, slug: string) => viewCardStory(s, { slug }));
+  const drawCard = params.item ?? ((s: Society, slug: string) => {
+    if (!params.modeArm) throw new Error("dropStory: default card render needs params.modeArm (the taste arm) when no params.item is supplied");
+    return viewCardStory(s, { slug, modeArm: params.modeArm });
+  });
   const lane = el("div", { class: "drop-lane" });
 
   // TODO(socratic): why check a === b in fire, when a comes from the dragged card and b from the drop target — can the UI allow dragging a card onto itself?

@@ -638,9 +638,10 @@ export interface ListStoryParams {
    *  default render only (rows built by this function's own eventView calls) — a
    *  caller-supplied `item` owns its own DOM and isn't auto-wired. If `massOf` is also
    *  given, each row's resolved mass is threaded through as fisheye's
-   *  `perElementMass` seam (see fisheye.ts's honest note on why that's a widening
-   *  judgment call, not a full physical fold-in of the harvested engine's per-motion
-   *  mass scalar) — omit `massOf` for identical-to-bare-fisheye output. */
+   *  `perElementMass` seam — per Hallie's MASS DECISION, that mass now drives each
+   *  row's ENDPOINT FRICTION (later breakaway, firmer settle), not visual size and
+   *  not glide speed; see fisheye.ts's perElementMass doc comment for the physics —
+   *  omit `massOf` for identical-to-bare-fisheye output. */
   fisheye?: boolean | FisheyeOpts;
 }
 

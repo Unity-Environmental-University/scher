@@ -72,18 +72,24 @@ export interface FisheyeOpts {
   /** Coulomb kinetic friction (constant drag during the slide). Hallie's final default: 28. */
   dynamicFriction?: number;
   /** MASS-HOOK SEAM (scher-side addition, not in the harvested engine): optional
-   *  per-element mass override, read positionally against `elements`. The harvested
-   *  physics model's `mass` is a single scalar shared by the whole spring/friction
-   *  integrator (inertia of the MOTION, not a per-item weight) — there is no per-element
-   *  slot in the ported physics to plug a row's data-mass/--mass into today. This array
-   *  is accepted and, if present, its AVERAGE (or the focused element's own entry, when
-   *  set) can widen/narrow that element's peak scale — see computeScales below for the
-   *  honest, tentative wiring. Left undefined = identical output to the harvested engine.
-   *  NOTE (see the honest report to the caller): this is a real seam, not a full physical
-   *  fold-in. The harvested engine's `mass` is a global spring inertia; per-row mass
-   *  is a DIFFERENT physical quantity (how heavy correlates with how much distortion),
-   *  so wiring it in as "makes this row's peak scale bigger" is a scher-side judgment
-   *  call, not a port of anything Hallie signed off on for per-element weighting yet.
+   *  per-element mass override, read positionally against `elements`. Hallie's MASS
+   *  DECISION (grounded, 2026-07-09): per-task mass is WEIGHT AT THE ENDPOINTS of the
+   *  motion, not lag and not (primarily) visual size — "come out of its socket a
+   *  little heavier and land a little heavier." A heavier element gets a HIGHER
+   *  effective static/breakaway friction (resists leaving its resting spot) and a
+   *  FIRMER kinetic-friction settle (clicks down harder on arrival), while the
+   *  mid-motion glide (transitionMs, the CSS timescale) is UNCHANGED across mass —
+   *  heavier must never read as slower/laggy. See frictionForMass and
+   *  computeElementEasing below for the per-element friction scaling and the
+   *  memoized per-mass easing sampling this requires. Left undefined = identical
+   *  output to the harvested engine (one shared transitionEasing for every row, no
+   *  extra sampling cost).
+   *
+   *  SUPERSEDED READING (kept only as history): an earlier wiring here widened each
+   *  row's along-axis peak scale by sqrt(mass) — heavier rendered BIGGER. Hallie's
+   *  decision names that visual-size reading as NOT primary; it has been removed
+   *  (computeScales no longer reads perElementMass at all) in favor of the
+   *  endpoint-friction wiring below.
    */
   perElementMass?: Array<number | undefined>;
 }
@@ -282,6 +288,43 @@ export function gaussianFalloff(distance: number, peakScale: number, sigma: numb
   return 1 + (peakScale - 1) * bump;
 }
 
+// ── PER-ELEMENT MASS -> ENDPOINT FRICTION (Hallie's MASS DECISION) ──────────────
+// Heavier mass scales UP both the static (breakaway) and dynamic (kinetic/settle)
+// friction thresholds fed into sampleFrictionSpringCurve, for THAT element only —
+// never stiffness/damping/mass (the spring's own inertia) and never transitionMs
+// (the CSS timescale the sampled shape plays over). Concretely, in the friction
+// integrator (see sampleFrictionSpringCurve above): a higher staticFriction means
+// the resting spring force takes longer to exceed the "stuck" threshold, so the
+// element grips its start position longer before yielding — later breakaway. A
+// higher dynamicFriction bleeds velocity faster throughout the slide, so the
+// friction-arrested plateau (the snap-to-1 smoothstep tail) starts earlier and the
+// curve reads 1 more decisively — firmer settle. Both read off the SAME reference
+// duration (SHAPE_REFERENCE_MS) as the base curve, so only the SHAPE changes; the
+// CSS transition-duration (glide speed) that plays it back is mass-independent.
+//
+// The scale factor is gentle and sqrt-shaped (mass 1 = baseline/no-op; mass 4 =
+// 2x friction; mass 9 = 3x), mirroring the same "diminishing returns, no runaway"
+// judgment the harvested engine already uses for its own falloff curves — a linear
+// mass->friction scale let one very heavy row's static threshold exceed the spring
+// force at rest entirely (never yielding at all), which is a real UI break, not a
+// stylistic choice; sqrt keeps it bounded and legible instead.
+const MASS_FRICTION_FLOOR = 0.4; // a very light element still grips a LITTLE, doesn't go frictionless/jittery.
+
+export function frictionForMass(
+  baseStaticFriction: number,
+  baseDynamicFriction: number,
+  mass: number | undefined,
+): { staticFriction: number; dynamicFriction: number } {
+  if (mass === undefined || mass <= 0) {
+    return { staticFriction: baseStaticFriction, dynamicFriction: baseDynamicFriction };
+  }
+  const scale = Math.max(MASS_FRICTION_FLOOR, Math.sqrt(mass));
+  return {
+    staticFriction: baseStaticFriction * scale,
+    dynamicFriction: baseDynamicFriction * scale,
+  };
+}
+
 // SHAPE VS CLOCK: the physics is integrated ONCE at a fixed reference duration long
 // enough to fully settle, producing a frozen normalized 0->1 linear() curve. transitionMs
 // is then purely the CSS transition-duration that frozen shape plays over (a true uniform
@@ -346,6 +389,31 @@ export function createFisheye(
     transitionEasing = easing;
   }
 
+  // PER-ELEMENT EASING (Hallie's MASS DECISION): when perElementMass varies, the
+  // shared transitionEasing above isn't enough — a heavier row needs its OWN
+  // friction-scaled curve (later breakaway, firmer settle), sampled once per
+  // distinct mass value and memoized (sampleFrictionSpringCurve's internal Euler
+  // integration is the expensive part; re-running it per element with the SAME mass
+  // would be pure waste). Elements with no mass entry (or the same mass as the
+  // shared default) reuse transitionEasing untouched — no sampling cost when
+  // perElementMass is omitted, matching the doc comment's "identical output, no
+  // extra cost" promise.
+  const easingByMassCache = new Map<number, string>();
+  function computeElementEasing(index: number): string {
+    if (reduceMotion || easing !== "spring") return transitionEasing;
+    const m = perElementMass?.[index];
+    if (m === undefined || m <= 0) return transitionEasing;
+    const cached = easingByMassCache.get(m);
+    if (cached) return cached;
+    const { staticFriction: sf, dynamicFriction: df } = frictionForMass(staticFriction, dynamicFriction, m);
+    const sampled =
+      sf > 0 || df > 0
+        ? sampleFrictionSpringToLinear(stiffness, damping, mass, sf, df, SHAPE_REFERENCE_MS, 48)
+        : sampleSpringToLinear(stiffness, damping, mass, SHAPE_REFERENCE_MS, 48);
+    easingByMassCache.set(m, sampled);
+    return sampled;
+  }
+
   // BOX-SCALE SETUP: each element gets an inner content wrapper so along-axis growth
   // resizes the BOX, never a transform-scale on the text.
   const states: FisheyeElState[] = elements.map((el) => {
@@ -371,21 +439,18 @@ export function createFisheye(
   });
   const baseSizes = states.map((s) => s.baseSize);
 
-  function computeScales(distance: number, index: number): { along: number; ortho: number } {
+  function computeScales(distance: number, _index: number): { along: number; ortho: number } {
     let rawAlong: number;
     let rawOrtho: number;
-    // MASS-HOOK SEAM: if perElementMass carries a value for this index, widen the
-    // along-peak proportionally (heavier rows read as "wanting more room" when
-    // focused). Deliberately gentle (sqrt-scaled) and a no-op when unset — see the
-    // FisheyeOpts.perElementMass doc comment for why this is a judgment call, not a
-    // faithful physical fold-in of the harvested engine's scalar `mass`.
-    const m = perElementMass?.[index];
-    const massAlongPeak = m !== undefined && m > 0 ? alongPeakScale * Math.sqrt(m) : alongPeakScale;
+    // Hallie's MASS DECISION: per-element mass no longer widens visual peak scale here
+    // (that "heavier = bigger" reading was named NOT primary — see the
+    // FisheyeOpts.perElementMass doc comment's SUPERSEDED READING). Mass now drives
+    // per-element FRICTION (see computeElementEasing below); size is mass-independent.
     if (falloffMode === "curve") {
       rawAlong = alongScaleCurve[Math.min(distance, alongScaleCurve.length - 1)]!;
       rawOrtho = orthoScaleCurve[Math.min(distance, orthoScaleCurve.length - 1)]!;
     } else {
-      rawAlong = gaussianFalloff(distance, massAlongPeak, sigma);
+      rawAlong = gaussianFalloff(distance, alongPeakScale, sigma);
       rawOrtho = gaussianFalloff(distance, orthoPeakScale, sigma);
     }
     return {
@@ -471,11 +536,14 @@ export function createFisheye(
 
   elements.forEach((el, i) => {
     el.style.transformOrigin = transformOrigin;
+    // glide duration (transitionDuration) is the SAME for every element regardless
+    // of mass — only the eased SHAPE (breakaway grip + settle firmness) varies.
+    const elEasing = computeElementEasing(i);
     el.style.transition =
-      `transform ${transitionDuration} ${transitionEasing}, ` +
-      `height ${transitionDuration} ${transitionEasing}, ` +
-      `width ${transitionDuration} ${transitionEasing}, ` +
-      `flex-basis ${transitionDuration} ${transitionEasing}`;
+      `transform ${transitionDuration} ${elEasing}, ` +
+      `height ${transitionDuration} ${elEasing}, ` +
+      `width ${transitionDuration} ${elEasing}, ` +
+      `flex-basis ${transitionDuration} ${elEasing}`;
     const base = baseSizes[i]!;
     el.style.flex = `0 0 ${base}px`;
   });

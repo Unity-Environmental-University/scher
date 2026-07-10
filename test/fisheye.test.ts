@@ -26,6 +26,7 @@ import {
   sampleFrictionSpringCurve,
   sampleFrictionSpringToLinear,
   gaussianFalloff,
+  frictionForMass,
 } from "../src/fisheye.js";
 import { Society } from "../src/society.js";
 import { listStory } from "../src/stories.js";
@@ -121,6 +122,85 @@ describe("fisheye.ts — spring+friction curve shape (Hallie's final params)", (
   });
 });
 
+describe("frictionForMass — Hallie's MASS DECISION (endpoint weight, not size/lag)", () => {
+  it("is a no-op at mass undefined / 0 (identical to unweighted output)", () => {
+    expect(frictionForMass(34, 28, undefined)).toEqual({ staticFriction: 34, dynamicFriction: 28 });
+    expect(frictionForMass(34, 28, 0)).toEqual({ staticFriction: 34, dynamicFriction: 28 });
+  });
+
+  it("scales BOTH static and dynamic friction up for heavier mass, sqrt-shaped", () => {
+    const base = frictionForMass(34, 28, 1);
+    const heavy = frictionForMass(34, 28, 4); // sqrt(4) = 2x
+    expect(heavy.staticFriction).toBeCloseTo(base.staticFriction * 2, 6);
+    expect(heavy.dynamicFriction).toBeCloseTo(base.dynamicFriction * 2, 6);
+  });
+
+  it("never zeroes out friction for a very light element (floor keeps a little grip)", () => {
+    const veryLight = frictionForMass(34, 28, 0.001);
+    expect(veryLight.staticFriction).toBeGreaterThan(0);
+    expect(veryLight.dynamicFriction).toBeGreaterThan(0);
+  });
+});
+
+describe("fisheye.ts — per-element mass drives endpoint friction, not glide speed", () => {
+  // A friction-dominated spring config (lower stiffness/mass than Hallie's snappy
+  // canonical params, where the underdamped oscillation swamps the friction signal
+  // in the first few samples) makes both effects legible for assertion — the SAME
+  // frictionForMass wiring is exercised either way; this just picks params where
+  // neither effect is hidden behind a fast oscillation.
+  it("higher mass -> later breakaway (flatter start) AND firmer settle (no overshoot wobble), same duration", () => {
+    const lightFriction = frictionForMass(34, 28, 0.1);
+    const heavyFriction = frictionForMass(34, 28, 1);
+    const light = sampleFrictionSpringCurve(200, 20, 2, lightFriction.staticFriction, lightFriction.dynamicFriction, 3000, 48);
+    const heavy = sampleFrictionSpringCurve(200, 20, 2, heavyFriction.staticFriction, heavyFriction.dynamicFriction, 3000, 48);
+
+    // LATER BREAKAWAY: the heavier (higher static+dynamic friction) curve stays
+    // CLOSER to its resting value (0) than the lighter one at every early sample —
+    // it grips its socket longer before yielding.
+    for (const i of [1, 2, 3, 4, 5]) {
+      expect(heavy[i]!).toBeLessThan(light[i]!);
+    }
+
+    // FIRMER SETTLE: the lighter curve overshoots past 1 and wobbles back down (a
+    // soft, springy landing); the heavier curve's extra kinetic friction bleeds that
+    // overshoot away — it arrives at (near) 1 without swinging past it, a firmer
+    // "click" rather than a bounce.
+    const lightOvershoot = Math.max(...light) - 1;
+    const heavyOvershoot = Math.max(...heavy) - 1;
+    expect(lightOvershoot).toBeGreaterThan(0.05); // the light curve visibly overshoots
+    expect(heavyOvershoot).toBeLessThan(lightOvershoot); // heavier overshoots much less (or none)
+
+    // both curves still start at 0 and end at 1 — friction reshapes the journey
+    // (breakaway + settle timing), it never changes the endpoints.
+    expect(heavy[0]).toBe(0);
+    expect(heavy[heavy.length - 1]).toBe(1);
+    expect(light[0]).toBe(0);
+    expect(light[light.length - 1]).toBe(1);
+  });
+
+  it("frictionForMass scaling holds at Hallie's canonical spring params too (later breakaway, firmer settle, same endpoints)", () => {
+    const lightFriction = frictionForMass(34, 28, 0.5);
+    const heavyFriction = frictionForMass(34, 28, 9);
+    const light = sampleFrictionSpringCurve(715, 27, 5.9, lightFriction.staticFriction, lightFriction.dynamicFriction, 3000, 48);
+    const heavy = sampleFrictionSpringCurve(715, 27, 5.9, heavyFriction.staticFriction, heavyFriction.dynamicFriction, 3000, 48);
+
+    // even at these snappy params (spring dominates fast), heavier friction still
+    // pulls the very-early samples down (later breakaway) ...
+    for (const i of [1, 2, 3]) {
+      expect(heavy[i]!).toBeLessThan(light[i]!);
+    }
+    // ... and bleeds the overshoot down (firmer settle, less springy bounce).
+    const lightOvershoot = Math.max(...light) - 1;
+    const heavyOvershoot = Math.max(...heavy) - 1;
+    expect(heavyOvershoot).toBeLessThan(lightOvershoot);
+
+    expect(heavy[0]).toBe(0);
+    expect(heavy[heavy.length - 1]).toBe(1);
+    expect(light[0]).toBe(0);
+    expect(light[light.length - 1]).toBe(1);
+  });
+});
+
 describe("fisheye.ts — createFisheye wiring on real elements", () => {
   function makeRows(n: number): { container: HTMLDivElement; rows: HTMLDivElement[] } {
     const container = document.createElement("div");
@@ -175,6 +255,57 @@ describe("fisheye.ts — createFisheye wiring on real elements", () => {
     // applyMagnification/resetMagnification), so it stays unset, not swelled to peak.
     expect(rows[0]!.style.height).toBe("");
     expect(rows[0]!.style.flex).toBe("0 0 40px");
+  });
+
+  it("perElementMass gives heavier rows a DIFFERENT wired easing than lighter rows, same transitionMs", () => {
+    const { container, rows } = makeRows(3);
+    const handle = createFisheye(container, rows, {
+      ...HALLIE_PARAMS,
+      baseSizePx: 40,
+      perElementMass: [0.5, undefined, 9],
+    });
+    try {
+      const easingOf = (row: HTMLElement) => {
+        const match = row.style.transition.match(/linear\(([^)]*)\)/);
+        return match![1]!;
+      };
+      const lightEasing = easingOf(rows[0]!);
+      const defaultEasing = easingOf(rows[1]!); // no mass entry -> shared/base easing
+      const heavyEasing = easingOf(rows[2]!);
+
+      // the sampled shapes differ by mass — not the same curve reused verbatim.
+      expect(heavyEasing).not.toBe(lightEasing);
+      expect(heavyEasing).not.toBe(defaultEasing);
+
+      // but the GLIDE DURATION (transitionMs, the timescale) is identical across
+      // all three rows — heavier must never read as slower.
+      for (const row of rows) {
+        expect(row.style.transition).toContain(`${HALLIE_PARAMS.transitionMs}ms`);
+      }
+    } finally {
+      handle.teardown();
+    }
+  });
+
+  it("perElementMass no longer changes box size — endpoint friction is primary, not visual size", () => {
+    const { container: containerA, rows: rowsA } = makeRows(3);
+    const handleA = createFisheye(containerA, rowsA, { ...HALLIE_PARAMS, baseSizePx: 40 });
+    const { container: containerB, rows: rowsB } = makeRows(3);
+    const handleB = createFisheye(containerB, rowsB, {
+      ...HALLIE_PARAMS,
+      baseSizePx: 40,
+      perElementMass: [1, 1, 25], // row 2 (the focused one below) is very heavy
+    });
+    try {
+      rowsA[2]!.dispatchEvent(new Event("mouseover", { bubbles: true }));
+      rowsB[2]!.dispatchEvent(new Event("mouseover", { bubbles: true }));
+      // same box-grow with or without a heavy perElementMass entry — mass no longer
+      // widens the along-peak (the superseded reading named non-primary).
+      expect(rowsB[2]!.style.height).toBe(rowsA[2]!.style.height);
+    } finally {
+      handleA.teardown();
+      handleB.teardown();
+    }
   });
 });
 

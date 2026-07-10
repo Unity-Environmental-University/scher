@@ -1224,20 +1224,34 @@ export function bearingsOf(soc: Society, event: string, asOf?: number): EventRow
   );
 }
 
-/** storyBearingsOf: bearings inherited via story membership. If this beat is in a
- *  story's interval (between its Once and End), return the story's own bearings
- *  (because-edges from the story's Once to sublime-poles). Empty if the beat is not
- *  in any story's interval. (Placeholder: full implementation of climb-membership
- *  and story-interval-checking is chartered for next pass; shape is proven.) */
+/** storyBearingsOf: bearings inherited via story membership. Membership is betweenness,
+ *  never a stored edge (the settled gen3 law — see dropStory/place in stories.ts): a
+ *  story stands as its OWN Once (the pole law, 2026-07-06), so a story `s` contains
+ *  `beat` iff `beat` falls in intervalOf(s, endOf(s)) — the causal diamond between the
+ *  story and its End. For every content beat that is a story and contains `beat` this
+ *  way, climb to that story's Once (the story itself) and return its bearings — the
+ *  because-edges from the story to sublime-poles. If `beat` is in multiple stories'
+ *  intervals, union the inherited bearings, deduplicated by sublime-pole (a beat should
+ *  not double-count a star it reaches via two containing stories). Empty if the beat is
+ *  not in any story's interval. */
 export function storyBearingsOf(soc: Society, beat: string, asOf?: number): EventRow[] {
-  // TODO(discernment-scout-2026-07-06): climb membership to find the story's Once,
-  // then return bearingsOf(once). This is the template for the next pass:
-  // 1. Find all stories that could contain this beat (stories whose ends are reachable
-  //    from the beat via reverse betweenness).
-  // 2. For each story, climb to its Once and return its bearings.
-  // 3. Aggregate and deduplicate by sublime-pole.
-  // For now, return empty array; the shape is proven and documented.
-  return [];
+  const seen = new Set<string>();
+  const out: EventRow[] = [];
+  for (const b of contentBeats(soc)) {
+    const story = b.slug;
+    if (!isStory(soc, story)) continue;
+    const end = endOf(soc, story);
+    if (!end) continue;
+    const interior = intervalOf(soc, story, end);
+    if (!interior.includes(beat)) continue;
+    for (const bearing of bearingsOf(soc, story, asOf)) {
+      if (bearing.object && !seen.has(bearing.object)) {
+        seen.add(bearing.object);
+        out.push(bearing);
+      }
+    }
+  }
+  return out;
 }
 
 /** voltageTowardSublime: count of non-occluded bare prehensions onto this sublime,

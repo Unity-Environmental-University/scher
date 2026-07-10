@@ -16,7 +16,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { Society, isSublimePole, bearingsOf, voltageTowardSublime, serviceChainOf, reachedSublimesOf } from "../src/society.js";
+import { Society, isSublimePole, bearingsOf, voltageTowardSublime, serviceChainOf, reachedSublimesOf, storyBearingsOf, layCharge } from "../src/society.js";
 
 describe("sublimes-store: never-closing poles for navigation", () => {
   describe("isSublimePole: identification of sublime-poles", () => {
@@ -316,6 +316,74 @@ describe("sublimes-store: never-closing poles for navigation", () => {
       expect(voltageTowardSublime(s, excellence)).toBe(1);
       expect(voltageTowardSublime(s, learning)).toBe(1);
       expect(voltageTowardSublime(s, perseverance)).toBe(1);
+    });
+  });
+
+  // ── storyBearingsOf: bearings inherited via story membership (2026-07-10 build) ──
+  describe("storyBearingsOf: bearings a beat inherits via its containing story", () => {
+    it("a beat inside a story's interval inherits the story's own bearing to a sublime", () => {
+      const s = new Society();
+      const sprint = "sprint";
+      const excellence = "excellence";
+
+      s.lay({ slug: sprint, content: "a sprint", subject: null, object: null });
+      s.lay({ slug: excellence, content: "excellence", subject: null, object: null });
+      s.layP("exc~pole", "excellence", "excellence", excellence, "q-sublime-pole");
+
+      // The sprint (as its own Once) bears toward excellence.
+      s.layP("sprint~bear~exc", "sprint aims at excellence", sprint, excellence, "because");
+
+      // Place a beat in the sprint's interval: a plain edge from the sprint (Once) to
+      // the beat puts it in the forward-cone, and layCharge's bare charge-prehension
+      // from the beat onto the (lazily-unpacked) open End puts it in the backward-cone
+      // too — together, intervalOf's betweenness reads the beat as a member.
+      const beat = "write-the-doc";
+      s.lay({ slug: beat, content: "write the doc", subject: null, object: null });
+      s.layP("sprint~to~beat", "sprint contains beat", sprint, beat, "q-grounding");
+      layCharge(s, sprint, beat, "presses toward the End");
+
+      const inherited = storyBearingsOf(s, beat);
+      expect(inherited).toHaveLength(1);
+      expect(inherited[0].object).toBe(excellence);
+    });
+
+    it("a beat in no story's interval returns empty", () => {
+      const s = new Society();
+      s.lay({ slug: "orphan-beat", content: "unaffiliated", subject: null, object: null });
+      expect(storyBearingsOf(s, "orphan-beat")).toHaveLength(0);
+    });
+
+    it("a beat in multiple stories' intervals unions the inherited bearings, deduplicated", () => {
+      const s = new Society();
+      const storyA = "story-a";
+      const storyB = "story-b";
+      const excellence = "excellence";
+      const learning = "learning";
+
+      s.lay({ slug: storyA, content: "story a", subject: null, object: null });
+      s.lay({ slug: storyB, content: "story b", subject: null, object: null });
+      s.lay({ slug: excellence, content: "excellence", subject: null, object: null });
+      s.lay({ slug: learning, content: "learning", subject: null, object: null });
+      s.layP("exc~pole", "excellence", "excellence", excellence, "q-sublime-pole");
+      s.layP("learn~pole", "learning", "learning", learning, "q-sublime-pole");
+
+      s.layP("a~bear~exc", "a aims at excellence", storyA, excellence, "because");
+      s.layP("b~bear~learn", "b aims at learning", storyB, learning, "because");
+      // Also give story B the SAME bearing as story A, to prove dedup by sublime-pole.
+      s.layP("b~bear~exc", "b aims at excellence too", storyB, excellence, "because");
+
+      const beat = "shared-beat";
+      s.lay({ slug: beat, content: "shared beat", subject: null, object: null });
+      s.layP("a~to~beat", "a contains beat", storyA, beat, "q-grounding");
+      layCharge(s, storyA, beat, "presses toward A's End");
+      s.layP("b~to~beat", "b contains beat", storyB, beat, "q-grounding");
+      layCharge(s, storyB, beat, "presses toward B's End");
+
+      const inherited = storyBearingsOf(s, beat);
+      const objects = inherited.map((b) => b.object);
+      // Excellence appears once (deduped across story A and story B), learning once.
+      expect(new Set(objects)).toEqual(new Set([excellence, learning]));
+      expect(objects).toHaveLength(2);
     });
   });
 

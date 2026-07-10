@@ -253,29 +253,42 @@ impl Society {
                  sublime-never-closes)"
             ));
         }
-        // SUBLIME-DAG GUARD (blocking — mirrors society.ts assertSublimeAcyclic, Hallie's
-        // 2026-07-06 chaining extension): sublimes may CHAIN (A ~because~ B = A serves B),
-        // forming a DAG of stars — but the chain must stay ACYCLIC. A bearing that would
-        // close a cycle among sublime-poles (A serves B serves ... serves A) is a closed
-        // loop of mutual beckoning with no ground — q-lure wearing a halo. Detected via a
-        // bounded reachability walk: if `object` already reaches `subject` through
-        // sublime-poles, the new edge closes a cycle. A sublime points UP toward the
-        // ever-receding, never back into a ring.
-        if quality == "because"
-            && is_sublime_pole(self, subject, None)
-            && is_sublime_pole(self, object, None)
-            && reaches(self, object, subject, "because", None)
-        {
-            return Err(format!(
-                "[ANTI-Q-LURE GUARANTEE] '{slug}' lays a sublime-bearing '{subject}' \
-                 ~because~ '{object}' that would close a CYCLE among sublime-poles \
-                 ('{object}' already serves '{subject}' transitively). A cycle of \
-                 never-closing poles is a closed loop of mutual beckoning with no ground — \
-                 q-lure wearing a halo. A sublime points UP toward the ever-receding, never \
-                 back into a ring. Fix: re-aim the bearing UP the DAG (serve a HIGHER star). \
-                 (law: sublime-dag-acyclic)"
-            ));
-        }
+        // SUBLIME↔SUBLIME PREHENSION (Hallie, 2026-07-10): "The SUBLIME is the limit of all
+        // future events taken to infinity, so we can start to do weird shit up there.
+        // Sublimes should be able to ground in other sublimes, and sublimes can be mutually
+        // prehensive. The sublime is where we let those things happen because it's a little
+        // outside of time." And, the truest framing (2026-07-10): "Sublimes are mirages on
+        // the surface of the sublime's event horizon." THE sublime is the event horizon — the
+        // limit-of-representation where information gives out (V=0, the outer ground of the
+        // representable; the sublime is what you gesture at by taking an infinite series to
+        // where your information gives out). The individual sublime-POLES we designate are
+        // MIRAGES on that surface, not destinations past it. This single image grounds BOTH
+        // halves of the cut: mirages-on-a-horizon can reflect/hold each other (a ring, no
+        // in-time causality among mirages), yet you can never LAND on a mirage (reaching for
+        // one as an actual destination is the q-lure; the horizon recedes).
+        //
+        // The OLD sublime-dag-acyclic guard once refused a bare "because" bearing that would
+        // close a cycle among sublime-poles (A serves B serves ... serves A), calling it
+        // "q-lure wearing a halo." That was importing a rule ABOUT TIME into a place outside
+        // it. Acyclicity is a *time* constraint: down in the actual world occasions are
+        // discrete, perished, strictly time-ordered, so a causal chain that cycled would be a
+        // paradox. But a sublime is the LIMIT POINT of the sequence of all futures; at that
+        // limit time's grip relaxes. Two aims CAN mutually prehend; a RING of "because"
+        // bearings is a constellation of stars holding each other's positions — not a causal
+        // paradox. So the acyclic refusal is REMOVED for the sublime↔sublime case: a ring of
+        // sublime-bearings is now allowed (mutual prehension).
+        //
+        // THE BOUNDARY THAT STAYS (the in-time-vs-timeless cut): aim→aim is a BEARING (the
+        // bare "because" service-edge), NOT a q-grounding. A q-grounding ACTUALIZES/closes
+        // its subject — that is itself a time operation (settling an occasion into the
+        // perished past). So sublimes prehending each other never means q-grounding OUT of a
+        // sublime; it stays a bare bearing. That is exactly why the sublime-never-closes
+        // guard ABOVE is left untouched: an in-time occasion (or the sublime itself) trying
+        // to CLOSE a sublime with q-grounding — trying to LAND on the mirage, actualizing the
+        // limit point, dragging the ever-receding horizon down into time — is the real q-lure,
+        // and stays REFUSED. We
+        // relax the ring (timeless mutual bearing) without opening the close (actualizing the
+        // limit). No new guard is needed here: the bare "because" ring is now simply legal.
         let a = self.lay(EventRow::edge(slug, content, subject, object));
         let q_slug = format!("{slug}~q");
         let q_content = format!("{content} [{quality}]");

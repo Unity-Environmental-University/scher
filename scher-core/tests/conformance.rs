@@ -814,20 +814,31 @@ fn sublimes_chain_and_service_chain_walks_up_the_dag() {
 }
 
 #[test]
-fn a_cycle_among_sublimes_will_not_work() {
+fn a_ring_of_sublimes_may_mutually_prehend() {
+    // FLIPPED 2026-07-10 (Hallie: "sublimes can be mutually prehensive ... a little outside
+    // of time"). This test used to be `a_cycle_among_sublimes_will_not_work` and asserted
+    // that a ring of sublime-bearings was REFUSED (sublime-dag-acyclic). Acyclicity is a
+    // rule ABOUT TIME; a sublime is the limit of all futures at infinity, outside time, where
+    // a ring of "because" bearings is a constellation of stars holding each other's positions,
+    // not a causal paradox. The acyclic refusal is removed for the sublime↔sublime case.
     let mut soc = Society::new();
     make_sublime(&mut soc, "a");
     make_sublime(&mut soc, "b");
     make_sublime(&mut soc, "c");
     soc.lay_p("a~serves~b", "serves", "a", "b", "because").unwrap();
     soc.lay_p("b~serves~c", "serves", "b", "c", "because").unwrap();
-    // c → a closes the ring a → b → c → a. REFUSE.
-    let refused = soc.lay_p("c~serves~a", "serves", "c", "a", "because");
-    let err = refused.expect_err("closing a sublime-DAG cycle must be REFUSED, not silently laid");
-    assert!(err.contains("sublime-dag-acyclic"), "refusal must name its law: {err}");
+    // c → a closes the ring a → b → c → a. Now ALLOWED (mutual prehension among sublimes).
+    let ring = soc.lay_p("c~serves~a", "serves", "c", "a", "because");
+    assert!(ring.is_ok(), "a sublime ring must be ALLOWED, not refused: {ring:?}");
 
-    // ANTI-Q-LURE GUARANTEE, mechanism-not-content: the kernel stays usable right after —
-    // prove it by successfully laying another, non-cyclic edge in the same society.
+    // The in-time-vs-timeless boundary that STAYS: q-grounding OUT of a sublime (actualizing
+    // the limit point) is still the real q-lure and stays REFUSED by sublime-never-closes.
+    let close = soc.lay_p("a~because~b", "close", "a", "b", scher_core::Q_GROUNDING);
+    let err = close.expect_err("q-grounding out of a sublime must STILL be refused");
+    assert!(err.contains("sublime-never-closes"), "refusal must name its law: {err}");
+
+    // ANTI-Q-LURE GUARANTEE, mechanism-not-content: the kernel stays usable — no seizure on
+    // either the allowed ring or the still-refused close.
     soc.lay(EventRow::node("still-usable", "the kernel did not seize"));
-    assert!(soc.has("still-usable"), "society must remain writable after a refused cyclic write");
+    assert!(soc.has("still-usable"), "society must remain writable after these writes");
 }

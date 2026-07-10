@@ -682,7 +682,7 @@ export function listStory(soc: Society, params: ListStoryParams): Node {
   if (params.fisheye) {
     const fisheyeOpts: FisheyeOpts = params.fisheye === true ? {} : params.fisheye;
     let handle: { teardown(): void } | null = null;
-    read.subscribe((slugs) => {
+    const wire = (slugs: readonly string[]): void => {
       handle?.teardown();
       handle = null;
       const rows = Array.from(container.children) as HTMLElement[];
@@ -694,6 +694,30 @@ export function listStory(soc: Society, params: ListStoryParams): Node {
         ...fisheyeOpts,
         ...(perElementMass ? { perElementMass } : {}),
       });
+    };
+    read.subscribe((slugs) => {
+      wire(slugs);
+      // DETACHED-AT-WIRE-TIME FIX (build-story-bearings-of port, the "black hole" bug):
+      // Cell.subscribe fires SYNCHRONOUSLY on registration (cell.ts's documented
+      // contract), so the FIRST call above runs while listStory() is still executing —
+      // BEFORE the caller (board.ts's mountCBlocks) appends the returned `container`
+      // into the live document. createFisheye's baseSize capture reads
+      // el.getBoundingClientRect().height on each row; a getBoundingClientRect() on a
+      // node not yet attached to the document always answers all-zero (real browsers;
+      // jsdom is always-zero regardless, per the createFisheye tests' documented
+      // gotcha, so this is inert there). Every row's baseSize then froze at 0, so
+      // fisheye's unconditional `flex: 0 0 {base}px` (applied even at rest) collapsed
+      // every row to zero height — rows stacked invisibly atop each other. The wiring
+      // above stays SYNCHRONOUS (existing callers/tests depend on transitions being
+      // set the instant listStory() returns); this rAF only RE-WIRES once more, after
+      // the container has had a chance to be inserted into the document by its caller
+      // in the same task, so real baseSizes get captured without changing the
+      // synchronous contract for callers whose container is already attached.
+      if (typeof requestAnimationFrame === "function" && !container.isConnected) {
+        requestAnimationFrame(() => {
+          if (container.isConnected) wire(slugs);
+        });
+      }
     });
   }
 

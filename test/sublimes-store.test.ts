@@ -450,7 +450,15 @@ describe("sublimes-store: never-closing poles for navigation", () => {
       );
     });
 
-    it("THE GUARD: a bearing that closes a cycle among sublimes FAILS LOUD", () => {
+    it("FLIPPED: a bearing that closes a ring among sublimes is now ACCEPTED (mutual prehension)", () => {
+      // ONTOLOGY CHANGE (Hallie, 2026-07-10): this used to FAIL LOUD under sublime-dag-acyclic.
+      // That guard imported an IN-TIME rule (no causal cycles among discrete, perished,
+      // time-ordered occasions) into a place OUTSIDE time. A sublime is the limit of all future
+      // events taken to infinity — "mirages on the surface of the sublime's event horizon."
+      // Reflections on a horizon can hold each other's positions with no in-time causality, so a
+      // RING of bearings is a constellation, not a paradox. sublime↔sublime cycles are now legal.
+      // (Deliberate flip, not a deleted test: the read-side cycle-safety is proven in
+      // path-to-sublime.test.ts, and never-closes — you can't LAND on a mirage — still holds.)
       const s = new Society();
       makeSublime(s, "sublime-a");
       makeSublime(s, "sublime-b");
@@ -460,24 +468,28 @@ describe("sublimes-store: never-closing poles for navigation", () => {
       s.layP("a~serves~b", "serves", "sublime-a", "sublime-b", "because");
       s.layP("b~serves~c", "serves", "sublime-b", "sublime-c", "because");
 
-      // Now c → a would close the ring a → b → c → a. REFUSE.
-      expect(() => s.layP("c~serves~a", "serves", "sublime-c", "sublime-a", "because")).toThrowError(
-        /ANTI-Q-LURE GUARANTEE.*close a CYCLE among sublime-poles.*points UP.*never back into a ring/,
-      );
+      // c → a closes the ring a → b → c → a. Now ACCEPTED — no throw.
+      expect(() =>
+        s.layP("c~serves~a", "serves", "sublime-c", "sublime-a", "because"),
+      ).not.toThrow();
 
-      // Nothing was laid — fail-closed
-      expect(s.has("c~serves~a")).toBe(false);
-      expect(s.has("c~serves~a~q")).toBe(false);
+      // The ring-closing bearing was actually laid, and the graph stays usable.
+      expect(s.has("c~serves~a")).toBe(true);
+      s.lay({ slug: "after-ring", content: "ordinary", subject: null, object: null });
+      expect(s.has("after-ring")).toBe(true);
     });
 
-    it("THE GUARD: a direct self-serving loop (A serves A) is refused", () => {
+    it("FLIPPED: a direct self-serving loop (A serves A) is now ACCEPTED (self-prehension)", () => {
+      // Same limit-of-futures frame: the smallest ring — a sublime bearing itself — is a mirage
+      // reflecting itself on the horizon. Outside time this is self-prehension, not a paradox.
       const s = new Society();
       makeSublime(s, "solo");
 
-      // solo → solo is the smallest ring
-      expect(() => s.layP("solo~serves~solo", "serves", "solo", "solo", "because")).toThrowError(
-        /ANTI-Q-LURE GUARANTEE.*close a CYCLE/,
-      );
+      // solo → solo is the smallest ring: now accepted, not refused.
+      expect(() =>
+        s.layP("solo~serves~solo", "serves", "solo", "solo", "because"),
+      ).not.toThrow();
+      expect(s.has("solo~serves~solo")).toBe(true);
     });
 
     it("the guard permits chaining that stays acyclic (points UP)", () => {

@@ -194,7 +194,15 @@ describe("pathToSublime: spine from now toward a sublime", () => {
     expect(path.reachable).toBe(true);
   });
 
-  it("handles cycles in the sublime DAG without infinite loops (cycle-safe)", () => {
+  it("reads a RING in the sublime DAG cycle-safely (rings now legal; the READ tolerates them)", () => {
+    // ONTOLOGY CHANGE (Hallie, 2026-07-10): a ring among sublime-poles is no longer refused —
+    // sublimes are "mirages on the surface of the sublime's event horizon," and reflections on
+    // a horizon can mutually prehend (a ring is a constellation, not an in-time causal paradox).
+    // So this test no longer asserts the ring-closing lay THROWS. Instead — and this is the load-
+    // bearing property now that rings are legal — it proves the READ side (pathToSublime) stays
+    // CYCLE-SAFE: it terminates (no infinite loop over the ring) and reports a finite, reachable
+    // spine. The read already carried a seen-set for cycle-safety; this pins that it still holds
+    // when a real ring exists rather than being unreachable-by-guard.
     const s = new Society();
     node(s, "now");
     node(s, "sublime-a");
@@ -204,18 +212,22 @@ describe("pathToSublime: spine from now toward a sublime", () => {
     s.layP("a~pole", "a as pole", "sublime-a", "sublime-a", "q-sublime-pole");
     s.layP("b~pole", "b as pole", "sublime-b", "sublime-b", "q-sublime-pole");
 
-    // Create a cycle: now → a → b → a
+    // Build a real ring: now → a → b → a (the closing edge b → a is now ACCEPTED, not thrown).
     s.layP("now~bear~a", "oriented to a", "now", "sublime-a", "because");
     s.layP("a~bear~b", "a in service of b", "sublime-a", "sublime-b", "because");
-
-    // Attempting to close the cycle should throw
     expect(() => {
-      s.layP("b~bear~a", "b in service of a (cycle!)", "sublime-b", "sublime-a", "because");
-    }).toThrowError(/ANTI-Q-LURE GUARANTEE.*CYCLE/);
+      s.layP("b~bear~a", "b in service of a (ring — now legal)", "sublime-b", "sublime-a", "because");
+    }).not.toThrow();
+    expect(s.has("b~bear~a")).toBe(true);
 
-    // The path to sublime-b should still work
+    // THE READ STAYS CYCLE-SAFE: with the ring in place, pathToSublime must terminate and return
+    // a finite reachable spine — not loop forever over a → b → a and not blow the stack.
     const path = pathToSublime(s, "now", "sublime-b");
     expect(path.reachable).toBe(true);
     expect(path.segments).toHaveLength(2);
+    // And a path to the other pole in the ring is equally finite and reachable.
+    const pathA = pathToSublime(s, "now", "sublime-a");
+    expect(pathA.reachable).toBe(true);
+    expect(pathA.segments.length).toBeGreaterThan(0);
   });
 });

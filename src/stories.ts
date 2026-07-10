@@ -13,6 +13,7 @@ import { derive, type Read } from "./cell.js";
 import { el, on } from "./dom.js";
 import { project, projectList } from "./projection.js";
 import { eventView, type SuperjectArm } from "./eventview.js";
+import { createFisheye, type FisheyeOpts } from "./fisheye.js";
 import {
   Society,
   modeAt,
@@ -629,6 +630,18 @@ export interface ListStoryParams {
    *  EventViews, not cards). Kept only so a caller mid-migration doesn't silently lose
    *  its arm; supplying `modeArm` without `superjectArm` still throws — see below. */
   modeArm?: ModeArm;
+  /** FISHEYE MOTION (PORT work-round 4, opt-in, default OFF): when set, wires
+   *  fisheye.ts's createFisheye onto this list's rendered superject rows — hover/focus
+   *  on a row magnifies it (box-grow along the flow axis) and neighbors yield + glide
+   *  aside, no overlap. `true` uses Hallie's final canonical params (fisheye.ts's
+   *  DEFAULT_OPTS); pass a FisheyeOpts object to override any of them. Applies to the
+   *  default render only (rows built by this function's own eventView calls) — a
+   *  caller-supplied `item` owns its own DOM and isn't auto-wired. If `massOf` is also
+   *  given, each row's resolved mass is threaded through as fisheye's
+   *  `perElementMass` seam (see fisheye.ts's honest note on why that's a widening
+   *  judgment call, not a full physical fold-in of the harvested engine's per-motion
+   *  mass scalar) — omit `massOf` for identical-to-bare-fisheye output. */
+  fisheye?: boolean | FisheyeOpts;
 }
 
 export function listStory(soc: Society, params: ListStoryParams): Node {
@@ -658,6 +671,31 @@ export function listStory(soc: Society, params: ListStoryParams): Node {
     key: (slug) => slug,
     render: (slug) => renderItem(soc, slug),
   });
+
+  // FISHEYE MOTION (PORT work-round 4, opt-in): wire createFisheye onto the rendered
+  // row elements. Re-wired on every re-observe of the slice (projectList mutates
+  // `container`'s children in place on membership change; fisheye's baseSizes/element
+  // list are captured at wire-time, so a stale wiring after add/remove would drift —
+  // teardown-then-rewire on each slice reading keeps it honest at the cost of losing
+  // any in-flight magnification on a structural change, an acceptable seam for now).
+  if (params.fisheye) {
+    const fisheyeOpts: FisheyeOpts = params.fisheye === true ? {} : params.fisheye;
+    let handle: { teardown(): void } | null = null;
+    read.subscribe((slugs) => {
+      handle?.teardown();
+      handle = null;
+      const rows = Array.from(container.children) as HTMLElement[];
+      if (rows.length === 0) return;
+      const perElementMass = params.massOf
+        ? slugs.map((slug) => params.massOf!(soc, slug))
+        : undefined;
+      handle = createFisheye(container, rows, {
+        ...fisheyeOpts,
+        ...(perElementMass ? { perElementMass } : {}),
+      });
+    });
+  }
+
   return container;
 }
 

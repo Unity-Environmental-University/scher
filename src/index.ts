@@ -112,6 +112,9 @@ export {
 export {
   reading,
   cardStory,
+  readCard,
+  type CardRead,
+  type ModeArm,
   buttonStory,
   toggleButtonStory,
   modalStory,
@@ -152,6 +155,18 @@ export {
 } from "./stories.js";
 
 // TODO(socratic): the porcelain promises the desync bug-class is "unwriteable" — unwriteable through THIS surface, sure, but every raw read above is still exported alongside it; does offering both doors mean the bug-class merely moved, not died?
+// EventView — one component, THREE MODES (interior/superject/proposition), the
+// subject-superject phases (BRIEF.md "components are EventViews"). Proposition is a
+// SKIN ON SUPERJECT, not a third render family — see eventview.ts for the seam.
+export {
+  eventView,
+  readEventView,
+  type EventViewMode,
+  type EventViewRead,
+  type SuperjectArm,
+  type EventViewParams,
+} from "./eventview.js";
+
 // the POSITIVIST PORCELAIN — a get/set(boolean) handle over an establishment, so the
 // append-only/read-the-truth dissonance is hidden behind an intuitive surface and the
 // desync bug-class becomes unwriteable. (honest porcelain: history() exposes the seam.)

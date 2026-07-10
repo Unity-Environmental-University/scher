@@ -11,7 +11,12 @@
 
 import { describe, it, expect } from "vitest";
 import { Society, dependsOn, dependentsOf, prehensionsOnto, reactionsOn } from "../src/society.js";
-import { dropStory, relateBuckets, composerStory, reactionStory } from "../src/stories.js";
+import { dropStory, relateBuckets, composerStory, reactionStory, type ModeArm } from "../src/stories.js";
+
+// test-owned taste: dropStory's default card render needs a modeArm (the mode-copy is
+// caller-supplied, not scher-hardcoded — see stories.ts CardStoryParams.modeArm). These
+// tests don't care about the copy's content, just that structure renders; keep it plain.
+const testModeArm: ModeArm = (v) => document.createTextNode(v.mode);
 
 /** a drag from `a`: a DragEvent carrying `a` in a stub dataTransfer (jsdom has none). */
 function dropEvent(a: string): Event {
@@ -37,6 +42,7 @@ describe("dropStory — a drop is a reading", () => {
     const lane = dropStory(soc, {
       targets: ["b"],
       buckets: relateBuckets(() => { placed = true; }),
+      modeArm: testModeArm,
     }) as HTMLElement;
 
     // the target card is the lane's only child. Drop A onto it → the picker blooms.
@@ -63,6 +69,7 @@ describe("dropStory — a drop is a reading", () => {
     const lane = dropStory(soc, {
       targets: ["b"],
       buckets: relateBuckets((_s, a, b) => calls.push([a, b])),
+      modeArm: testModeArm,
     }) as HTMLElement;
 
     const card = lane.firstElementChild as HTMLElement;
@@ -78,7 +85,7 @@ describe("dropStory — a drop is a reading", () => {
 
   it("a card can't relate to itself: dropping B onto B is inert", () => {
     const soc = society();
-    const lane = dropStory(soc, { targets: ["b"], buckets: relateBuckets(() => {}) }) as HTMLElement;
+    const lane = dropStory(soc, { targets: ["b"], buckets: relateBuckets(() => {}), modeArm: testModeArm }) as HTMLElement;
     const card = lane.firstElementChild as HTMLElement;
     card.dispatchEvent(dropEvent("b"));             // same slug as the target
     expect(card.querySelector(".drop-picker")).toBeNull();  // no picker even blooms

@@ -57,8 +57,8 @@ pub const Q_SUBLIME_POLE: &str = "q-sublime-pole";
 pub struct EventRow {
     pub slug: String,
     pub content: String,
-    /// the BULLET — a short human headline, distinct from content. Optional.
-    pub title: Option<String>,
+    /// the NAME — what this beat IS (short human headline, distinct from content). Optional.
+    pub name: Option<String>,
     pub subject: Option<String>,
     pub object: Option<String>,
     /// when the local society witnessed this beat (the client's own db_witnessed). Set by
@@ -72,6 +72,10 @@ pub struct EventRow {
     /// authorship EVENT+edge (`gen4_policy::lay_authorship`) still rides alongside this as
     /// testimony/process history (ruling 13) — this field is the substance read.
     pub laid_by: Option<String>,
+    /// VOLTAGE (event-2681/2692): optional feeling-indicator emoji or short text, set at
+    /// capture time. PLAINTEXT metadata, available for board display. Null for events
+    /// captured without a voltage indicator.
+    pub voltage: Option<String>,
 }
 
 impl EventRow {
@@ -80,11 +84,12 @@ impl EventRow {
         EventRow {
             slug: slug.into(),
             content: content.into(),
-            title: None,
+            name: None,
             subject: None,
             object: None,
             witnessed: None,
             laid_by: None,
+            voltage: None,
         }
     }
 
@@ -93,11 +98,12 @@ impl EventRow {
         EventRow {
             slug: slug.into(),
             content: content.into(),
-            title: None,
+            name: None,
             subject: Some(subject.into()),
             object: Some(object.into()),
             witnessed: None,
             laid_by: None,
+            voltage: None,
         }
     }
 
@@ -110,6 +116,12 @@ impl EventRow {
     /// `with_laid_by(frame)` — set the authoring frame inline, at construction time.
     pub fn with_laid_by(mut self, frame: &str) -> Self {
         self.laid_by = Some(frame.into());
+        self
+    }
+
+    /// `with_voltage(emoji)` — set the optional feeling-indicator inline, at construction time.
+    pub fn with_voltage(mut self, emoji: &str) -> Self {
+        self.voltage = Some(emoji.into());
         self
     }
 }

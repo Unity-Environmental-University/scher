@@ -12,6 +12,8 @@
 import { derive, type Read } from "./cell.js";
 import { el, on } from "./dom.js";
 import { project, projectList } from "./projection.js";
+import { eventView, type SuperjectArm } from "./eventview.js";
+import { createFisheye, type FisheyeOpts } from "./fisheye.js";
 import {
   Society,
   modeAt,
@@ -40,6 +42,36 @@ export function reading<T>(soc: Society, read: (s: Society) => T): Read<T> {
 // Reads ONE beat (its content + its determined mode + its pathos) and projects a
 // card. Reusable: point it at any slug. The card IS the reading of that beat-Story.
 
+/** the READ: pure (Society, slug) → structural shape. No English, no symbols — just what's
+ *  true of the beat. This is the half of cardStory that belongs to scher (a scher-read per
+ *  the reads/spreads boundary, CLEARNESS-reads-spreads.md 2026-07-10: mode-DETECTION is a
+ *  scher-read that "survives clean"; mode-COPY/VISUAL is Penelope taste). */
+export interface CardRead {
+  slug: string;
+  content: string;
+  mode: Mode;
+  conf: number;
+  pathos: { key: string; count: number }[];
+}
+
+export function readCard(soc: Society, slug: string): CardRead {
+  const beat = soc.get(slug);
+  // TODO(socratic): why does modeAt return something that needs `as Mode` cast — is the query's return type too wide, or is modeAt sometimes returning a non-Mode value that should be caught?
+  return {
+    slug,
+    content: beat?.content ?? `(no beat: ${slug})`,
+    mode: modeAt(soc, slug) as Mode,
+    conf: confidence(soc, slug),
+    pathos: reactionsOn(soc, slug),
+  };
+}
+
+/** the TASTE arm: given the structural read, render the mode's copy/symbol. Caller-supplied
+ *  — cardStory does not hard-code English here. No default is baked into scher; a caller that
+ *  wants a default (e.g. a demo, a test) supplies its own, because the copy is Penelope's, not
+ *  scher's, to author. */
+export type ModeArm = (v: CardRead) => Node;
+
 export interface CardStoryParams {
   slug: string;
   /** optional: standpoint label shown on the card (whose reading this is). */
@@ -51,21 +83,17 @@ export interface CardStoryParams {
   // TODO(socratic): why is standpoint optional here but optional again in CardStoryParams — isn't the param interface the already-optional place, so the ? in the rendering is redundant?
   /** optional: reify this told-short card into an actual story (lay End + lure). */
   onReify?: (slug: string) => void;
+  /** the TASTE: given the structural CardRead, render the mode slot's node (copy, symbols,
+   *  phrasing — Penelope's voice). REQUIRED — cardStory does not choose words for you; the
+   *  reading (mode as data) is scher's, the gloss is the caller's. */
+  modeArm: ModeArm;
 }
 
 export function cardStory(soc: Society, params: CardStoryParams): Node {
   const { slug } = params;
-  // the card is a projection of a reading: (content, mode, pathos) of this beat.
-  const read = reading(soc, (s) => {
-    const beat = s.get(slug);
-    // TODO(socratic): why does modeAt return something that needs `as Mode` cast — is the query's return type too wide, or is modeAt sometimes returning a non-Mode value that should be caught?
-    return {
-      content: beat?.content ?? `(no beat: ${slug})`,
-      mode: modeAt(s, slug) as Mode,
-      conf: confidence(s, slug),
-      pathos: reactionsOn(s, slug),
-    };
-  });
+  // the card is a projection of a reading: (content, mode, pathos) of this beat — pure
+  // structure, no taste. (the scher-read half of the reads/spreads boundary.)
+  const read = reading(soc, (s) => readCard(s, slug));
 
   return project(read, (v) => {
     const card = el("div", {
@@ -75,14 +103,10 @@ export function cardStory(soc: Society, params: CardStoryParams): Node {
     if (params.onOpen) on(card, "click", () => params.onOpen!(slug));
     card.appendChild(el("div", { class: "slug" }, slug));
     card.appendChild(el("div", { class: "content" }, v.content));
-    // TODO(socratic): why are there only two branches (established vs scripted) when Mode may have more values — is this a contract that modeAt guarantees only these two, or is the else-case handling multiple modes differently?
-    card.appendChild(
-      el("div", { class: `mode ${v.mode}` },
-        v.mode === "established"
-          ? `✓ established — an actual met this (conf ${v.conf.toFixed(2)})`
-          : `○ scripted — a lure, ungrounded`,
-      ),
-    );
+    // the mode SLOT is structural (scher); its CONTENTS are the caller's taste arm.
+    const modeSlot = el("div", { class: `mode ${v.mode}` });
+    modeSlot.appendChild(params.modeArm(v));
+    card.appendChild(modeSlot);
     if (v.pathos.length) {
       const p = el("div", { class: "pathos" });
       for (const r of v.pathos) p.appendChild(el("span", { class: "pchip" }, `${r.key} ${r.count}`));
@@ -264,6 +288,9 @@ export interface FrameStoryParams {
   endLabel?: string;
   /** the standpoint reading this frame. */
   standpoint?: string;
+  /** the TASTE arm for any interior beats rendered as cards (leaf beats, and drill-in
+   *  affordances at the depth cap). Threaded down to cardStory — see CardStoryParams.modeArm. */
+  modeArm: ModeArm;
 }
 
 export function frameStory(soc: Society, params: FrameStoryParams, depth = 0): Node {
@@ -292,13 +319,20 @@ export function frameStory(soc: Society, params: FrameStoryParams, depth = 0): N
     // TODO(socratic): cardParams builds an object conditionally — why not always include standpoint (even if undefined) and let the card ignore it, rather than building two different shapes?
     // pass standpoint only when defined (exactOptionalPropertyTypes)
     const sp = params.standpoint;
-    const cardParams = (slug: string) => (sp !== undefined ? { slug, standpoint: sp } : { slug });
+    const cardParams = (slug: string) =>
+      (sp !== undefined ? { slug, standpoint: sp, modeArm: params.modeArm } : { slug, modeArm: params.modeArm });
     for (const slug of v.interior) {
       const beatIsStory = isStory(soc, slug);
       // TODO(socratic): depth < 1 means depth 0 gets recursion but depth 1+ doesn't — but why is 1 the cap instead of allowing more levels, and what does "unreadable" look like in practice?
       if (beatIsStory && depth < 1) {
         // ONE LEVEL of recursion: nest a sub-frame for this interior story.
-        body.appendChild(frameStory(soc, sp !== undefined ? { once: slug, standpoint: sp } : { once: slug }, depth + 1));
+        body.appendChild(frameStory(
+          soc,
+          sp !== undefined
+            ? { once: slug, standpoint: sp, modeArm: params.modeArm }
+            : { once: slug, modeArm: params.modeArm },
+          depth + 1,
+        ));
       } else if (beatIsStory) {
         // depth cap reached: a story-beat becomes a drill-in affordance, NOT another bracket.
         const card = cardStory(soc, cardParams(slug));
@@ -550,31 +584,143 @@ export function loreStory(soc: Society, params: { beat: string }): Node {
   }).node;
 }
 
-// ── LIST STORY — an ordered society-slice, each member a Story. ────────────────
+// ── LIST STORY — an ordered society-slice, each member a SUPERJECT-FACE EventView. ──
 // The simpler sibling of the Frame: NO Once/End bracket, just a sequence. Reads a
 // slice of the society (a query/filter you pass) and projects each beat through a
-// per-item Story (default: a Card). Reusable: vary the slice. A List over "beats in
-// mode=Done" IS the Trello Done column (lists-are-mode-readings); the rail is a List;
-// a Table is a List rendered in a grid. Built on projectList (keyed, minimal churn).
+// per-item Story. Reusable: vary the slice. A List over "beats in mode=Done" IS the
+// Trello Done column (lists-are-mode-readings); the rail is a List; a Table is a List
+// rendered in a grid. Built on projectList (keyed, minimal churn).
+//
+// PORT work-round 3 (frame-crew-port-eventview-list): "a list is a spread of
+// superject-face EventViews" is now the DEFAULT per-item render, not a bespoke card
+// render duplicated here. When no `item` override is supplied, each member composes
+// through eventView(soc, {slug, mode:'superject', superjectArm}) — the SAME structural
+// spread + proposition-detection eventview.ts already carries. That is the whole
+// payoff: a scripted/ungrounded/sublime member in the slice reads as a proposition-
+// skinned row with ZERO special-casing here — readEventView's detection runs per
+// member, automatically, the same as any lone eventView call. `superjectArm` is the
+// caller's taste (copy/visual) for that row's contents — REQUIRED whenever `item` is
+// not supplied, exactly like modeArm was required for the old default card render;
+// scher never bakes in English here. `item` remains the escape hatch for a caller
+// (e.g. boardStory) who wants a different per-item shape entirely (a View Card that
+// recurses into a Frame for story-beats, say) — supplying `item` opts fully out of
+// the superject default, same as before.
 export interface ListStoryParams {
   /** the slice: given the society, return the ordered beat-slugs to show. */
   slice: (s: Society) => string[];
-  /** per-item render (default: a Card Story for the slug). */
+  /** per-item render override (default: a superject-face EventView for the slug). */
   item?: (soc: Society, slug: string) => Node;
   standpoint?: string;
   class?: string;
+  /** the TASTE arm for the default per-item render (superject-face EventView rows).
+   *  Ignored if `item` is supplied — the caller's own `item` owns its own taste then.
+   *  REQUIRED when `item` is absent, mirroring eventView's own required superjectArm. */
+  superjectArm?: SuperjectArm;
+  /** click-through, threaded to each member's superject EventView (default render only). */
+  onOpen?: (slug: string) => void;
+  /** MASS HOOK (optional, structural — see eventview.ts EventViewParams.mass and the
+   *  RECESS-2 hunch in BRIEF.md): given a member's slug, an optional per-occasion weight
+   *  carried on that row as `data-mass` / `--mass`. Applies to the default render only;
+   *  a caller-supplied `item` owns its own mass wiring (or none). Omit entirely for no
+   *  mass hook at all — scher never forces a derivation here (see the TODO on
+   *  EventViewParams.mass for why voltageOf isn't auto-folded in). */
+  massOf?: (soc: Society, slug: string) => number | undefined;
+  /** @deprecated legacy taste arm for the OLD default (a full Card Story per member).
+   *  Superseded by `superjectArm` (PORT work-round 3: lists compose superject-face
+   *  EventViews, not cards). Kept only so a caller mid-migration doesn't silently lose
+   *  its arm; supplying `modeArm` without `superjectArm` still throws — see below. */
+  modeArm?: ModeArm;
+  /** FISHEYE MOTION (PORT work-round 4, opt-in, default OFF): when set, wires
+   *  fisheye.ts's createFisheye onto this list's rendered superject rows — hover/focus
+   *  on a row magnifies it (box-grow along the flow axis) and neighbors yield + glide
+   *  aside, no overlap. `true` uses Hallie's final canonical params (fisheye.ts's
+   *  DEFAULT_OPTS); pass a FisheyeOpts object to override any of them. Applies to the
+   *  default render only (rows built by this function's own eventView calls) — a
+   *  caller-supplied `item` owns its own DOM and isn't auto-wired. If `massOf` is also
+   *  given, each row's resolved mass is threaded through as fisheye's
+   *  `perElementMass` seam — per Hallie's MASS DECISION, that mass now drives each
+   *  row's ENDPOINT FRICTION (later breakaway, firmer settle), not visual size and
+   *  not glide speed; see fisheye.ts's perElementMass doc comment for the physics —
+   *  omit `massOf` for identical-to-bare-fisheye output. */
+  fisheye?: boolean | FisheyeOpts;
 }
 
 export function listStory(soc: Society, params: ListStoryParams): Node {
   const container = el("div", { class: `story-list ${params.class ?? ""}` });
   const read = reading(soc, (s) => params.slice(s));
-  // TODO(socratic): renderItem conditionally includes standpoint to match frameStory's cardParams pattern — is there a reason these two can't both always pass standpoint (even if undefined) and let the downstream ignore it?
-  const renderItem = params.item ?? ((s: Society, slug: string) =>
-    cardStory(s, params.standpoint !== undefined ? { slug, standpoint: params.standpoint } : { slug }));
+  const renderItem = params.item ?? ((s: Society, slug: string) => {
+    if (!params.superjectArm) {
+      throw new Error(
+        params.modeArm
+          ? "listStory: default render is now a superject-face EventView (PORT work-round 3) — pass params.superjectArm, not modeArm (see the @deprecated note on ListStoryParams.modeArm)"
+          : "listStory: default render needs params.superjectArm (the taste arm) when no params.item is supplied",
+      );
+    }
+    return eventView(s, {
+      slug,
+      mode: "superject",
+      superjectArm: params.superjectArm,
+      ...(params.standpoint !== undefined ? { standpoint: params.standpoint } : {}),
+      ...(params.onOpen ? { onOpen: params.onOpen } : {}),
+      ...((() => {
+        const m = params.massOf?.(s, slug);
+        return m !== undefined ? { mass: m } : {};
+      })()),
+    });
+  });
   projectList(read, container, {
     key: (slug) => slug,
     render: (slug) => renderItem(soc, slug),
   });
+
+  // FISHEYE MOTION (PORT work-round 4, opt-in): wire createFisheye onto the rendered
+  // row elements. Re-wired on every re-observe of the slice (projectList mutates
+  // `container`'s children in place on membership change; fisheye's baseSizes/element
+  // list are captured at wire-time, so a stale wiring after add/remove would drift —
+  // teardown-then-rewire on each slice reading keeps it honest at the cost of losing
+  // any in-flight magnification on a structural change, an acceptable seam for now).
+  if (params.fisheye) {
+    const fisheyeOpts: FisheyeOpts = params.fisheye === true ? {} : params.fisheye;
+    let handle: { teardown(): void } | null = null;
+    const wire = (slugs: readonly string[]): void => {
+      handle?.teardown();
+      handle = null;
+      const rows = Array.from(container.children) as HTMLElement[];
+      if (rows.length === 0) return;
+      const perElementMass = params.massOf
+        ? slugs.map((slug) => params.massOf!(soc, slug))
+        : undefined;
+      handle = createFisheye(container, rows, {
+        ...fisheyeOpts,
+        ...(perElementMass ? { perElementMass } : {}),
+      });
+    };
+    read.subscribe((slugs) => {
+      wire(slugs);
+      // DETACHED-AT-WIRE-TIME FIX (build-story-bearings-of port, the "black hole" bug):
+      // Cell.subscribe fires SYNCHRONOUSLY on registration (cell.ts's documented
+      // contract), so the FIRST call above runs while listStory() is still executing —
+      // BEFORE the caller (board.ts's mountCBlocks) appends the returned `container`
+      // into the live document. createFisheye's baseSize capture reads
+      // el.getBoundingClientRect().height on each row; a getBoundingClientRect() on a
+      // node not yet attached to the document always answers all-zero (real browsers;
+      // jsdom is always-zero regardless, per the createFisheye tests' documented
+      // gotcha, so this is inert there). Every row's baseSize then froze at 0, so
+      // fisheye's unconditional `flex: 0 0 {base}px` (applied even at rest) collapsed
+      // every row to zero height — rows stacked invisibly atop each other. The wiring
+      // above stays SYNCHRONOUS (existing callers/tests depend on transitions being
+      // set the instant listStory() returns); this rAF only RE-WIRES once more, after
+      // the container has had a chance to be inserted into the document by its caller
+      // in the same task, so real baseSizes get captured without changing the
+      // synchronous contract for callers whose container is already attached.
+      if (typeof requestAnimationFrame === "function" && !container.isConnected) {
+        requestAnimationFrame(() => {
+          if (container.isConnected) wire(slugs);
+        });
+      }
+    });
+  }
+
   return container;
 }
 
@@ -606,10 +752,12 @@ export interface ViewCardParams {
   /** reify: make this told-short card an actual story (lay its End + duration + between).
    *  Given, the card shows a "reify" affordance. The caller re-renders after. */
   onReify?: (slug: string) => void;
+  /** the TASTE arm — threaded to cardStory (leaf) and frameStory (interior cards). */
+  modeArm: ModeArm;
 }
 
 export function viewCardStory(soc: Society, params: ViewCardParams): Node {
-  const { slug, standpoint: sp, onOpen, onReify } = params;
+  const { slug, standpoint: sp, onOpen, onReify, modeArm } = params;
   // TODO(socratic): why build common conditionally instead of always passing the optionals (even if undefined) to cardStory and frameStory — does passing undefined break something?
   const common = {
     ...(sp !== undefined ? { standpoint: sp } : {}),
@@ -621,9 +769,9 @@ export function viewCardStory(soc: Society, params: ViewCardParams): Node {
     // already a story — tell it long (no reify affordance; it's already bounded).
     const { onReify: _drop, ...frameCommon } = common as typeof common & { onReify?: unknown };
     void _drop;
-    return frameStory(soc, { once: slug, ...frameCommon });
+    return frameStory(soc, { once: slug, ...frameCommon, modeArm });
   }
-  return cardStory(soc, { slug, ...common });
+  return cardStory(soc, { slug, ...common, modeArm });
 }
 
 // ── BOARD STORY — "a board is a row of Lists, each over its own slice." ─────────
@@ -647,14 +795,21 @@ export interface BoardStoryParams {
   item?: (soc: Society, slug: string) => Node;
   standpoint?: string;
   class?: string;
+  /** the TASTE arm, used only by the default per-item render (ignored if `item` is
+   *  supplied — the caller's own `item` owns its own taste then). */
+  modeArm?: ModeArm;
 }
 
 export function boardStory(soc: Society, params: BoardStoryParams): Node {
   const board = el("div", { class: `story-board ${params.class ?? ""}` });
   const sp = params.standpoint;
   // TODO(socratic): why does boardStory pass standpoint conditionally to viewCardStory (matching listStory), but what if both could unconditionally pass all optionals?
-  const renderItem = params.item ?? ((s: Society, slug: string) =>
-    viewCardStory(s, sp !== undefined ? { slug, standpoint: sp } : { slug }));
+  const renderItem = params.item ?? ((s: Society, slug: string) => {
+    if (!params.modeArm) throw new Error("boardStory: default card render needs params.modeArm (the taste arm) when no params.item is supplied");
+    return viewCardStory(s, sp !== undefined
+      ? { slug, standpoint: sp, modeArm: params.modeArm }
+      : { slug, modeArm: params.modeArm });
+  });
 
   for (const col of params.columns) {
     const column = el("div", { class: "board-column" });
@@ -718,6 +873,8 @@ export interface DropStoryParams {
   buckets: DropBucket[];
   /** how to render each target card (default: a View Card — leaf→card, story→frame). */
   item?: (soc: Society, slug: string) => Node;
+  /** the TASTE arm, used only by the default `item` render (ignored if `item` is supplied). */
+  modeArm?: ModeArm;
 }
 
 /** dropStory: a lane of targets, each a drop-zone that, on drop of A, blooms a small
@@ -727,7 +884,10 @@ export interface DropStoryParams {
  *  when the society appends, so the drop only ever LAYS — the re-derivation is the cards'
  *  own, by construction. Returns the lane node. */
 export function dropStory(soc: Society, params: DropStoryParams): Node {
-  const drawCard = params.item ?? ((s: Society, slug: string) => viewCardStory(s, { slug }));
+  const drawCard = params.item ?? ((s: Society, slug: string) => {
+    if (!params.modeArm) throw new Error("dropStory: default card render needs params.modeArm (the taste arm) when no params.item is supplied");
+    return viewCardStory(s, { slug, modeArm: params.modeArm });
+  });
   const lane = el("div", { class: "drop-lane" });
 
   // TODO(socratic): why check a === b in fire, when a comes from the dragged card and b from the drop target — can the UI allow dragging a card onto itself?

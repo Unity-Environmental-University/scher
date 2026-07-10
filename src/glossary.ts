@@ -11,9 +11,18 @@
 
 import { el } from "./dom.js";
 import { Society, modeAt } from "./society.js";
-import { cardStory, buttonStory, toggleButtonStory, modalStory, frameStory, reading } from "./stories.js";
+import { cardStory, buttonStory, toggleButtonStory, modalStory, frameStory, reading, type ModeArm } from "./stories.js";
 import { fact } from "./fact.js";
 import { project } from "./projection.js";
+
+// ── THE GLOSSARY'S TASTE — the mode-copy glosses, in ONE place, owned by the caller. ──
+// stories.ts's cardStory reads mode as pure STRUCTURE (CardRead.mode: "established"|"scripted");
+// the English/symbols are this glossary's own voice, not scher's. Any caller — this demo, a real
+// Penelope view — supplies its own modeArm. This is the glossary's demonstration of its own taste.
+const glossaryModeArm: ModeArm = (v) =>
+  el("span", {}, v.mode === "established"
+    ? `✓ established — an actual met this (conf ${v.conf.toFixed(2)})`
+    : `○ scripted — a lure, ungrounded`);
 
 export function mountGlossary(root: HTMLElement): void {
   // ── the society: a tiny canon of content beats, all ungrounded (scripted) ──
@@ -68,7 +77,7 @@ export function mountGlossary(root: HTMLElement): void {
     "Card Story",
     "A Story that reads ONE beat — its content and its determined mode (scripted vs established). " +
     "The card IS the reading of that beat; it holds no state and re-reads when the society appends.",
-    [cardStory(soc, { slug: "b-tea", standpoint: "you" })],
+    [cardStory(soc, { slug: "b-tea", standpoint: "you", modeArm: glossaryModeArm })],
     `// a Card Story reads one beat → a card.
 // 'soc' is the society (the append-only beat-store).
 const teaCard = cardStory(soc, {
@@ -82,7 +91,7 @@ root.appendChild(teaCard);
   ));
 
   // ── ENTRY 2: Button Story (press = lay a beat) ──
-  const teaCard2 = cardStory(soc, { slug: "b-tea", standpoint: "you" });
+  const teaCard2 = cardStory(soc, { slug: "b-tea", standpoint: "you", modeArm: glossaryModeArm });
   const groundTea = buttonStory(soc, {
     label: (s) => (modeAt(s, "b-tea") === "established" ? "✓ grounded (press again = inert)" : "check = ground the tea"),
     enabled: (s) => modeAt(s, "b-tea") === "scripted",
@@ -110,7 +119,7 @@ const groundTea = buttonStory(soc, {
   ));
 
   // ── ENTRY 3: Pathos ──
-  const rainCard = cardStory(soc, { slug: "b-rain", standpoint: "you" });
+  const rainCard = cardStory(soc, { slug: "b-rain", standpoint: "you", modeArm: glossaryModeArm });
   const starRain = buttonStory(soc, {
     label: "🌧️ react (lay pathos)",
     press: (s) => {
@@ -143,7 +152,7 @@ const starRain = buttonStory(soc, {
   // toggle never touches a slug, so the one-loop bug is unwriteable.
   // TODO(socratic): I create this Fact and never read, press, or show it — the toggle below re-derives its own handle from raw slugs — so does 'doorGrounded' demonstrate the porcelain or quietly demonstrate that the demo didn't need it?
   const doorGrounded = fact(soc, "b-door", { by: "actor-you" });
-  const doorCard = cardStory(soc, { slug: "b-door", standpoint: "you" });
+  const doorCard = cardStory(soc, { slug: "b-door", standpoint: "you", modeArm: glossaryModeArm });
   const doorToggle = toggleButtonStory(soc, {
     target: "b-door",
     by: "actor-you",
@@ -186,7 +195,7 @@ door.history();    // → every grounding/supersede ever laid (the seam)
       const wrap = el("div", { class: "modal-body" });
       wrap.appendChild(el("p", {}, "This modal's open/closed state is a reading of the society (is there a live open-beat?), " +
         "not useState. Opening laid a beat; closing supersedes it. The modal's own existence is in the canon."));
-      wrap.appendChild(cardStory(s, { slug: "b-tea", standpoint: "you (in modal)" }));
+      wrap.appendChild(cardStory(s, { slug: "b-tea", standpoint: "you (in modal)", modeArm: glossaryModeArm }));
       return wrap;
     },
   });
@@ -202,7 +211,7 @@ const { openButton, overlay } = modalStory(soc, {
   body: (s) => {
     // Stories compose: a Card Story inside the modal,
     // reading the SAME society.
-    return cardStory(s, { slug: "b-tea" });
+    return cardStory(s, { slug: "b-tea", modeArm: glossaryModeArm });
   },
 });
 // open = lay a 'modal-open-demo' beat; close = supersede
@@ -218,7 +227,7 @@ root.append(openButton, overlay);`,
     "intervalOf(once, end). RECURSION CAP: one level — an interior beat that's itself a story nests ONE " +
     "sub-frame ('A walk was taken' below); deeper, stories become drill-in affordances. The retro, the rail, " +
     "a sprint are all Frames.",
-    [frameStory(soc, { once: "morning-once", end: "morning-end", standpoint: "you" })],
+    [frameStory(soc, { once: "morning-once", end: "morning-end", standpoint: "you", modeArm: glossaryModeArm })],
     `// the C-block: a Story bracketing its interior.
 const morning = frameStory(soc, {
   once: "morning-once",   // top lip (the input)

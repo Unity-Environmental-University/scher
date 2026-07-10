@@ -66,6 +66,18 @@ export interface EventViewParams {
   standpoint?: string;
   onOpen?: (slug: string) => void;
   onReify?: (slug: string) => void;
+  /** MASS HOOK (tentative — RECESS-2 hunch, twice-confirmed, BRIEF.md "task mass made
+   *  SOMATIC"): an OPTIONAL per-occasion weight for the superject/proposition row. This
+   *  is STRUCTURE only — a number the row carries as `data-mass` + a `--mass` CSS var —
+   *  never the drag physics itself (inertia/cursor-lag is a Penelope/interaction concern,
+   *  wired later against these hooks). scher does not derive mass from voltage here:
+   *  voltageOf(soc, story, ...) reads a STORY's differentials (it needs an End/poles), so
+   *  it isn't trivially available for an arbitrary list member that may be a bare beat —
+   *  deriving mass from the society is a real read, not a trivial one, so this stays an
+   *  honest caller-supplied optional rather than a forced auto-derivation.
+   *  TODO: once a cheap per-beat voltage/bearing-depth read exists for non-story beats,
+   *  fold it in here as a fallback when `mass` is omitted. */
+  mass?: number;
 }
 
 /** eventView: the harness. Dispatches on `mode` — scher's structure, never the caller's
@@ -112,10 +124,20 @@ export function eventView(soc: Society, params: EventViewParams): Node {
         title: params.standpoint ? `read from: ${params.standpoint}` : undefined,
       },
       // the STRUCTURAL not-yet-actual marker — scher's fact, caller styles the skin.
-      data: { proposition: asProposition ? "true" : undefined },
+      data: { proposition: asProposition ? "true" : undefined, mass: params.mass !== undefined ? String(params.mass) : undefined },
     });
+    // the MASS HOOK as a CSS var too, for callers who'd rather style off `var(--mass)`
+    // than re-read the data-attribute — same structural fact, two handles on it.
+    if (params.mass !== undefined) row.style.setProperty("--mass", String(params.mass));
     if (params.onOpen) on(row, "click", () => params.onOpen!(slug));
     row.appendChild(superjectArm(v));
     return row;
   }).node;
 }
+
+// NOTE: "a list is a spread of superject-face EventViews" (PORT work-round 3) lives in
+// stories.ts's listStory, not here — list COMPOSITION belongs on the stories.ts side of
+// the file-advocate boundary (this file owns the single EventView harness above; stories.ts
+// owns spreading it across a slice, same as it already owns cardStory/frameStory/boardStory).
+// listStory's default per-item render (no `item` override) composes eventView(soc, {slug,
+// mode:'superject', superjectArm}) per member — see stories.ts.

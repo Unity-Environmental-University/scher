@@ -12,6 +12,7 @@
 import { derive, type Read } from "./cell.js";
 import { el, on } from "./dom.js";
 import { project, projectList } from "./projection.js";
+import { eventView, type SuperjectArm } from "./eventview.js";
 import {
   Society,
   modeAt,
@@ -582,33 +583,76 @@ export function loreStory(soc: Society, params: { beat: string }): Node {
   }).node;
 }
 
-// ── LIST STORY — an ordered society-slice, each member a Story. ────────────────
+// ── LIST STORY — an ordered society-slice, each member a SUPERJECT-FACE EventView. ──
 // The simpler sibling of the Frame: NO Once/End bracket, just a sequence. Reads a
 // slice of the society (a query/filter you pass) and projects each beat through a
-// per-item Story (default: a Card). Reusable: vary the slice. A List over "beats in
-// mode=Done" IS the Trello Done column (lists-are-mode-readings); the rail is a List;
-// a Table is a List rendered in a grid. Built on projectList (keyed, minimal churn).
+// per-item Story. Reusable: vary the slice. A List over "beats in mode=Done" IS the
+// Trello Done column (lists-are-mode-readings); the rail is a List; a Table is a List
+// rendered in a grid. Built on projectList (keyed, minimal churn).
+//
+// PORT work-round 3 (frame-crew-port-eventview-list): "a list is a spread of
+// superject-face EventViews" is now the DEFAULT per-item render, not a bespoke card
+// render duplicated here. When no `item` override is supplied, each member composes
+// through eventView(soc, {slug, mode:'superject', superjectArm}) — the SAME structural
+// spread + proposition-detection eventview.ts already carries. That is the whole
+// payoff: a scripted/ungrounded/sublime member in the slice reads as a proposition-
+// skinned row with ZERO special-casing here — readEventView's detection runs per
+// member, automatically, the same as any lone eventView call. `superjectArm` is the
+// caller's taste (copy/visual) for that row's contents — REQUIRED whenever `item` is
+// not supplied, exactly like modeArm was required for the old default card render;
+// scher never bakes in English here. `item` remains the escape hatch for a caller
+// (e.g. boardStory) who wants a different per-item shape entirely (a View Card that
+// recurses into a Frame for story-beats, say) — supplying `item` opts fully out of
+// the superject default, same as before.
 export interface ListStoryParams {
   /** the slice: given the society, return the ordered beat-slugs to show. */
   slice: (s: Society) => string[];
-  /** per-item render (default: a Card Story for the slug). */
+  /** per-item render override (default: a superject-face EventView for the slug). */
   item?: (soc: Society, slug: string) => Node;
   standpoint?: string;
   class?: string;
-  /** the TASTE arm, used only by the default per-item card render (ignored if `item` is
-   *  supplied — the caller's own `item` owns its own taste then). */
+  /** the TASTE arm for the default per-item render (superject-face EventView rows).
+   *  Ignored if `item` is supplied — the caller's own `item` owns its own taste then.
+   *  REQUIRED when `item` is absent, mirroring eventView's own required superjectArm. */
+  superjectArm?: SuperjectArm;
+  /** click-through, threaded to each member's superject EventView (default render only). */
+  onOpen?: (slug: string) => void;
+  /** MASS HOOK (optional, structural — see eventview.ts EventViewParams.mass and the
+   *  RECESS-2 hunch in BRIEF.md): given a member's slug, an optional per-occasion weight
+   *  carried on that row as `data-mass` / `--mass`. Applies to the default render only;
+   *  a caller-supplied `item` owns its own mass wiring (or none). Omit entirely for no
+   *  mass hook at all — scher never forces a derivation here (see the TODO on
+   *  EventViewParams.mass for why voltageOf isn't auto-folded in). */
+  massOf?: (soc: Society, slug: string) => number | undefined;
+  /** @deprecated legacy taste arm for the OLD default (a full Card Story per member).
+   *  Superseded by `superjectArm` (PORT work-round 3: lists compose superject-face
+   *  EventViews, not cards). Kept only so a caller mid-migration doesn't silently lose
+   *  its arm; supplying `modeArm` without `superjectArm` still throws — see below. */
   modeArm?: ModeArm;
 }
 
 export function listStory(soc: Society, params: ListStoryParams): Node {
   const container = el("div", { class: `story-list ${params.class ?? ""}` });
   const read = reading(soc, (s) => params.slice(s));
-  // TODO(socratic): renderItem conditionally includes standpoint to match frameStory's cardParams pattern — is there a reason these two can't both always pass standpoint (even if undefined) and let the downstream ignore it?
   const renderItem = params.item ?? ((s: Society, slug: string) => {
-    if (!params.modeArm) throw new Error("listStory: default card render needs params.modeArm (the taste arm) when no params.item is supplied");
-    return cardStory(s, params.standpoint !== undefined
-      ? { slug, standpoint: params.standpoint, modeArm: params.modeArm }
-      : { slug, modeArm: params.modeArm });
+    if (!params.superjectArm) {
+      throw new Error(
+        params.modeArm
+          ? "listStory: default render is now a superject-face EventView (PORT work-round 3) — pass params.superjectArm, not modeArm (see the @deprecated note on ListStoryParams.modeArm)"
+          : "listStory: default render needs params.superjectArm (the taste arm) when no params.item is supplied",
+      );
+    }
+    return eventView(s, {
+      slug,
+      mode: "superject",
+      superjectArm: params.superjectArm,
+      ...(params.standpoint !== undefined ? { standpoint: params.standpoint } : {}),
+      ...(params.onOpen ? { onOpen: params.onOpen } : {}),
+      ...((() => {
+        const m = params.massOf?.(s, slug);
+        return m !== undefined ? { mass: m } : {};
+      })()),
+    });
   });
   projectList(read, container, {
     key: (slug) => slug,

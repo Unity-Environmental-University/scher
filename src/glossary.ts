@@ -262,10 +262,10 @@ soc.layP(slug, content, subj, obj, "q-grounding"); // a prehension
 // that's how the cards/buttons above stay live.`,
   ));
 
-  // ── ENTRY 8: Card Anatomy — CONTAINS / AFTERS / BEFORES ──
+  // ── ENTRY 8: Card Anatomy — CONTAINS / FUTURE / PAST ──
   // A separate small society: a "bake bread" beat with an interior (CONTAINS), one
-  // thing it makes necessary (AFTERS), and two things it needs first, one already
-  // met and one still pending (BEFORES). This is the SAME three-compartment read the
+  // thing it makes necessary (FUTURE), and two things it needs first, one already
+  // met and one still pending (PAST). This is the SAME three-compartment read the
   // real card opens into on the board — readCardAnatomy below is called live, on this
   // society, not mocked.
   const anatomySoc = new Society([
@@ -285,13 +285,13 @@ soc.layP(slug, content, subj, obj, "q-grounding"); // a prehension
     { slug: "bb3", content: "shape→end", subject: "shape-loaf", object: "bake-end" },
   ]);
   anatomySoc.layP("bb-story", "baking bread is a story", "bake-bread", "bake-end", "q-end-pole");
-  // AFTERS (enablesOf = downstreamsOf): eating the bread grabs bake-bread — bake-bread
+  // FUTURE (enablesOf = downstreamsOf): eating the bread grabs bake-bread — bake-bread
   // is upstream of eat-bread, so from bake-bread's own card this reads forward, as
   // "what this makes necessary."
   anatomySoc.layP("eat-grab", "eating the bread grabs the baked loaf", "eat-bread", "bake-bread", "q-grounding");
-  // BEFORES (requiresOf = dependsOn, met/pending): buy-flour is already established
+  // PAST (requiresOf = dependsOn, met/pending): buy-flour is already established
   // (met — struck); starter-ready is not (pending — weather, not error).
-  fact(anatomySoc, "buy-flour", { by: "you" }).set(true); // establish it — this BEFORE is met
+  fact(anatomySoc, "buy-flour", { by: "you" }).set(true); // establish it — this PAST is met
   anatomySoc.layP("dep-flour", "bake-bread depends on buying flour", "bake-bread", "buy-flour", "q-depends-on");
   anatomySoc.layP("dep-starter", "bake-bread depends on the starter being ready", "bake-bread", "starter-ready", "q-depends-on");
 
@@ -319,16 +319,16 @@ soc.layP(slug, content, subj, obj, "q-grounding"); // a prehension
   const anatomyDemo = el("div", { class: "anatomy-card" });
   anatomyDemo.appendChild(el("h3", {}, `bake-bread (opened)`));
   anatomyDemo.appendChild(renderList("CONTAINS — interior members", anatomy.contains));
-  anatomyDemo.appendChild(renderList("AFTERS — what this makes necessary", anatomy.enables));
-  anatomyDemo.appendChild(renderList("BEFORES — what has to come first", anatomy.requires.map((r) => r.slug),
+  anatomyDemo.appendChild(renderList("FUTURE — what this makes necessary", anatomy.enables));
+  anatomyDemo.appendChild(renderList("PAST — what had to come first", anatomy.requires.map((r) => r.slug),
     (slug) => anatomy.requires.find((r) => r.slug === slug)?.met));
 
   root.appendChild(entry(
-    "Card Anatomy — CONTAINS / AFTERS / BEFORES",
+    "Card Anatomy — CONTAINS / FUTURE / PAST",
     "The card interior, opened: CONTAINS (this beat's own interior members — containsOf, a reuse of " +
-    "intervalOf), AFTERS (what this beat makes necessary — enablesOf, a renamed alias of downstreamsOf), " +
-    "and BEFORES (what has to come first — requiresOf, the q-depends-on read, each row carrying its own " +
-    "met/pending). met renders struck-through; pending renders as weather, never error-red — a BEFORE " +
+    "intervalOf), FUTURE (what this beat makes necessary — enablesOf, a renamed alias of downstreamsOf), " +
+    "and PAST (what has to come first — requiresOf, the q-depends-on read, each row carrying its own " +
+    "met/pending). met renders struck-through; pending renders as weather, never error-red — a thing on the PAST " +
     "you haven't received yet is not a failure, it's a thing still on its way. readCardAnatomy assembles " +
     "all three in one call. SEAM: the actual card's DOM contract (`.eventview-contains`, `data-met`, the " +
     "phantom stack, the toggle) is board.ts's/cblock-skins.css's to render — this entry calls the same " +
@@ -337,8 +337,8 @@ soc.layP(slug, content, subj, obj, "q-grounding"); // a prehension
     `// the three-compartment read — ONE call:
 const anatomy = readCardAnatomy(soc, "bake-bread");
 // anatomy.contains: string[]        — CONTAINS (containsOf)
-// anatomy.enables:  string[]        — AFTERS   (enablesOf)
-// anatomy.requires: RequiresRow[]   — BEFORES  (requiresOf)
+// anatomy.enables:  string[]        — FUTURE   (enablesOf)
+// anatomy.requires: RequiresRow[]   — PAST     (requiresOf)
 //   each row: { slug, met: boolean }
 //   met=true  → render struck-through (received)
 //   met=false → render pending/weather (not yet — not an error)

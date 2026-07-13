@@ -50,6 +50,19 @@ pub const Q_END_POLE: &str = "q-end-pole";
 /// never-closing pole that ORGANIZES pursuit without luring. Sublimes are inert — they
 /// never close, never beckon, never actualize. `lay_p` REFUSES attempts to close them.
 pub const Q_SUBLIME_POLE: &str = "q-sublime-pole";
+/// MARK THE EXCEPTION, NOT THE RULE (Hallie's ruling, 2026-07-13, q-grounding-death design).
+/// `Q_GROUNDING` ("q-grounding") is a dead, redundant relation-LABEL under the one-relation
+/// ruling — but bare `"because"` vs a CLOSING is a live structural distinction the
+/// sublime-never-closes guard depends on: bare "because" is a legal sublime-BEARING (may ring,
+/// per the 2026-07-10 relaxation), while a CLOSING actualizes/lands its subject and must never
+/// land on a sublime-pole (mirage). Naively refusing on `is_sublime_pole` alone, with no way to
+/// name "this write means to close", would break the legal bearing ring. So: the CLOSING is the
+/// exception and gets the honest mark; ordinary grounding is the unmarked default. `Q_CLOSING`
+/// names that marked exception. NOT YET WIRED into the never-closes guard (scope of THIS commit
+/// is the constant + a grandfather warn-ratchet on `q-grounding`/`~holds~` writes only) — the
+/// guard rewrite to test `Q_CLOSING` instead of `Q_GROUNDING` is a deliberately separate,
+/// later commit.
+pub const Q_CLOSING: &str = "q-closing";
 
 /// A beat. With subject+object it is a prehension (an edge). A quality beat (slug ending
 /// `~q`, object a `q-*`) carries mode. Mirrors the `EventRow` interface in society.ts.
@@ -252,6 +265,22 @@ impl Society {
                  destination. Sublimes orient pursuit; they do not actualize. (law: \
                  sublime-never-closes)"
             ));
+        }
+        // GRANDFATHER WARN-RATCHET (q-grounding-death, Hallie's ruling 2026-07-13, kernel-first-
+        // commit scope): q-grounding is a dead, redundant relation-LABEL under the one-relation
+        // ruling (the-because-grammar / 2026-07-13 general ruling) — every because-edge grounds
+        // relative to its laying frame; naming it "the only relation" carries zero information.
+        // Per the "staged, not ripped" grandfather ratchet (matches the no-hand-js pattern):
+        // existing q-grounding writes are NOT refused — this is a SHRINKING ratchet, a signal,
+        // never a gate. Deliberately non-blocking: `eprintln!`, not `Err`. A future commit may
+        // tighten this once callers have migrated off the literal string.
+        if quality == Q_GROUNDING {
+            eprintln!(
+                "[q-grounding-death ratchet] '{slug}' lays quality \"q-grounding\" — dead, \
+                 redundant relation-label under the one-relation ruling (2026-07-13). Not \
+                 refused (grandfathered); new call sites should stop minting this string. \
+                 (law: one-relation, no-relation-predicate)"
+            );
         }
         // SUBLIME↔SUBLIME PREHENSION (Hallie, 2026-07-10): "The SUBLIME is the limit of all
         // future events taken to infinity, so we can start to do weird shit up there.

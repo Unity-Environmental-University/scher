@@ -93,7 +93,11 @@ describe("eventView — three modes, one harness", () => {
   });
 });
 
-describe("eventView — interior CARD ANATOMY (upstreams/face/downstreams/expand)", () => {
+// FLIPPED DELIBERATELY (card-v2 sitting, 2026-07-13): the v1 upstreams/downstreams
+// interior anatomy PERISHED into the corrected anatomy — three stacked lists, in order
+// CONTAINS → AFTERS → BEFORES (befores rows carry met/pending as data-met), each section
+// hideable. board.ts (the only caller) accepted the rename in the sitting.
+describe("eventView — interior CARD ANATOMY (face+tags / contains / afters / befores / expand)", () => {
   it("bare interior (no anatomy reads) is unchanged — just the cardStory face", () => {
     const soc = society();
     const node = eventView(soc, { slug: "established-beat", mode: "interior", modeArm: testModeArm }) as HTMLElement;
@@ -101,40 +105,82 @@ describe("eventView — interior CARD ANATOMY (upstreams/face/downstreams/expand
     expect(node.className).not.toContain("event-view");
   });
 
-  it("supplying upstreams/downstreams/tags builds the full card anatomy", () => {
+  it("supplying contains/afters/befores/tags builds the corrected anatomy, in fixed order", () => {
     const soc = society();
     const node = eventView(soc, {
       slug: "established-beat",
       mode: "interior",
       modeArm: testModeArm,
-      upstreams: [{ slug: "grounder", label: "because grounder" }],
-      downstreams: [{ slug: "star", label: "leads to star" }],
+      // supplied out of order on purpose — the RENDER order is scher's, fixed.
+      befores: [{ slug: "grounder", label: "needs grounder", met: true }],
+      afters: [{ slug: "star", label: "leads to star" }],
+      contains: [{ slug: "scripted-beat", label: "the event of scripting" }],
       tags: ["urgent", "home"],
     }) as HTMLElement;
     expect(node.className).toContain("event-view interior depth-0");
-    expect(node.querySelector(".eventview-upstreams .eventview-upstream-row")?.textContent).toBe("because grounder");
     expect(node.querySelector(".eventview-face .story-card")).not.toBeNull();
     const tagEls = node.querySelectorAll(".eventview-tags .eventview-tag");
     expect(tagEls.length).toBe(2);
     expect(tagEls[0]?.textContent).toBe("urgent");
-    const dRow = node.querySelector(".eventview-downstream-row") as HTMLElement;
-    expect(dRow.dataset.slug).toBe("star");
-    expect(dRow.querySelector(".eventview-downstream-text")?.textContent).toBe("leads to star");
-    expect(dRow.querySelector(".eventview-downstream-check")).not.toBeNull();
+    // the three stacked lists render in the corrected order: contains, afters, befores.
+    const sections = Array.from(node.querySelectorAll(".eventview-section")) as HTMLElement[];
+    expect(sections.map((s) => s.dataset.section)).toEqual(["contains", "afters", "befores"]);
+    expect(sections[0]?.className).toContain("eventview-contains");
+    expect(sections[1]?.className).toContain("eventview-afters");
+    expect(sections[2]?.className).toContain("eventview-befores");
+    // rows are section-agnostic superject sub-rows.
+    const aRow = node.querySelector(".eventview-afters .eventview-row") as HTMLElement;
+    expect(aRow.dataset.slug).toBe("star");
+    expect(aRow.querySelector(".eventview-row-text")?.textContent).toBe("leads to star");
+    expect(aRow.querySelector(".eventview-row-check")).not.toBeNull();
+    // befores carry met/pending structurally as data-met; the skin is css's.
+    const bRow = node.querySelector(".eventview-befores .eventview-row") as HTMLElement;
+    expect(bRow.dataset.met).toBe("true");
+    // rows without a met read carry no data-met at all.
+    expect(aRow.dataset.met).toBeUndefined();
   });
 
-  it("downstream row's LEFT glyph (kind) and RIGHT check (done) are separate slots", () => {
+  it("sections are hideable/showable: hiddenSections starts hidden, toggle flips class + data-section-hidden and reports", () => {
+    const soc = society();
+    const toggled: [string, boolean][] = [];
+    const node = eventView(soc, {
+      slug: "established-beat",
+      mode: "interior",
+      modeArm: testModeArm,
+      contains: [{ slug: "scripted-beat" }],
+      befores: [{ slug: "grounder", met: false }],
+      hiddenSections: ["befores"],
+      onToggleSection: (s, h) => toggled.push([s, h]),
+    }) as HTMLElement;
+    const befores = node.querySelector(".eventview-befores") as HTMLElement;
+    const contains = node.querySelector(".eventview-contains") as HTMLElement;
+    // initial state honors hiddenSections.
+    expect(befores.classList.contains("hidden")).toBe(true);
+    expect(befores.getAttribute("data-section-hidden")).toBe("true");
+    expect(contains.classList.contains("hidden")).toBe(false);
+    expect(contains.getAttribute("data-section-hidden")).toBeNull();
+    // toggling shows it again and reports.
+    const toggle = befores.querySelector(".eventview-section-toggle") as HTMLButtonElement;
+    expect(toggle.textContent).toBe("show");
+    toggle.click();
+    expect(befores.classList.contains("hidden")).toBe(false);
+    expect(befores.getAttribute("data-section-hidden")).toBeNull();
+    expect(toggle.textContent).toBe("hide");
+    expect(toggled).toEqual([["befores", false]]);
+  });
+
+  it("row's LEFT glyph (kind) and RIGHT check (done) are separate slots — section-agnostic", () => {
     const soc = society();
     const node = eventView(soc, {
       slug: "established-beat",
       mode: "interior",
       modeArm: testModeArm,
-      downstreams: [{ slug: "star" }],
-      downstreamGlyphArm: () => document.createTextNode("•"),
-      isDownstreamDone: () => true,
+      afters: [{ slug: "star" }],
+      rowGlyphArm: () => document.createTextNode("•"),
+      isRowDone: () => true,
     }) as HTMLElement;
-    const glyph = node.querySelector(".eventview-downstream-glyph");
-    const check = node.querySelector(".eventview-downstream-check");
+    const glyph = node.querySelector(".eventview-row-glyph");
+    const check = node.querySelector(".eventview-row-check");
     expect(glyph?.textContent).toBe("•");
     expect(check?.className).toContain("done");
     expect(check?.getAttribute("aria-checked")).toBe("true");
@@ -149,7 +195,7 @@ describe("eventView — interior CARD ANATOMY (upstreams/face/downstreams/expand
       slug: "established-beat",
       mode: "interior",
       modeArm: testModeArm,
-      downstreams: [{ slug: "star" }],
+      afters: [{ slug: "star" }],
       onExpandGrounding: (slug) => { expanded = slug; },
     }) as HTMLElement;
     const btn = node.querySelector(".eventview-expand-grounding") as HTMLButtonElement;
@@ -193,34 +239,36 @@ describe("eventView — INLINE-OPEN (superject -> interior IN PLACE, depth-cappe
     expect(node.querySelector(".eventview-peek")).toBeNull();
   });
 
-  it("inline-open is withheld once the depth cap is reached — a downstream row at depth 1 stays plain", () => {
+  // FLIPPED DELIBERATELY (card-v2 sitting): downstream-specific row selectors perished
+  // into the section-agnostic .eventview-row-* family; cap semantics unchanged (still 1).
+  it("inline-open is withheld once the depth cap is reached — an interior-list row at depth 1 stays plain", () => {
     const soc = society();
     const node = eventView(soc, {
       slug: "established-beat",
       mode: "interior",
       modeArm: testModeArm,
-      downstreams: [{ slug: "star" }],
+      afters: [{ slug: "star" }],
       inlineOpenArm: () => document.createTextNode("should not render"),
       depth: 1, // AT the cap — no further inline-open offered
     }) as HTMLElement;
-    expect(node.querySelector(".eventview-downstream-peek")).toBeNull();
-    expect(node.querySelector(".eventview-downstream-interior-slot")).toBeNull();
+    expect(node.querySelector(".eventview-row-peek")).toBeNull();
+    expect(node.querySelector(".eventview-row-interior-slot")).toBeNull();
   });
 
-  it("inline-open IS offered on a downstream row at depth 0 (below the cap)", () => {
+  it("inline-open IS offered on an interior-list row at depth 0 (below the cap)", () => {
     const soc = society();
     const node = eventView(soc, {
       slug: "established-beat",
       mode: "interior",
       modeArm: testModeArm,
-      downstreams: [{ slug: "star" }],
+      afters: [{ slug: "star" }],
       inlineOpenArm: (v) => document.createTextNode(`peeked:${v.slug}`),
       // depth defaults to 0
     }) as HTMLElement;
-    const trigger = node.querySelector(".eventview-downstream-peek") as HTMLButtonElement;
+    const trigger = node.querySelector(".eventview-row-peek") as HTMLButtonElement;
     expect(trigger).not.toBeNull();
     trigger.click();
-    const slot = node.querySelector(".eventview-downstream-interior-slot") as HTMLElement;
+    const slot = node.querySelector(".eventview-row-interior-slot") as HTMLElement;
     expect(slot.classList.contains("open")).toBe(true);
     expect(slot.textContent).toBe("peeked:star");
   });

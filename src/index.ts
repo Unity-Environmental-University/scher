@@ -161,6 +161,8 @@ export {
 export {
   eventView,
   readEventView,
+  // the relational lure-read board.ts's phantom stack composes with the proposition face.
+  nextAlong,
   type EventViewMode,
   type EventViewRead,
   type SuperjectArm,

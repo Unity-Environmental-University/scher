@@ -11,7 +11,7 @@
 
 import { el } from "./dom.js";
 import { Society, modeAt } from "./society.js";
-import { cardStory, buttonStory, toggleButtonStory, modalStory, frameStory, reading, type ModeArm } from "./stories.js";
+import { cardStory, buttonStory, toggleButtonStory, modalStory, frameStory, reading, readCardAnatomy, type ModeArm } from "./stories.js";
 import { fact } from "./fact.js";
 import { project } from "./projection.js";
 
@@ -260,6 +260,92 @@ soc.layP(slug, content, subj, obj, "q-grounding"); // a prehension
 // you NEVER overwrite. "undo" is a supersede (an append).
 // a Cell over the society re-derives on every append —
 // that's how the cards/buttons above stay live.`,
+  ));
+
+  // ── ENTRY 8: Card Anatomy — CONTAINS / AFTERS / BEFORES ──
+  // A separate small society: a "bake bread" beat with an interior (CONTAINS), one
+  // thing it makes necessary (AFTERS), and two things it needs first, one already
+  // met and one still pending (BEFORES). This is the SAME three-compartment read the
+  // real card opens into on the board — readCardAnatomy below is called live, on this
+  // society, not mocked.
+  const anatomySoc = new Society([
+    { slug: "you", content: "you — a standpoint that can ground", subject: null, object: null },
+    { slug: "bake-bread", content: "Bake bread", subject: null, object: null },
+    { slug: "knead-dough", content: "Knead the dough", subject: null, object: null },
+    { slug: "shape-loaf", content: "Shape the loaf", subject: null, object: null },
+    { slug: "bake-end", content: "…and the bread was baked. The End.", subject: null, object: null },
+    { slug: "eat-bread", content: "Eat the bread", subject: null, object: null },
+    { slug: "buy-flour", content: "Buy flour", subject: null, object: null },
+    { slug: "starter-ready", content: "Starter is ready", subject: null, object: null },
+  ]);
+  // CONTAINS: bake-bread is a story: once → knead → shape → end (the interior).
+  anatomySoc.layAll([
+    { slug: "bb1", content: "once→knead", subject: "bake-bread", object: "knead-dough" },
+    { slug: "bb2", content: "knead→shape", subject: "knead-dough", object: "shape-loaf" },
+    { slug: "bb3", content: "shape→end", subject: "shape-loaf", object: "bake-end" },
+  ]);
+  anatomySoc.layP("bb-story", "baking bread is a story", "bake-bread", "bake-end", "q-end-pole");
+  // AFTERS (enablesOf = downstreamsOf): eating the bread grabs bake-bread — bake-bread
+  // is upstream of eat-bread, so from bake-bread's own card this reads forward, as
+  // "what this makes necessary."
+  anatomySoc.layP("eat-grab", "eating the bread grabs the baked loaf", "eat-bread", "bake-bread", "q-grounding");
+  // BEFORES (requiresOf = dependsOn, met/pending): buy-flour is already established
+  // (met — struck); starter-ready is not (pending — weather, not error).
+  fact(anatomySoc, "buy-flour", { by: "you" }).set(true); // establish it — this BEFORE is met
+  anatomySoc.layP("dep-flour", "bake-bread depends on buying flour", "bake-bread", "buy-flour", "q-depends-on");
+  anatomySoc.layP("dep-starter", "bake-bread depends on the starter being ready", "bake-bread", "starter-ready", "q-depends-on");
+
+  const anatomy = readCardAnatomy(anatomySoc, "bake-bread");
+  const renderList = (label: string, rows: string[], metFor?: (slug: string) => boolean | undefined): Node => {
+    const box = el("div", { class: "anatomy-list" });
+    box.appendChild(el("h4", {}, label));
+    if (rows.length === 0) {
+      box.appendChild(el("p", { class: "empty" }, "(none)"));
+    } else {
+      const ul = el("ul", {});
+      for (const slug of rows) {
+        const met = metFor?.(slug);
+        const li = el("li", {
+          data: { met: met === undefined ? undefined : String(met) },
+          class: [met === true ? "met" : met === false ? "pending" : undefined],
+          text: met === true ? `✓ ${slug} — met` : met === false ? `○ ${slug} — pending` : slug,
+        });
+        ul.appendChild(li);
+      }
+      box.appendChild(ul);
+    }
+    return box;
+  };
+  const anatomyDemo = el("div", { class: "anatomy-card" });
+  anatomyDemo.appendChild(el("h3", {}, `bake-bread (opened)`));
+  anatomyDemo.appendChild(renderList("CONTAINS — interior members", anatomy.contains));
+  anatomyDemo.appendChild(renderList("AFTERS — what this makes necessary", anatomy.enables));
+  anatomyDemo.appendChild(renderList("BEFORES — what has to come first", anatomy.requires.map((r) => r.slug),
+    (slug) => anatomy.requires.find((r) => r.slug === slug)?.met));
+
+  root.appendChild(entry(
+    "Card Anatomy — CONTAINS / AFTERS / BEFORES",
+    "The card interior, opened: CONTAINS (this beat's own interior members — containsOf, a reuse of " +
+    "intervalOf), AFTERS (what this beat makes necessary — enablesOf, a renamed alias of downstreamsOf), " +
+    "and BEFORES (what has to come first — requiresOf, the q-depends-on read, each row carrying its own " +
+    "met/pending). met renders struck-through; pending renders as weather, never error-red — a BEFORE " +
+    "you haven't received yet is not a failure, it's a thing still on its way. readCardAnatomy assembles " +
+    "all three in one call. SEAM: the actual card's DOM contract (`.eventview-contains`, `data-met`, the " +
+    "phantom stack, the toggle) is board.ts's/cblock-skins.css's to render — this entry calls the same " +
+    "read live and renders it plainly, it does not reproduce the real card's markup or skin.",
+    [anatomyDemo],
+    `// the three-compartment read — ONE call:
+const anatomy = readCardAnatomy(soc, "bake-bread");
+// anatomy.contains: string[]        — CONTAINS (containsOf)
+// anatomy.enables:  string[]        — AFTERS   (enablesOf)
+// anatomy.requires: RequiresRow[]   — BEFORES  (requiresOf)
+//   each row: { slug, met: boolean }
+//   met=true  → render struck-through (received)
+//   met=false → render pending/weather (not yet — not an error)
+// board.ts's buildCardInterior takes this same read and lays
+// it into the real DOM contract (.eventview-contains, data-met,
+// data-section-hidden); this glossary entry renders it plainly
+// to teach the READ, not to duplicate that markup.`,
   ));
 }
 

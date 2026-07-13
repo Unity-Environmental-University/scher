@@ -165,7 +165,42 @@ export {
   type EventViewRead,
   type SuperjectArm,
   type EventViewParams,
+  // the corrected interior anatomy (card-v2 sitting, 2026-07-13): three stacked lists,
+  // contains → afters → befores, hideable per-section.
+  type InteriorSection,
+  type InteriorRow,
+  INTERIOR_SECTION_ORDER,
 } from "./eventview.js";
+
+// GRADUATED MUSLIN COMPONENTS (card-v2 sitting, 2026-07-13) — the hardened
+// fleet-bj-card-round1 lib primitives, ported JS→TS on el(): the 6-state
+// state-change glyph picker, the gcheck checkbox write-door, the reversible
+// hide affordance. State exposed as data-/aria- attributes; colors are the
+// page's job (the taste fence) — the *_INLINE_CSS constants are opt-in only.
+export {
+  createStateChangeGlyph,
+  STATE_MAP,
+  createGcheck,
+  createGcheckRow,
+  setGcheckToggle,
+  wireGcheckToEndpoint,
+  createHideButton,
+  setHideCallbacks,
+  wireHideToEndpoint,
+  STATE_GLYPH_INLINE_CSS,
+  GCHECK_INLINE_CSS,
+  HIDE_AFFORDANCE_INLINE_CSS,
+  type Announcer,
+  type BujoState,
+  type StateInfo,
+  type StateChangeGlyphOptions,
+  type StateChangeDetail,
+  type GcheckState,
+  type GcheckOptions,
+  type GcheckRowOptions,
+  type HideButtonOptions,
+  type WireEndpointOptions,
+} from "./components.js";
 
 // the POSITIVIST PORCELAIN — a get/set(boolean) handle over an establishment, so the
 // append-only/read-the-truth dissonance is hidden behind an intuitive surface and the

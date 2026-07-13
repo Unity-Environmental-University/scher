@@ -95,9 +95,9 @@ describe("eventView — three modes, one harness", () => {
 
 // FLIPPED DELIBERATELY (card-v2 sitting, 2026-07-13): the v1 upstreams/downstreams
 // interior anatomy PERISHED into the corrected anatomy — three stacked lists, in order
-// CONTAINS → AFTERS → BEFORES (befores rows carry met/pending as data-met), each section
+// CONTAINS → FUTURE → PAST (past rows carry met/pending as data-met), each section
 // hideable. board.ts (the only caller) accepted the rename in the sitting.
-describe("eventView — interior CARD ANATOMY (face+tags / contains / afters / befores / expand)", () => {
+describe("eventView — interior CARD ANATOMY (face+tags / contains / future / past / expand)", () => {
   it("bare interior (no anatomy reads) is unchanged — just the cardStory face", () => {
     const soc = society();
     const node = eventView(soc, { slug: "established-beat", mode: "interior", modeArm: testModeArm }) as HTMLElement;
@@ -105,15 +105,15 @@ describe("eventView — interior CARD ANATOMY (face+tags / contains / afters / b
     expect(node.className).not.toContain("event-view");
   });
 
-  it("supplying contains/afters/befores/tags builds the corrected anatomy, in fixed order", () => {
+  it("supplying contains/future/past/tags builds the corrected anatomy, in fixed order", () => {
     const soc = society();
     const node = eventView(soc, {
       slug: "established-beat",
       mode: "interior",
       modeArm: testModeArm,
       // supplied out of order on purpose — the RENDER order is scher's, fixed.
-      befores: [{ slug: "grounder", label: "needs grounder", met: true }],
-      afters: [{ slug: "star", label: "leads to star" }],
+      past: [{ slug: "grounder", label: "needs grounder", met: true }],
+      future: [{ slug: "star", label: "leads to star" }],
       contains: [{ slug: "scripted-beat", label: "the event of scripting" }],
       tags: ["urgent", "home"],
     }) as HTMLElement;
@@ -122,19 +122,19 @@ describe("eventView — interior CARD ANATOMY (face+tags / contains / afters / b
     const tagEls = node.querySelectorAll(".eventview-tags .eventview-tag");
     expect(tagEls.length).toBe(2);
     expect(tagEls[0]?.textContent).toBe("urgent");
-    // the three stacked lists render in the corrected order: contains, afters, befores.
+    // the three stacked lists render in the corrected order: contains, future, past.
     const sections = Array.from(node.querySelectorAll(".eventview-section")) as HTMLElement[];
-    expect(sections.map((s) => s.dataset.section)).toEqual(["contains", "afters", "befores"]);
+    expect(sections.map((s) => s.dataset.section)).toEqual(["contains", "future", "past"]);
     expect(sections[0]?.className).toContain("eventview-contains");
-    expect(sections[1]?.className).toContain("eventview-afters");
-    expect(sections[2]?.className).toContain("eventview-befores");
+    expect(sections[1]?.className).toContain("eventview-future");
+    expect(sections[2]?.className).toContain("eventview-past");
     // rows are section-agnostic superject sub-rows.
-    const aRow = node.querySelector(".eventview-afters .eventview-row") as HTMLElement;
+    const aRow = node.querySelector(".eventview-future .eventview-row") as HTMLElement;
     expect(aRow.dataset.slug).toBe("star");
     expect(aRow.querySelector(".eventview-row-text")?.textContent).toBe("leads to star");
     expect(aRow.querySelector(".eventview-row-check")).not.toBeNull();
-    // befores carry met/pending structurally as data-met; the skin is css's.
-    const bRow = node.querySelector(".eventview-befores .eventview-row") as HTMLElement;
+    // past carry met/pending structurally as data-met; the skin is css's.
+    const bRow = node.querySelector(".eventview-past .eventview-row") as HTMLElement;
     expect(bRow.dataset.met).toBe("true");
     // rows without a met read carry no data-met at all.
     expect(aRow.dataset.met).toBeUndefined();
@@ -148,25 +148,25 @@ describe("eventView — interior CARD ANATOMY (face+tags / contains / afters / b
       mode: "interior",
       modeArm: testModeArm,
       contains: [{ slug: "scripted-beat" }],
-      befores: [{ slug: "grounder", met: false }],
-      hiddenSections: ["befores"],
+      past: [{ slug: "grounder", met: false }],
+      hiddenSections: ["past"],
       onToggleSection: (s, h) => toggled.push([s, h]),
     }) as HTMLElement;
-    const befores = node.querySelector(".eventview-befores") as HTMLElement;
+    const past = node.querySelector(".eventview-past") as HTMLElement;
     const contains = node.querySelector(".eventview-contains") as HTMLElement;
     // initial state honors hiddenSections.
-    expect(befores.classList.contains("hidden")).toBe(true);
-    expect(befores.getAttribute("data-section-hidden")).toBe("true");
+    expect(past.classList.contains("hidden")).toBe(true);
+    expect(past.getAttribute("data-section-hidden")).toBe("true");
     expect(contains.classList.contains("hidden")).toBe(false);
     expect(contains.getAttribute("data-section-hidden")).toBeNull();
     // toggling shows it again and reports.
-    const toggle = befores.querySelector(".eventview-section-toggle") as HTMLButtonElement;
+    const toggle = past.querySelector(".eventview-section-toggle") as HTMLButtonElement;
     expect(toggle.textContent).toBe("show");
     toggle.click();
-    expect(befores.classList.contains("hidden")).toBe(false);
-    expect(befores.getAttribute("data-section-hidden")).toBeNull();
+    expect(past.classList.contains("hidden")).toBe(false);
+    expect(past.getAttribute("data-section-hidden")).toBeNull();
     expect(toggle.textContent).toBe("hide");
-    expect(toggled).toEqual([["befores", false]]);
+    expect(toggled).toEqual([["past", false]]);
   });
 
   it("row's LEFT glyph (kind) and RIGHT check (done) are separate slots — section-agnostic", () => {
@@ -175,7 +175,7 @@ describe("eventView — interior CARD ANATOMY (face+tags / contains / afters / b
       slug: "established-beat",
       mode: "interior",
       modeArm: testModeArm,
-      afters: [{ slug: "star" }],
+      future: [{ slug: "star" }],
       rowGlyphArm: () => document.createTextNode("•"),
       isRowDone: () => true,
     }) as HTMLElement;
@@ -195,7 +195,7 @@ describe("eventView — interior CARD ANATOMY (face+tags / contains / afters / b
       slug: "established-beat",
       mode: "interior",
       modeArm: testModeArm,
-      afters: [{ slug: "star" }],
+      future: [{ slug: "star" }],
       onExpandGrounding: (slug) => { expanded = slug; },
     }) as HTMLElement;
     const btn = node.querySelector(".eventview-expand-grounding") as HTMLButtonElement;
@@ -247,7 +247,7 @@ describe("eventView — INLINE-OPEN (superject -> interior IN PLACE, depth-cappe
       slug: "established-beat",
       mode: "interior",
       modeArm: testModeArm,
-      afters: [{ slug: "star" }],
+      future: [{ slug: "star" }],
       inlineOpenArm: () => document.createTextNode("should not render"),
       depth: 1, // AT the cap — no further inline-open offered
     }) as HTMLElement;
@@ -261,7 +261,7 @@ describe("eventView — INLINE-OPEN (superject -> interior IN PLACE, depth-cappe
       slug: "established-beat",
       mode: "interior",
       modeArm: testModeArm,
-      afters: [{ slug: "star" }],
+      future: [{ slug: "star" }],
       inlineOpenArm: (v) => document.createTextNode(`peeked:${v.slug}`),
       // depth defaults to 0
     }) as HTMLElement;

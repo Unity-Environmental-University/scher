@@ -168,7 +168,7 @@ export {
   type SuperjectArm,
   type EventViewParams,
   // the corrected interior anatomy (card-v2 sitting, 2026-07-13): three stacked lists,
-  // contains → afters → befores, hideable per-section.
+  // contains → future → past, hideable per-section.
   type InteriorSection,
   type InteriorRow,
   INTERIOR_SECTION_ORDER,

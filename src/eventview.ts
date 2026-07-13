@@ -84,12 +84,12 @@ export type SuperjectArm = (v: EventViewRead) => Node;
 
 /** the three interior lists, in render order (the corrected anatomy's fixed order —
  *  brief ¶2). Also the vocabulary for hiddenSections/onToggleSection. */
-export type InteriorSection = "contains" | "afters" | "befores";
-export const INTERIOR_SECTION_ORDER: readonly InteriorSection[] = ["contains", "afters", "befores"];
+export type InteriorSection = "contains" | "future" | "past";
+export const INTERIOR_SECTION_ORDER: readonly InteriorSection[] = ["contains", "future", "past"];
 
-/** one row of an interior list. `met` is only meaningful on BEFORES rows (RequiresRow's
- *  met/pending discriminant, requiresOf @779f960) — rendered structurally as `data-met`;
- *  the skin is the caller's css. */
+/** one row of an interior list. `met` is only meaningful on PAST rows (RequiresRow's
+ *  met/pending discriminant) — rendered structurally as `data-met`; the skin is the
+ *  caller's css. */
 export interface InteriorRow {
   slug: string;
   label?: string;
@@ -119,7 +119,7 @@ export interface EventViewParams {
    *  downstream, don't navigate to it." This is INTENTIONALLY separate from `onOpen`:
    *  onOpen is a caller-routed "make this the new significator" navigation (board.ts's
    *  job); inlineOpenArm is scher's own bounded, in-place expansion (this file's job).
-   *  A caller wanting the full card anatomy (face+tags / contains / afters / befores)
+   *  A caller wanting the full card anatomy (face+tags / contains / future / past)
    *  supplies THIS arm — typically `(v) => eventView(soc, {slug: v.slug, mode:'interior',
    *  modeArm, depth: depth+1, ...})` — and scher enforces the depth cap below; the arm
    *  itself never has to know or check the cap. Omit to get a plain, non-expandable row
@@ -133,22 +133,19 @@ export interface EventViewParams {
    *  Bounding here, not in the caller's arm, means the cap is enforced ONCE, structurally,
    *  the same way frameStory enforces its one-level cap once rather than per-caller. */
   depth?: number;
-  /** the CARD ANATOMY reads for INTERIOR mode — Hallie's CORRECTED anatomy (card-v2
-   *  sitting 2026-07-13, BRIEF-card-v2-corrected-anatomy.md): one opened card's interior
-   *  is three STACKED LISTS, rendered in this order — CONTAINS (interior members), AFTERS
-   *  (what X makes necessary/possible), BEFORES (what has to come before X, met/pending).
-   *  The v1 ↑upstreams/↓downstreams params PERISHED HONESTLY into these three (sitting
-   *  minute: the anatomy was latent under coarser names; board.ts, the only caller,
-   *  accepted the rename). Still CALLER-SUPPLIED, never read here (the ontology reads are
-   *  stories.ts's — requiresOf/containsOf/enablesOf/readCardAnatomy, frame-crew-scher-reads
-   *  @779f960; see CLEARNESS-eventview-boundary.md ¶1): BEFORES ≈ requiresOf (hence `met`
-   *  on InteriorRow — rendered as `data-met`; the struck/pending SKIN is css's, and per
-   *  the sitting's eleventh light it must read as weather, never error-red), AFTERS ≈
-   *  enablesOf, CONTAINS = containsOf. Omit any list to omit that section (a bare beat
-   *  with no assembled reads still renders a valid, sparse interior — never a throw). */
+  /** the CARD ANATOMY reads for INTERIOR mode: one opened card's interior is three
+   *  STACKED LISTS, rendered in this order — CONTAINS (interior members), FUTURE (what
+   *  X makes necessary/possible), PAST (what had to come before X, met/pending).
+   *  Caller-supplied, never read here — the ontology reads are stories.ts's
+   *  (requiresOf/containsOf/enablesOf/readCardAnatomy): PAST ≈ requiresOf (hence `met`
+   *  on InteriorRow, rendered as `data-met`; the struck/pending skin is css's and must
+   *  read as weather, never error-red), FUTURE ≈ enablesOf, CONTAINS = containsOf.
+   *  (Earlier names afters/befores, and before that upstreams/downstreams, perished
+   *  honestly.) Omit any list to omit that section — a bare beat with no assembled
+   *  reads still renders a valid, sparse interior, never a throw. */
   contains?: InteriorRow[];
-  afters?: InteriorRow[];
-  befores?: InteriorRow[];
+  future?: InteriorRow[];
+  past?: InteriorRow[];
   tags?: string[];
   /** SECTION HIDE/SHOW (brief ¶4: the interior lists are hideable/showable, per-card):
    *  the same class-toggle idiom as the per-row hide, one level up. Sections named here
@@ -168,7 +165,7 @@ export interface EventViewParams {
   rowGlyphArm?: (slug: string) => Node;
   /** per-row DONE state — a plain read the caller supplies (scher does not decide what
    *  "done" means for an arbitrary beat; that's a quality/mode read owned by
-   *  stories.ts/society.ts, same reasoning as contains/afters/befores above). */
+   *  stories.ts/society.ts, same reasoning as contains/future/past above). */
   isRowDone?: (slug: string) => boolean;
   /** row callbacks — both OPTIONAL, both OMIT-TO-DISABLE, section-agnostic: */
   onRowDone?: (slug: string) => void;
@@ -209,7 +206,7 @@ const INLINE_OPEN_DEPTH_CAP = 1;
  *  → BEFORES as superject-rows, then expand) around cardStory's existing face render
  *  (content/mode/pathos) — cardStory still owns the FACE, this harness adds the stacked
  *  sections after it, structurally, from caller-supplied reads (see
- *  EventViewParams.contains/afters/befores/tags — why they're caller-supplied, not read here).
+ *  EventViewParams.contains/future/past/tags — why they're caller-supplied, not read here).
  *  SUPERJECT is a compact row built fresh here (a card is too heavy — full content, pathos
  *  chips, an openable click-target — for "a datum in a list"); it may also carry an
  *  INLINE-OPEN affordance (see inlineOpenArm/depth) that expands the row to its own interior
@@ -234,7 +231,7 @@ export function eventView(soc: Society, params: EventViewParams): Node {
 
     // no anatomy reads supplied at all: caller gets the bare face (still a valid,
     // if sparse, interior render — never a throw; see the params doc).
-    if (!params.contains && !params.afters && !params.befores && !params.tags) return face;
+    if (!params.contains && !params.future && !params.past && !params.tags) return face;
 
     const card = el("div", { class: `event-view interior depth-${depth}`, data: { slug } });
 
@@ -250,8 +247,7 @@ export function eventView(soc: Society, params: EventViewParams): Node {
 
     // ── one interior-list ROW — a bordered SUPERJECT sub-card row, SECTION-AGNOSTIC:
     //    left state-glyph (WHAT KIND) + text + right done-check (IS IT DONE) + hide tab
-    //    (+ met/pending as data-met on befores). Two marks, not one confusing checkbox —
-    //    the checkbox-trub resolution, kept from v1. ──
+    //    (+ met/pending as data-met on past rows). Two marks, not one confusing checkbox. ──
     const interiorRow = (r: InteriorRow): HTMLElement => {
       const dRow = el("div", {
         class: "eventview-row",
@@ -300,16 +296,14 @@ export function eventView(soc: Society, params: EventViewParams): Node {
       return dRow;
     };
 
-    // ── the THREE STACKED LISTS, fixed order: CONTAINS → AFTERS → BEFORES (brief ¶2).
-    //    Each section is hideable/showable (brief ¶4) via its header toggle — the
-    //    class-toggle idiom one level up from the per-row hide. Headings here are the
-    //    STRUCTURAL section keys only; the human words are board.ts/human.ts's (strings
-    //    follow the render — sitting condition; Future/Past-vs-Afters/Befores naming is
-    //    Hallie's fenced fork). ──
+    // ── the THREE STACKED LISTS, fixed order: CONTAINS → FUTURE → PAST. Each section
+    //    is hideable/showable via its header toggle — the class-toggle idiom one level
+    //    up from the per-row hide. Headings here are the STRUCTURAL section keys only;
+    //    the human words are the caller's (strings follow the render). ──
     const sections: Record<InteriorSection, InteriorRow[] | undefined> = {
       contains: params.contains,
-      afters: params.afters,
-      befores: params.befores,
+      future: params.future,
+      past: params.past,
     };
     for (const name of INTERIOR_SECTION_ORDER) {
       const rows = sections[name];

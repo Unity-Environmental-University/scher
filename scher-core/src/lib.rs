@@ -146,6 +146,14 @@ pub struct Society {
     rows: HashMap<String, EventRow>,
     rev: u64,
     clock: u64,
+    // Adjacency indexes (load-time fix, 2026-07-13): edge slugs keyed by their subject /
+    // object. Maintained in `insert` — safe because the society is append-only and a row's
+    // subject/object are never mutated after insert (set_laid_by touches only laid_by).
+    // These turn the per-call full-table scans in prehensions_onto/from, is_occluded and
+    // reaches into O(degree) lookups; at ~14k rows the scans were O(n) per read and O(n·m)
+    // in any caller that reads per-row, which made /bujo/today's cold path ~1.5s.
+    by_subject: HashMap<String, Vec<String>>,
+    by_object: HashMap<String, Vec<String>>,
 }
 
 impl Society {
@@ -176,8 +184,25 @@ impl Society {
         // TODO(socratic): `.max()` here ratchets the clock forward; could an out-of-order explicit witness (earlier than current clock) break assumptions about monotone time, or is that guard alone insufficient?
         self.clock = self.clock.max(witnessed);
         b.witnessed = Some(witnessed);
+        if let Some(s) = &b.subject {
+            self.by_subject.entry(s.clone()).or_default().push(b.slug.clone());
+        }
+        if let Some(o) = &b.object {
+            self.by_object.entry(o.clone()).or_default().push(b.slug.clone());
+        }
         self.rows.insert(b.slug.clone(), b);
         true
+    }
+
+    /// Edges whose SUBJECT is `s` (adjacency-indexed; same rows a full scan on
+    /// `subject == s` yields, in insertion order).
+    pub fn edges_from_subject<'a>(&'a self, s: &str) -> impl Iterator<Item = &'a EventRow> {
+        self.by_subject.get(s).into_iter().flatten().filter_map(|slug| self.rows.get(slug))
+    }
+
+    /// Edges whose OBJECT is `o` (adjacency-indexed mirror of `edges_from_subject`).
+    pub fn edges_onto_object<'a>(&'a self, o: &str) -> impl Iterator<Item = &'a EventRow> {
+        self.by_object.get(o).into_iter().flatten().filter_map(|slug| self.rows.get(slug))
     }
 
     /// Lay a beat (the only write). Returns true on a genuine append, false if inert.
@@ -426,12 +451,12 @@ pub fn prehensions_onto<'a>(
     quality: &str,
     as_of: Option<u64>,
 ) -> Vec<&'a EventRow> {
-    soc.all()
+    // Adjacency-indexed (was a full soc.all() scan per call — the load-time murder).
+    soc.edges_onto_object(row)
         .filter(|b| {
-            b.object.as_deref() == Some(row)
-                // TODO(socratic): why insist subject.is_some() — would a beat with no subject (a content beat) ever land here by accident, or is the check defensive against a grammar that forbids headless edges?
-                // ANSWERED(walk 2026-07-02): definitional, not defensive — in the grammar an edge always carries both subject and object; a node is (None, None). The check selects edges. — see walk plan §A (grammar facts)
-                && b.subject.is_some()
+            // TODO(socratic): why insist subject.is_some() — would a beat with no subject (a content beat) ever land here by accident, or is the check defensive against a grammar that forbids headless edges?
+            // ANSWERED(walk 2026-07-02): definitional, not defensive — in the grammar an edge always carries both subject and object; a node is (None, None). The check selects edges. — see walk plan §A (grammar facts)
+            b.subject.is_some()
                 && visible_at(b, as_of)
                 && prehends_as(soc, &b.slug, quality, as_of)
         })
@@ -446,12 +471,12 @@ pub fn prehensions_from<'a>(
     quality: &str,
     as_of: Option<u64>,
 ) -> Vec<&'a EventRow> {
-    soc.all()
+    // Adjacency-indexed (mirror of prehensions_onto's fix).
+    soc.edges_from_subject(row)
         .filter(|b| {
-            b.subject.as_deref() == Some(row)
-                // TODO(socratic): why require object.is_some() — could an edge have no object (a subject-only beat), or is the grammar such that edges always have both?
-                // ANSWERED(walk 2026-07-02): the grammar is such that edges always have both — a node is (None, None); there is no subject-only shape. — see walk plan §A (grammar facts)
-                && b.object.is_some()
+            // TODO(socratic): why require object.is_some() — could an edge have no object (a subject-only beat), or is the grammar such that edges always have both?
+            // ANSWERED(walk 2026-07-02): the grammar is such that edges always have both — a node is (None, None); there is no subject-only shape. — see walk plan §A (grammar facts)
+            b.object.is_some()
                 && visible_at(b, as_of)
                 && prehends_as(soc, &b.slug, quality, as_of)
         })
@@ -462,9 +487,8 @@ pub fn prehensions_from<'a>(
 /// un-occlusion is the absence of a LIVE occluder, read fresh; no deep recursion.
 // TODO(socratic): "one level only" means an occluder whose own occluder is occluded still casts no shadow — is the depth-1 cutoff a claim of the metaphysics (un-occlusion is absence of a LIVE occluder, read fresh) or a convenience that silently diverges from "live" at chains of length three?
 fn is_occluder(soc: &Society, occlude_edge: &str, as_of: Option<u64>) -> bool {
-    soc.all().any(|b| {
-        b.object.as_deref() == Some(occlude_edge)
-            && b.subject.is_some()
+    soc.edges_onto_object(occlude_edge).any(|b| {
+        b.subject.is_some()
             // TODO(socratic): the self-loop check `!= Some(occlude_edge)` rejects an edge occluding itself — but does the grammar elsewhere forbid self-loops, or is this the only place guarding against them, or is guarding here incomplete if a malformed edge could appear?
             // ANSWERED(walk 2026-07-02): the grammar has no self-occluding shape (an occlusion edge's subject names ANOTHER edge); this check just keeps the read total if a malformed row appears — edges always carry both subject and object. — see walk plan §A (grammar facts)
             && b.subject.as_deref() != Some(occlude_edge)
@@ -479,9 +503,8 @@ fn is_occluder(soc: &Society, occlude_edge: &str, as_of: Option<u64>) -> bool {
 /// that is itself occluded casts no shadow (one level, no cycle-guard needed). A self-loop
 /// {subject==object} is NOT occlusion (the dead grammar is dead).
 pub fn is_occluded(soc: &Society, target: &str, as_of: Option<u64>) -> bool {
-    soc.all().any(|b| {
-        b.object.as_deref() == Some(target)
-            && b.subject.is_some()
+    soc.edges_onto_object(target).any(|b| {
+        b.subject.is_some()
             && b.subject.as_deref() != Some(target)
             && visible_at(b, as_of)
             && prehends_as(soc, &b.slug, Q_OCCLUDES, as_of)
@@ -546,6 +569,28 @@ pub fn reaches(soc: &Society, from: &str, to: &str, quality: &str, as_of: Option
         }
     }
     false
+}
+
+/// reaches_set: every node reachable from `from` along un-occluded prehensions co-prehending
+/// `quality` (subject→object), as of a moment — `reaches` run to exhaustion instead of
+/// early-exit. Includes `from` itself (mirroring `reaches`'s trivial from==to case). For a
+/// caller asking `reaches(from, X)` for many X against one frontier, one set beats N walks.
+pub fn reaches_set(soc: &Society, from: &str, quality: &str, as_of: Option<u64>) -> std::collections::HashSet<String> {
+    let mut seen = std::collections::HashSet::new();
+    seen.insert(from.to_string());
+    let mut stack = vec![from.to_string()];
+    while let Some(n) = stack.pop() {
+        for p in prehensions_from(soc, &n, quality, as_of) {
+            if is_occluded(soc, &p.slug, as_of) {
+                continue;
+            }
+            let Some(next) = p.object.as_deref() else { continue };
+            if seen.insert(next.to_string()) {
+                stack.push(next.to_string());
+            }
+        }
+    }
+    seen
 }
 
 /// established_to: frame-relative establishment — is `row` behind the reader's Now on the
@@ -722,34 +767,36 @@ pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
         })
         .collect();
 
-    fn reach(edges: &[&EventRow], from: &str, fwd: bool) -> std::collections::HashSet<String> {
+    // Adjacency maps over the filtered plain edges, built once (was: the reach walk re-scanned
+    // the whole edge list per stack node — O(V·E), the distance_to_hea half of the load-time
+    // murder). Same edges, same steps: fwd walks subject→object, bwd the reverse.
+    // TODO(socratic): fwd=true walks forward (subject→object), fwd=false walks backward (object→subject) — but does "forward-reachable from once" mean subject→object or object→subject, and which direction is the story's "natural" flow?
+    // ANSWERED(walk 2026-07-02): fwd steps subject→object, bwd the reverse; the interval is the fwd(once) ∩ bwd(end) intersection, so the read is order-free set reachability between the poles — the poles ARE the story, the interior is read, never stored. — see event-is-the-bounding-sphere.md (R3)
+    let mut fwd_adj: std::collections::HashMap<&str, Vec<&str>> = std::collections::HashMap::new();
+    let mut bwd_adj: std::collections::HashMap<&str, Vec<&str>> = std::collections::HashMap::new();
+    for e in &edges {
+        let (s, o) = (e.subject.as_deref().unwrap(), e.object.as_deref().unwrap());
+        fwd_adj.entry(s).or_default().push(o);
+        bwd_adj.entry(o).or_default().push(s);
+    }
+
+    fn reach(adj: &std::collections::HashMap<&str, Vec<&str>>, from: &str) -> std::collections::HashSet<String> {
         let mut seen = std::collections::HashSet::new();
         seen.insert(from.to_string());
         let mut stack = vec![from.to_string()];
         while let Some(n) = stack.pop() {
-            for e in edges {
-                // TODO(socratic): fwd=true walks forward (subject→object), fwd=false walks backward (object→subject) — but does "forward-reachable from once" mean subject→object or object→subject, and which direction is the story's "natural" flow?
-                // ANSWERED(walk 2026-07-02): fwd steps subject→object, bwd the reverse; the interval is the fwd(once) ∩ bwd(end) intersection, so the read is order-free set reachability between the poles — the poles ARE the story, the interior is read, never stored. — see event-is-the-bounding-sphere.md (R3)
-                let next = if fwd {
-                    if e.subject.as_deref() == Some(&n) { e.object.clone() } else { None }
-                } else if e.object.as_deref() == Some(&n) {
-                    e.subject.clone()
-                } else {
-                    None
-                };
-                if let Some(next) = next {
-                    // TODO(socratic): seen.insert() returns false if `next` was already in the set — so the stack skips revisiting; is the reachability graph acyclic, or does loop-avoidance silently hide cycles?
-                    if seen.insert(next.clone()) {
-                        stack.push(next);
-                    }
+            for next in adj.get(n.as_str()).into_iter().flatten() {
+                // TODO(socratic): seen.insert() returns false if `next` was already in the set — so the stack skips revisiting; is the reachability graph acyclic, or does loop-avoidance silently hide cycles?
+                if seen.insert(next.to_string()) {
+                    stack.push(next.to_string());
                 }
             }
         }
         seen
     }
 
-    let fwd = reach(&edges, once, true);
-    let bwd = reach(&edges, end, false);
+    let fwd = reach(&fwd_adj, once);
+    let bwd = reach(&bwd_adj, end);
     // TODO(socratic): intersection of forward-reachable and backward-reachable sets gives the interval — but is this symmetric, or could a beat be reachable fwd from `once` but not bwd from `end` (unreachable end), and should the interval include `once` and `end` themselves?
     // ANSWERED(walk 2026-07-02): a beat reachable from once but not reaching end lies outside the sphere — betweenness IS the intersection, by design. Both seed sets include their own start, so the poles appear here; readers that want only the interior (canon_of) filter them out — poles are boundary, interior is read. — see event-is-the-bounding-sphere.md (R3)
     fwd.into_iter().filter(|n| bwd.contains(n)).collect()
@@ -760,10 +807,8 @@ pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
 /// 2026-07-06; q-lure is dead — see the lay_p guard). Mirrors `endOf` in society.ts.
 // TODO(socratic): find() returns the first match in an unordered map — what defines "first", and if two pole designations match (reopened differentials), should end_of pick one deterministically or error?
 pub fn end_of(soc: &Society, story: &str) -> Option<String> {
-    soc.all()
-        .find(|b| {
-            b.subject.as_deref() == Some(story) && prehends_as(soc, &b.slug, Q_END_POLE, None)
-        })
+    soc.edges_from_subject(story)
+        .find(|b| prehends_as(soc, &b.slug, Q_END_POLE, None))
         .and_then(|b| b.object.clone())
 }
 

@@ -27,6 +27,7 @@ import {
   endOf,
   isStory,
   unpackPoles,
+  dependsOn,
   type Mode,
   type Quality,
 } from "./society.js";
@@ -190,6 +191,99 @@ export function readCardInterior(soc: Society, slug: string, asOf?: number): Car
     upstreams: upstreamsOf(soc, slug, asOf),
     downstreams: downstreamsOf(soc, slug, asOf),
     tags: tagsOf(soc, slug, asOf),
+  };
+}
+
+// ── REQUIRES / CONTAINS / ENABLES — Hallie's card anatomy (fleet-card-anatomy
+// sketch, HALLIE-SKETCH-requires-contains-enables.png; verified muslin at
+// from-ithaca-muslins/recess-cards/card-v1.html). Three reads, ONE new, two reused
+// — see the doc on each for why. This is the read CONTRACT board.ts/cblock-skins.css
+// compose against; the shapes below are final unless a real render need reshapes them.
+//
+// THE SEAM (surfaced, not guessed past): does REQUIRES = upstreamsOf? NO — and this
+// is the one genuinely new read here. upstreamsOf/downstreamsOf walk q-grounding +
+// "because": a CALM, ALREADY-RESOLVED provenance read ("what this beat already
+// grabbed / climbed from," "why this exists"). Hallie's REQUIRES is a different verb
+// entirely: "the events this beat must RECEIVE to be true" — the REDUCTION. A story
+// IS the events it must receive; REQUIRES asks which of those it has NOT yet received.
+// That is an OWED / met-vs-pending question, structurally distinct from "already
+// happened, upstream of me" — upstreamsOf cannot answer it (a beat's upstreams are, by
+// construction, already-landed prehensions; there is no "pending upstream"). The
+// q-depends-on family (dependsOn/blockedOnNow, society.ts ~570) is the correct
+// substrate: it is EXACTLY "beats this one is waiting to receive," with isEstablished
+// as the met/pending discriminant already built in. requiresOf below is that read,
+// promoted to the card-anatomy shape (met flag inline, so a caller doesn't need two
+// calls to render "struck-through=met, highlighted=pending" — the v1 muslin's own
+// finding, corroborated independently by the v1 builder).
+
+/** one REQUIRES row: a required event + whether it has been received (met) yet. */
+export interface RequiresRow {
+  slug: string;
+  /** has this required event been established (received)? true = met (render
+   *  struck-through per the muslin); false = still owed (render highlighted/pending). */
+  met: boolean;
+}
+
+/** requiresOf: the events this beat must RECEIVE to be true — its q-depends-on
+ *  edges (dependsOn), each carrying its own met/pending state (isEstablished).
+ *  NEW READ (not a reuse of upstreamsOf — see the seam note above). Ordering:
+ *  dependsOn's own edge order (no stored index — topological/insertion, not a rank). */
+export function requiresOf(soc: Society, slug: string, asOf?: number): RequiresRow[] {
+  return dependsOn(soc, slug, asOf).map((r) => ({ slug: r, met: isEstablished(soc, r, asOf) }));
+}
+
+/** containsOf: this beat's interior members — a REUSE, not a new read. CONTAINS is
+ *  exactly what frameStory/readCardInterior already call "the interval minus its own
+ *  lips": intervalOf(once, end) filtered to interior, which is membership read as
+ *  BETWEENNESS (not ~holds~ string-match — ~holds~ is deprecated per the settled
+ *  ontology, and this read never touches it). A leaf beat (isStory=false) has no
+ *  interior at all — CONTAINS is empty, not an error; the card still opens, just with
+ *  an empty middle compartment (mirrors the muslin's task-kind example: "no interior
+ *  members — a task can be a leaf"). Depth is the caller's concern (eventview.ts's
+ *  existing INLINE_OPEN_DEPTH_CAP / frameStory's depth<1 cap) — this read returns ONE
+ *  level flat, same discipline as upstreamsOf/downstreamsOf returning flat slug lists. */
+export function containsOf(soc: Society, slug: string, asOf?: number): string[] {
+  if (!isStory(soc, slug)) return [];
+  const end = endOf(soc, slug);
+  if (!end) return [];
+  return intervalOf(soc, slug, end).filter((b) => b !== slug && b !== end);
+}
+
+/** enablesOf: what this beat makes possible / grounds forward, toward V=0 (the sea).
+ *  A REUSE, not a new read: this is downstreamsOf, renamed at the call site to match
+ *  Hallie's anatomy vocabulary. downstreamsOf ALREADY reads "events that lead TO this
+ *  beat" via the same q-grounding+because walk, forward-facing exactly as ENABLES
+ *  wants — the muslin's own REAL-INTEGRATION MAP calls this "the closest 1:1 match of
+ *  any compartment to existing code," and reading the ontology confirms it: no new
+ *  substrate needed. Kept as a thin alias (not a re-export of the bare name) so a
+ *  caller composing the three-compartment contract can import requiresOf/containsOf/
+ *  enablesOf as one matched family, without upstreamsOf/downstreamsOf's older
+ *  provenance-flavored names leaking into card-anatomy call sites. */
+export function enablesOf(soc: Society, slug: string, asOf?: number): string[] {
+  return downstreamsOf(soc, slug, asOf);
+}
+
+/** readCardAnatomy: the READ contract for Hallie's three-compartment card — one call
+ *  assembling requiresOf/containsOf/enablesOf (+ the base beat facts) for board.ts's
+ *  buildCardInterior and cblock-skins.css's compartment layout to compose against.
+ *  Mirrors readCardInterior's shape/spirit (upstreams/downstreams/tags) but is NOT a
+ *  replacement for it — readCardInterior's provenance anatomy (↑upstreams / ↓downstreams
+ *  / tags) is a different, still-live reading (eventview.ts's interior mode uses it
+ *  today); this is the NEW three-compartment reading Hallie's sketch asks for. Both may
+ *  coexist on a card until/unless Penelope's render decides to retire one — that
+ *  retirement is a Penelope-taste/board.ts call, not scher's to make here. */
+export interface CardAnatomyRead extends CardRead {
+  requires: RequiresRow[];
+  contains: string[];
+  enables: string[];
+}
+
+export function readCardAnatomy(soc: Society, slug: string, asOf?: number): CardAnatomyRead {
+  return {
+    ...readCard(soc, slug),
+    requires: requiresOf(soc, slug, asOf),
+    contains: containsOf(soc, slug, asOf),
+    enables: enablesOf(soc, slug, asOf),
   };
 }
 

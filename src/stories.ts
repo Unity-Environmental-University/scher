@@ -87,24 +87,46 @@ export type ModeArm = (v: CardRead) => Node;
 // — closing-edges (the End-pole machinery, subject/object shaped `hea-*`) are
 // structural plumbing, not a real relationship, and are filtered here at the read,
 // not left to every caller to remember to filter.
-const BECAUSE_QUALITY: Quality = "q-grounding";
+// UPSTREAM = everything that leads to a beat, by CAUSE or by ORIENTATION.
+// Two qualities carry that: q-grounding (a note grounds in its cause) and the bare
+// "because" bearing (a note/aim ORIENTS toward a user-story or higher aim — the
+// bear-toward door, api/src/bujo_write.rs, 2026-07-10). Hallie's ruling (2026-07-10):
+// "inside a story ≠ orienting toward a user-story" — that distinction lives at the
+// STORY-MEMBERSHIP layer (loose vs inside), NOT here. On the CARD, both a cause and a
+// bearing are simply "directly upstream," so the card's up/down read walks BOTH. (The
+// card should show a todo's user-story and, on the user-story, what's directly upstream.)
+const UPSTREAM_QUALITIES: Quality[] = ["q-grounding", "because"];
 
-/** upstreamsOf: events THIS beat has a because-edge TO (what led here — the
- *  ~because~-in bearings a reader climbs to see why). Closing-edges excluded. */
+/** upstreamsOf: events THIS beat leads FROM — by cause (q-grounding) OR by orientation
+ *  ("because" bearing toward an aim/user-story). The ~because~-in bearings a reader
+ *  climbs to see why / what this serves. Closing-edges (hea-*) excluded. Deduped. */
 export function upstreamsOf(soc: Society, slug: string, asOf?: number): string[] {
-  return prehensionsFrom(soc, slug, BECAUSE_QUALITY, asOf)
-    .filter((p) => p.object && !p.object.startsWith("hea-"))
-    .map((p) => p.object as string);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const q of UPSTREAM_QUALITIES) {
+    for (const p of prehensionsFrom(soc, slug, q, asOf)) {
+      const o = p.object;
+      if (o && !o.startsWith("hea-") && !seen.has(o)) { seen.add(o); out.push(o); }
+    }
+  }
+  return out;
 }
 
-/** downstreamsOf: events that have a because-edge TO this beat (this event's own
- *  light-cone out — what it grounds). Closing-edges excluded. Each entry is a
- *  candidate DOWNSTREAM ROW per the card anatomy: a superject-face reading of that
- *  event, rendered as a bordered sub-card by the caller's taste arm. */
+/** downstreamsOf: events that lead TO this beat — by cause (q-grounding) OR by
+ *  orientation ("because" bearing). This event's own light-cone out / what orients
+ *  toward it (on a user-story: its direct upstream bearers). Closing-edges excluded.
+ *  Each entry is a candidate DOWNSTREAM ROW per the card anatomy: a superject-face
+ *  reading of that event, rendered as a bordered sub-card by the caller's taste arm. */
 export function downstreamsOf(soc: Society, slug: string, asOf?: number): string[] {
-  return prehensionsOnto(soc, slug, BECAUSE_QUALITY, asOf)
-    .filter((p) => p.subject && !p.subject.startsWith("hea-"))
-    .map((p) => p.subject as string);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const q of UPSTREAM_QUALITIES) {
+    for (const p of prehensionsOnto(soc, slug, q, asOf)) {
+      const s = p.subject;
+      if (s && !s.startsWith("hea-") && !seen.has(s)) { seen.add(s); out.push(s); }
+    }
+  }
+  return out;
 }
 
 /** tagsOf: this beat's ad-hoc qualities, laid through the q-tag- / q-collection-

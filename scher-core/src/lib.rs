@@ -63,6 +63,18 @@ pub const Q_SUBLIME_POLE: &str = "q-sublime-pole";
 /// guard rewrite to test `Q_CLOSING` instead of `Q_GROUNDING` is a deliberately separate,
 /// later commit.
 pub const Q_CLOSING: &str = "q-closing";
+/// The structural comment designation (2026-07-14, comment-readability fix). `bujo_comment`
+/// lays a comment INSIDE a parent's betweenness interval via ordinary q-grounding edges — that
+/// gives it membership for free when the parent's interval is small, but for a parent already
+/// entangled in a day's (or any large story's) shared bare `~holds~`/`~charge~` fabric,
+/// `interval_of` walks the WHOLE connected component (verified live: a single fresh comment on
+/// a day-captured beat surfaced 1000+ unrelated rows through `/bujo/interior`). `interval_of`'s
+/// plain-edge filter is NOT safe to narrow further — a prior attempt to exclude by the edge's
+/// own quality emptied production intervals (see the CORRECTION note on `interval_of`, 2026-07-06,
+/// event-1350). So comments get their OWN structural marker, read by a NEW dedicated, narrow
+/// query (`/bujo/comments`) instead of overloading full betweenness. Never read by slug-parsing
+/// (opaque-slugs law) — mirrors the `Q_END_POLE` designation pattern exactly.
+pub const Q_COMMENT: &str = "q-comment";
 
 /// A beat. With subject+object it is a prehension (an edge). A quality beat (slug ending
 /// `~q`, object a `q-*`) carries mode. Mirrors the `EventRow` interface in society.ts.

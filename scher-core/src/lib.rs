@@ -42,6 +42,16 @@ pub const Q_GROUNDING: &str = "q-grounding";
 pub const Q_EXCLUSION: &str = "q-exclusion";
 pub const Q_OCCLUDES: &str = "q-occludes";
 pub const Q_DEPENDS_ON: &str = "q-depends-on";
+/// The `designate-trub` relate-door's quality (api/src/bujo_write.rs, "designate-trub" bucket,
+/// Hallie 2026-07-10): a bare designation edge, stamped POSITIVELY — "the nag" should be a
+/// pain, not an inferred absence, so trub never gets a checkmark, it keys on a quality. Named
+/// here (not hardcoded string-literal at the call site) matching this file's pattern for every
+/// other designation quality bujo_write.rs imports (Q_SUBLIME_POLE, Q_END_POLE, Q_COMMENT).
+/// CORRECTION (2026-07-14): this const does NOT back `is_trub_explicit` below — that reads the
+/// separate, already-shipped q-feel/😕 reaction door instead (see its doc comment). An earlier
+/// pass on this file wrongly conflated the two; they are two live, distinct trub-marking paths
+/// today, not one. Reconciling them (or retiring one) is a design call, not a drive-by fix.
+pub const Q_TRUB: &str = "q-trub";
 /// The structural End-pole designation the lazy three-pole unpack lays (2026-07-06).
 /// q-lure is DEAD — killed with fire (Hallie, same ruling): it smuggled an agent and
 /// could not state its own direction. `lay_p` REFUSES it (panic, fail-closed).
@@ -317,6 +327,22 @@ impl Society {
                  redundant relation-label under the one-relation ruling (2026-07-13). Not \
                  refused (grandfathered); new call sites should stop minting this string. \
                  (law: one-relation, no-relation-predicate)"
+            );
+        }
+        // GRANDFATHER WARN-RATCHET (q-depends-on-death, Hallie's ruling 2026-07-14): same
+        // one-relation ruling claims depends-on too — "and depends on shouldnt exist" as a
+        // category separate from because. Staged, not ripped: existing q-depends-on writes
+        // are NOT refused, this is a signal, never a gate. New call sites (the drag-to-
+        // associate REQUIRES zone) have already migrated to laying "because" with a reversed
+        // subject/object instead; this ratchet catches anything that still mints the literal
+        // depends-on string.
+        if quality == Q_DEPENDS_ON {
+            eprintln!(
+                "[q-depends-on-death ratchet] '{slug}' lays quality \"q-depends-on\" — dead, \
+                 redundant relation-label under the one-relation ruling (2026-07-14). Not \
+                 refused (grandfathered); new call sites should lay \"because\" with the \
+                 subject/object order reversed instead. (law: one-relation, \
+                 no-relation-predicate)"
             );
         }
         // SUBLIME↔SUBLIME PREHENSION (Hallie, 2026-07-10): "The SUBLIME is the limit of all
@@ -695,6 +721,35 @@ pub fn is_blocked(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
 /// parallelizable: not blocked AND not yet established — work that could start right now.
 pub fn parallelizable(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
     !is_blocked(soc, row, as_of) && !is_established(soc, row, as_of)
+}
+
+/// The frowny reaction (Hallie's REACTION_PALETTE, cardview.ts) — the actual emoji ridden as
+/// CONTENT on a q-feel charge edge (2026-07-06 emoji-charge-quality committee, Proposal A:
+/// "emoji rides as content of a q-feel charge edge"). This is the SAME mechanism as any other
+/// reaction (❤️/😀/😕) — trub rides the existing emoji-quality system rather than a bespoke
+/// designation door. Corrected 2026-07-14: an earlier pass on this file wrongly proposed a
+/// standalone Q_TRUB designation quality — Hallie's charter comment on REACTION_PALETTE
+/// (cardview.ts:227-228) already says "hearts and smileys and frowny faces on events to
+/// qualify my feelings about them... this becomes how we track trub" — q-feel is the door.
+pub const FROWNY_REACTION: &str = "😕";
+
+/// isTrubExplicit: someone (any frame — reactions are public, per REACTION_PALETTE's "allow
+/// OTHERS to too") has laid a 😕 q-feel reaction onto this beat. Named "explicit" because a
+/// DERIVED half (any open, past-due beat is trub too, per Hallie 2026-07-14: "Any event
+/// that's not taken up is honestly trub in some form itself") is a separate, not-yet-built
+/// predicate — it needs a real "moment has passed" primitive this codebase doesn't have yet
+/// (no beat-to-wall-clock-day comparison exists anywhere; asOf/visibleAt compare witnessed-
+/// clock reads, not a beat's own due-moment). Do not conflate the two: this function alone is
+/// NOT "is trub" in the full sense Hallie asked for.
+///
+/// NOT YET WIRED (2026-07-14): zero callers today, in either lib.rs or society.ts. Landed as a
+/// verified-correct read, not as a shipped feature — a card-facing "this is trub" affordance
+/// still needs to call this (and eventually OR it with the derived half once that primitive
+/// exists) before it does anything a user sees.
+pub fn is_trub_explicit(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
+    prehensions_onto(soc, row, "q-feel", as_of)
+        .iter()
+        .any(|p| !is_occluded(soc, &p.slug, as_of) && p.content == FROWNY_REACTION)
 }
 
 /// stressOf: a beat's blast-radius — how much waits on it, weighted by the dependents' own

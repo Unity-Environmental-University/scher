@@ -204,6 +204,25 @@ export {
   type WireEndpointOptions,
 } from "./components.js";
 
+// COMPLETE EMOJI PICKER (2026-07-14 wave) — search + category tabs + roving-
+// tabindex grid over the vendored dataset (emoji-data.ts, 1914 entries,
+// unicode-emoji-json/MIT — see that file's provenance header). Skin-tone
+// selection deferred honestly (see emoji-picker.ts's file header); recents
+// via an injected RecentsStore seam, no direct localStorage.
+export {
+  createEmojiPicker,
+  EMOJI_PICKER_INLINE_CSS,
+  type EmojiPickerOptions,
+  type RecentsStore,
+} from "./emoji-picker.js";
+export {
+  EMOJI_DATA,
+  EMOJI_GROUP_LABELS,
+  EMOJI_GROUP_ORDER,
+  type EmojiEntry,
+  type EmojiGroup,
+} from "./emoji-data.js";
+
 // the POSITIVIST PORCELAIN — a get/set(boolean) handle over an establishment, so the
 // append-only/read-the-truth dissonance is hidden behind an intuitive surface and the
 // desync bug-class becomes unwriteable. (honest porcelain: history() exposes the seam.)

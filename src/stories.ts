@@ -1217,6 +1217,13 @@ export function composerStory(soc: Society, params: ComposerStoryParams): Node {
 }
 
 // ── REACTION STORY — a buttonStory whose press lays a TYPED prehension by a standpoint. ─
+// DOCTRINE (2026-07-06 emoji-charge-quality-committee, Proposal A):
+// Emoji reactions ride as CONTENT of q-feel edges, zero kernel change. The emoji string is
+// the whole spectral qualifier — no minted valence-sign, no per-charge structure beyond
+// the edge's existing fields. reactionStory lays bare q-feel edges; chargesOn(end) reads
+// them unfiltered; spectrum folding (which glyphs count as pain) is a caller convention,
+// never kernel-legible. See 2026-07-06-emoji-charge-quality-committee.md:52-92 (Proposal A).
+//
 // buttonStory lays a fixed beat; toggleButtonStory grounds/ungrounds a TARGET. reactionStory
 // is the third member: a press lays a q-feel prehension FROM a standpoint ONTO another's beat,
 // carrying an emoji in its content (the felt response — pathos, not establishment). It is
@@ -1262,6 +1269,10 @@ export function reactionStory(soc: Society, params: ReactionStoryParams): Node {
           // TODO(socratic): like toggleButtonStory, this re-reads isLive(soc) at click time — is the pattern that cached projections can stale between render and event, so every toggle/reaction needs to re-check?
           if (!isLive(soc)) {
             // REACT: lay a q-feel from `by` onto `target`, the emoji as content.
+            // RULING: emoji is the CONTENT of the charge edge (F-A 2026-07-06: "emoji rides as
+            // content of q-feel, zero kernel change"). No new quality, no new address law — the
+            // edge is a bare q-feel prehension; the emoji string is the spectrum qualifier, read
+            // by caller convention (reactionsOn groups by emoji, chartOfVoltage folds by spectrum).
             soc.layP(slug, emoji, by, target, "q-feel");
           } else {
             // UN-REACT = OCCLUDE my own q-feel (2026-06-26: was a self-loop supersede). `by` is the

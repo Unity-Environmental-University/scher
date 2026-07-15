@@ -28,9 +28,16 @@
 // event, two faces"? Played out below: YES, this holds with zero new machinery — the
 // exact same `end ~because~ now` edge that closes ANY story's circuit closes the sprint's,
 // and the routing charges are ADDITIONAL ink laid in the same breath, not a separate
-// mechanism. The doll shows the two faces as literally the same q-grounding edge read
-// two ways: "the sprint is done" (endActual) and "the routing occasion happened"
-// (the new charges' `because` pointing at that same End).
+// mechanism. The doll shows the two faces as literally the same edge read two ways: "the
+// sprint is done" (endActual) and "the routing occasion happened" (the new charges'
+// `because` pointing at that same End).
+//
+// UPDATED 2026-07-15 (bare-closing ruling — Hallie: "yes its edge direction... schedule it
+// and feel free to act on it"): closePole now closes with a BARE edge, not a q-grounding-
+// quality one (see society.ts's closePole/closingEdgesFrom docs). FACE ONE's raw read
+// below switched from prehensionsFrom(..., "q-grounding") — which structurally cannot see
+// a bare edge, same as chargesOn's bare-onto model — to a direct edge check by slug; the
+// CLAIM (same edge, two faces) is unchanged, only the mechanism-level assertion is.
 //
 // SCENE B — ETERNALS AND INGRESSION: a recurring shape (a weekly-review checklist,
 // Whiteheadian-eternal-object-flavored, KNOWN BORROWING, KNOWN BOUNDARY — ours have
@@ -162,12 +169,15 @@ describe("DOLL 4 SCENE A — sprint as recursion of stories within story", () =>
     // both faces trace to the SAME grounding fact — the discharge edge is now the
     // "because" of TWO downstream things (the sprint's own actuality read via endActual,
     // AND the routed charge's grounding) — literally one event read two ways, no
-    // duplication. `discharge`'s subject IS sprint.end (closePole lays it there), so
-    // reading outgoing-from-end still finds this SAME edge:
-    const outgoingFromEnd = prehensionsFrom(s, sprint.end, "q-grounding");
-    expect(outgoingFromEnd.map((e) => e.slug)).toEqual([discharge]); // the sprint's OWN closing edge (subject=end)
+    // duplication. `discharge`'s subject IS sprint.end (closePole lays it there), so a
+    // raw scan for edges FROM the End still finds this SAME edge — read directly (not via
+    // prehensionsFrom(..., "q-grounding"), which is quality-filtered and structurally
+    // cannot see a bare edge; see the file header's 2026-07-15 update):
+    const outgoingFromEnd = s.all().filter((b) => b.subject === sprint.end && b.object !== null);
+    expect(outgoingFromEnd.map((e) => e.slug)).toEqual([discharge]); // the sprint's OWN closing edge (subject=end), bare
+    expect(s.has(`${discharge}~q`)).toBe(false); // bare — no quality word minted, same as a charge
     const groundedBecauseDischarge = prehensionsOnto(s, discharge, "q-grounding");
-    expect(groundedBecauseDischarge.map((g) => g.subject)).toEqual([routed]); // the routing's grounding (object=discharge)
+    expect(groundedBecauseDischarge.map((g) => g.subject)).toEqual([routed]); // the routing's grounding (object=discharge) — an ordinary quality-carrying edge, unaffected
     // FACE ONE reads outgoing-from-end (is the sprint done); FACE TWO reads onto-discharge
     // (what happened because the sprint closed) — same node, two directions, two faces.
   });

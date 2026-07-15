@@ -227,7 +227,8 @@ export function readCardInterior(soc: Society, slug: string, asOf?: number): Car
 // That is an OWED / met-vs-pending question, structurally distinct from "already
 // happened, upstream of me" — upstreamsOf cannot answer it (a beat's upstreams are, by
 // construction, already-landed prehensions; there is no "pending upstream"). The
-// q-depends-on family (dependsOn/blockedOnNow, society.ts ~570) is the correct
+// q-blocked-by family (dependsOn/blockedOnNow, society.ts ~570; RENAMED from q-depends-on,
+// Hallie 2026-07-15 — both spellings still honored on read) is the correct
 // substrate: it is EXACTLY "beats this one is waiting to receive," with isEstablished
 // as the met/pending discriminant already built in. requiresOf below is that read,
 // promoted to the card-anatomy shape (met flag inline, so a caller doesn't need two
@@ -242,8 +243,9 @@ export interface RequiresRow {
   met: boolean;
 }
 
-/** requiresOf: the events this beat must RECEIVE to be true — its q-depends-on
- *  edges (dependsOn), each carrying its own met/pending state (isEstablished).
+/** requiresOf: the events this beat must RECEIVE to be true — its q-blocked-by
+ *  edges (dependsOn; both-spellings, legacy q-depends-on honored too — society.ts's
+ *  rename doc), each carrying its own met/pending state (isEstablished).
  *  NEW READ (not a reuse of upstreamsOf — see the seam note above). Ordering:
  *  dependsOn's own edge order (no stored index — topological/insertion, not a rank). */
 export function requiresOf(soc: Society, slug: string, asOf?: number): RequiresRow[] {
@@ -430,12 +432,22 @@ export function toggleButtonStory(soc: Society, params: ToggleButtonStoryParams)
         // NAMED EXCEPTION to N4 (society.ts KernelQuality doc, "do not lay [q-grounding]
         // in new writers"), surfaced by the 2026-07-15 review sitting (tension
         // hea-filter-mismatch) as a live writer the honesty clause didn't name. Left AS
-        // q-grounding deliberately, not an oversight: isEstablished/groundedForAnyFrame
-        // still key on the literal "q-grounding" string today (the bare-because read
-        // side of the migration is ruled — society.ts:61-67 — but not yet mechanized).
-        // Writing a bare edge here now would silently desync this toggle's own `live`
-        // read (isEstablished would never see it) — worse than the debt it would repay.
-        // Revisit when the kernel read migrates; until then this stays honest, not fixed.
+        // q-grounding deliberately, not an oversight.
+        // RE-CHECKED (2026-07-15, follow-up wave, against the now-landed closePole bare-
+        // closing mechanization): the kernel's bare-edge migration is scoped to closing
+        // edges OUT OF a designated End-pole (closingEdgesFrom, isDesignatedEndPole) —
+        // this write grounds ONTO an arbitrary `target`, which is never an End-pole in
+        // this call shape. isEstablished/groundedForAnyFrame reads that shape via a plain
+        // `prehensionsOnto(soc, beat, "q-grounding")` string filter — untouched by the
+        // migration by construction (society.ts's own KernelQuality doc names this exact
+        // case: "groundedForAnyFrame reads it — ordinary grounding-onto, unrelated to
+        // pole-closing"; "toggle-buttons — see stories.ts's NAMED EXCEPTION — still lay
+        // and read it"). So my stated blocker is still exactly true, unchanged by the
+        // kernel's work: writing a bare edge here would silently desync this toggle's own
+        // `live` read (isEstablished would never see a bare onto-edge either — that read
+        // was never migrated to closingEdgesFrom, only the FROM-an-End-pole walk was).
+        // Revisit only if isEstablished's own read grammar changes; until then this stays
+        // honest, not fixed.
         soc.layP(`${groundSlug}-${nth++}`, `${by} grounds ${target}`, by, target, "q-grounding");
       } else {
         // TODO(socratic): why occlude ALL live groundings instead of just the most recent one — does every grounding participate equally in establishment, or are there scenarios where one grounding alone drives the mode?
@@ -1174,12 +1186,18 @@ export function dropStory(soc: Society, params: DropStoryParams): Node {
   return lane;
 }
 
-/** the standard relate (A onto B): Depends-On (a lateral edge) / Sub-Beat-Of (membership).
+/** the standard relate (A onto B): Blocked-By (a lateral edge) / Sub-Beat-Of (membership).
  *  Sub-beat-of is membership — the caller passes `place` to position A in B's interval,
- *  because betweenness is caller-owned grammar, never a stored containment edge. */
+ *  because betweenness is caller-owned grammar, never a stored containment edge.
+ *  RENAMED (Hallie, 2026-07-15, q-blocked-by rename): this is a WRITER — it used to lay
+ *  q-depends-on, now lays q-blocked-by, per "new writes: q-blocked-by only" (society.ts's
+ *  KernelQuality doc). The label changes too ("Depends On" → "Blocked By"): "the language
+ *  to be the language" was the reason for the quality rename, and a label that still says
+ *  the retired word right next to the edge it lays would be the exact drift the rename was
+ *  meant to stop. Key stays "depends-on" — see the doc below on why. */
 export function relateBuckets(place: (soc: Society, a: string, b: string) => void): DropBucket[] {
   return [
-    { key: "depends-on", label: "Depends On", sub: "A needs B (lateral edge)", kind: "edge", quality: "q-depends-on" },
+    { key: "depends-on", label: "Blocked By", sub: "A needs B first (lateral edge)", kind: "edge", quality: "q-blocked-by" },
     { key: "sub-beat", label: "Sub-Beat Of", sub: "A is PART of B — membership = betweenness, not a stored edge", kind: "membership", place },
   ];
 }

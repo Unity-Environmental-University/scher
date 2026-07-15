@@ -99,8 +99,10 @@ export {
   type Mode,
   type Pathos,
   assigneesOf,
-  resolutionOf,
-  isResolved,
+  // resolutionOf/isResolved: DRAMA CUT (Hallie, 2026-07-15) — removed from society.ts
+  // (see its own tombstone comment on the KernelQuality union). Mechanical unblock only,
+  // done by society.ts's agent because this barrel file is unclaimed and the two dead
+  // re-exports failed `npm run check` for the whole package — not a claim on index.ts.
   cleanContent,
   distanceToHEA,
   biographyOf,

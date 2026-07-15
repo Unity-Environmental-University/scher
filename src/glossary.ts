@@ -291,9 +291,13 @@ soc.layP(slug, content, subj, obj, "q-grounding"); // a prehension
   anatomySoc.layP("eat-grab", "eating the bread grabs the baked loaf", "eat-bread", "bake-bread", "q-grounding");
   // PAST (requiresOf = dependsOn, met/pending): buy-flour is already established
   // (met — struck); starter-ready is not (pending — weather, not error).
+  // 2026-07-15: q-blocked-by, not q-depends-on — Hallie's ruling ("the language to be
+  // the language," q-depends-on too close to a drift-prone English echo). Live canon
+  // keeps 2 legacy q-depends-on rows as append-only ink; society.ts's requiresOf reads
+  // both spellings. New writers here use q-blocked-by only.
   fact(anatomySoc, "buy-flour", { by: "you" }).set(true); // establish it — this PAST is met
-  anatomySoc.layP("dep-flour", "bake-bread depends on buying flour", "bake-bread", "buy-flour", "q-depends-on");
-  anatomySoc.layP("dep-starter", "bake-bread depends on the starter being ready", "bake-bread", "starter-ready", "q-depends-on");
+  anatomySoc.layP("dep-flour", "bake-bread depends on buying flour", "bake-bread", "buy-flour", "q-blocked-by");
+  anatomySoc.layP("dep-starter", "bake-bread depends on the starter being ready", "bake-bread", "starter-ready", "q-blocked-by");
 
   const anatomy = readCardAnatomy(anatomySoc, "bake-bread");
   const renderList = (label: string, rows: string[], metFor?: (slug: string) => boolean | undefined): Node => {
@@ -327,7 +331,7 @@ soc.layP(slug, content, subj, obj, "q-grounding"); // a prehension
     "Card Anatomy — CONTAINS / FUTURE / PAST",
     "The card interior, opened: CONTAINS (this beat's own interior members — containsOf, a reuse of " +
     "intervalOf), FUTURE (what this beat makes necessary — enablesOf, a renamed alias of downstreamsOf), " +
-    "and PAST (what has to come first — requiresOf, the q-depends-on read, each row carrying its own " +
+    "and PAST (what has to come first — requiresOf, the q-blocked-by read, each row carrying its own " +
     "met/pending). met renders struck-through; pending renders as weather, never error-red — a thing on the PAST " +
     "you haven't received yet is not a failure, it's a thing still on its way. readCardAnatomy assembles " +
     "all three in one call. SEAM: the actual card's DOM contract (`.eventview-contains`, `data-met`, the " +

@@ -31,8 +31,8 @@ export interface EventRow {
   laid_by?: string | null;
 }
 
-// The qualities the kernel itself branches behavior on — isOccluded/isGrounded/dependsOn/
-// resolutionOf/endReached/reactionsOn/authorOf all key a real read off one of these literal
+// The qualities the kernel itself branches behavior on — isOccluded/isGrounded/blockedBy/
+// endReached/reactionsOn/authorOf all key a real read off one of these literal
 // strings (see the functions below). q-containment also lives here because
 // assertNotMembershipContainment hardcodes it as a guard trip-wire. Everything else that has
 // ever been a "quality" (q-shared, q-assigned-to, q-due, q-receives, q-succeeds, and any
@@ -50,31 +50,32 @@ export type KernelQuality =
   // live canon — the bare because-edge IS the relation, and the explicit q-grounding
   // mode-marker is redundant ink. Do not lay it in new writers.
   //
-  // HONESTY CLAUSE (my comments never pretend): the kernel still BRANCHES on this string.
-  // reaches/establishedTo walk the grounding topology by this quality; the naked-pole
-  // closing rule (assertNakedPole) and the sublime guard (checkSublimeNeverCloses) key on
-  // it; closePole/unpackPoles LAY it; groundedForAnyFrame reads it. "Purely deprecated"
-  // here means the WRITE grammar is closed, not that the reads are gone — the machinery
-  // migrates to the bare because-edge at its own roadmap point, and until it does, laid
-  // q-grounding rows stay honored (append-only: the ink stays, as always).
+  // HONESTY CLAUSE (my comments never pretend): the kernel still BRANCHES on this string
+  // for LEGACY rows. reaches/establishedTo walk it (both spellings, via closingEdgesFrom
+  // for the pole-closing case); the sublime guard (checkSublimeNeverCloses) keys on it;
+  // groundedForAnyFrame reads it (ordinary grounding-onto, unrelated to pole-closing — see
+  // its own trace comment). "Purely deprecated" here means the WRITE grammar is closed,
+  // not that the reads are gone — laid q-grounding rows stay honored forever (append-only:
+  // the ink stays, as always).
   //
   // MIGRATION ANSWER, RULED (Hallie, 2026-07-15: "yes its edge direction"): the tension
   // above — how do the naked-pole law and sublime guard tell a closing from a charge
   // once the quality-marker is gone — is settled by EDGE DIRECTION alone. Under
   // bare-because, a bare edge ONTO an open End-pole is a charge; a bare edge OUT of it
   // is the closing. No quality needed: the pole's structure plus the edge's direction
-  // carry the whole distinction. Recorded here so the migration inherits a ruling, not
-  // a rediscovery.
+  // carry the whole distinction.
   //
-  // MECHANIZED, CHECKED (2026-07-15, cooling wave): assertNakedPole is reachable ONLY
-  // through layP, whose signature requires a Quality — a truly bare edge never reaches
-  // it (it's laid via Society.lay() directly, which doesn't call this guard). So "bare
-  // edge ONTO = charge" and "bare edge OUT = closing" are both ALREADY TRUE, for free,
-  // by construction; nothing needed to change in assertNakedPole itself. See its own
-  // comment at the OUT-of-pole check for the full call-graph trace. What's still
-  // literally q-grounding-shaped is closePole's OWN write (it lays the closing via
-  // layP(..., "q-grounding"), not a bare .lay()) — that rewrite belongs to closePole,
-  // not to this guard, and stays HONESTY-CLAUSE-true until it lands.
+  // MECHANIZED AND LANDED (2026-07-15: "schedule it and feel free to act on it" — the
+  // follow-up ruling authorizing the actual rewrite). assertNakedPole needed no change —
+  // it's reachable only through layP, which requires a Quality, so a bare edge never
+  // reached it, "bare ONTO = charge" and "bare OUT = closing" were already true by
+  // construction. What DID need to change, and now has: closePole itself closes with a
+  // bare .lay() (no quality, no '~q' beat), not layP(..., "q-grounding") — see closePole's
+  // own doc. Every read that recognizes a closing (endActual, voltageOf, reaches when
+  // walking "q-grounding") now goes through closingEdgesFrom, which unions the bare shape
+  // with this legacy quality-carrying spelling. This union type still carries "q-grounding"
+  // for exactly that reason: legacy rows and non-pole ordinary groundings (comments,
+  // toggle-buttons — see stories.ts's NAMED EXCEPTION) still lay and read it.
   | "q-grounding"
   // q-lure is DEAD — killed with fire (Hallie, 2026-07-06): it smuggled an agent (who
   // lures?) and could not state its own direction. It is NOT in this union and layP
@@ -90,8 +91,19 @@ export type KernelQuality =
   | "q-utterance"
   | "q-feel"
   | "q-containment"
-  | "q-depends-on"
-  | "q-resolves"
+  // RENAMED from q-depends-on (Hallie, 2026-07-15): "depends-on is too close to need to
+  // drift and we need the language to be the language" — she considered letting topology
+  // disambiguate instead, then ruled a rename over that. Live canon carries exactly 2
+  // legacy q-depends-on rows (append-only ink — it stays); the dependsOn/blockedBy read
+  // family below honors BOTH spellings with a dated comment. New writes: q-blocked-by only.
+  | "q-blocked-by"
+  // DRAMA CUT (Hallie, 2026-07-15: "drama isn't really in the picture any more... cut for
+  // now and mark the commit — I suspect trub handles it"). Verified against live canon:
+  // ZERO q-resolves edges exist — the cut is data-clean, no migration owed. Removed with
+  // it: resolutionOf/isResolved (society.ts) — the only two readers, gone with the quality.
+  // This is a door marked, not erased: a future drama pass may reopen it, informed by how
+  // trub actually ended up handling resolution. Do not resurrect the string without a
+  // fresh ruling; do not treat this comment as a spec for what the future pass should do.
   | "q-occludes"
   // NOTE: there is deliberately NO charge quality. Charge is a pure ADDRESS read (Hallie,
   // 2026-07-06: "the charge is a property of the edge not of the node") — a charge is any
@@ -204,27 +216,21 @@ export function assertNakedPole(
       `story (the pole's Once), or lay a bare edge if you mean a charge. (law: naked-pole)`,
     );
   }
-  // EDGE-DIRECTION RULING CHECKED AGAINST THE REAL CALL GRAPH (2026-07-15, acting on the
-  // whole-codebase review sitting's tension 1): Hallie's migration answer ("yes its edge
-  // direction... no quality needed" — see the MIGRATION ANSWER comment on KernelQuality
-  // above) says a bare edge OUT of an open End-pole should be the closing, no quality
-  // required. I checked: this guard is reachable from exactly one call site, layP (below),
-  // whose signature REQUIRES a Quality argument — there is no path by which a truly bare
-  // edge (no quality at all) ever reaches assertNakedPole, because a bare edge is laid via
-  // Society.lay() directly, which never calls this guard in the first place (grep confirms:
-  // every closePole/layCharge/fact.ts/stories.ts writer that touches a pole either lays bare
-  // via .lay() — never routing through here — or calls layP with the literal string
-  // "q-grounding"). So the ruling's "bare-out closes" half is ALREADY true today, for free,
-  // by construction: it never hits this check to be refused. What's left for THIS guard is
-  // narrower than the tension first read: keep recognizing "q-grounding" as the migration-
-  // era spelling of the closing for every layP-routed writer, until closePole itself is
-  // rewritten to close with a bare .lay() (that rewrite is closePole's, not this guard's —
-  // see the HONESTY CLAUSE on KernelQuality: closePole/unpackPoles still lay q-grounding).
-  // The day closePole switches, this line needs no change — a bare closing edge would
-  // already sail past this guard untouched, same as a bare charge does today (chargesOn's
-  // model). Pinned by a test below: address-law.test.ts covers the q-grounding exit; this
-  // file cannot pin "a bare edge closes" without a bare-edge writer to call, which doesn't
-  // exist yet and I'm not inventing one QUERIES.md wouldn't ask for.
+  // EDGE-DIRECTION RULING, MECHANIZED (2026-07-15: "yes its edge direction... no quality
+  // needed" — see the MIGRATION ANSWER comment on KernelQuality above; "schedule it and
+  // feel free to act on it" was the follow-up ruling that authorized landing the actual
+  // rewrite, not just the comment). closePole now closes with a BARE edge (soc.lay()
+  // directly — see closePole's own body), so this guard is reachable from exactly one
+  // call site, layP, whose signature REQUIRES a Quality argument: a bare closing edge
+  // never reaches this check at all, same as a bare charge never did (chargesOn's model).
+  // The `quality !== "q-grounding"` exemption below is now LEGACY-ONLY: no live writer in
+  // this codebase routes a closing through layP with the literal "q-grounding" string
+  // anymore (grep confirms — closePole was the one that did). It stays, unremoved, for two
+  // honest reasons: (1) refusing it would be a guard-behavior change beyond this ruling's
+  // scope — nobody asked to forbid a legacy-shaped write, only to stop closePole making
+  // one; (2) it costs nothing to leave, since nothing exercises it going forward. Pinned:
+  // address-law.test.ts's bare-edge-closes case (was already true by construction; now
+  // ALSO true because closePole actually calls it) plus a fresh bare-closePole pin.
   if (isOpenEndPole(soc, subject) && quality !== "q-grounding") {
     throw new Error(
       `[ADDRESS LAW] '${slug}' lays a ${quality} prehension OUT of the open End-pole ` +
@@ -236,15 +242,24 @@ export function assertNakedPole(
   }
 }
 
-/** isOpenEndPole: is `node` a designated End-pole (object of an un-occluded q-end-pole
- *  edge) that is not yet actual? The address law guards exactly these. */
-function isOpenEndPole(soc: Society, node: string | null, asOf?: number): boolean {
+/** isDesignatedEndPole: is `node` the object of an un-occluded q-end-pole designation —
+ *  structural End-hood, regardless of whether it has since closed? Factored out of
+ *  isOpenEndPole (2026-07-15, bare-closing wave) because the closing-recognition helpers
+ *  below need this same structural test on a node that IS actual (a closed End is still
+ *  an End; only isOpenEndPole cares whether it's still naked). */
+function isDesignatedEndPole(soc: Society, node: string | null, asOf?: number): boolean {
   if (!node) return false;
-  const designated = soc.all().some(
+  return soc.all().some(
     (b) => b.object === node && b.subject !== null &&
       prehendsAs(soc, b.slug, "q-end-pole", asOf) && !isOccluded(soc, b.slug, asOf),
   );
-  return designated && !endActual(soc, node, asOf);
+}
+
+/** isOpenEndPole: is `node` a designated End-pole that is not yet actual? The address
+ *  law guards exactly these. */
+function isOpenEndPole(soc: Society, node: string | null, asOf?: number): boolean {
+  if (!node) return false;
+  return isDesignatedEndPole(soc, node, asOf) && !endActual(soc, node, asOf);
 }
 
 export function assertNotMembershipContainment(slug: string, quality: Quality): void {
@@ -291,6 +306,22 @@ export function assertNotMembershipContainment(slug: string, quality: Quality): 
 // UI? something else?). Until that ruling lands, the throwing path IS the live one for
 // all four of layP's guards, not just two — the "two migrated, two stalled" framing this
 // comment used to imply was itself inaccurate; none of layP's guards have migrated yet.
+//
+// RULING, RECORDED VERBATIM-ISH (Hallie, 2026-07-15, morning): "Nothing should be silent -
+// algedonic channel." Any refusal or laundering must signal LOUDLY; silent defaults are
+// forbidden across this codebase, not just here — the same law that makes floatingCharge/
+// overload (below, THE ALGEDONIC CHANNEL section) refuse to threshold or filter quietly.
+// Read against that law, a throw is NOT the silent case — an uncaught exception is loud
+// (it stops the world, it shows up in a stack trace, nobody mistakes it for success). A
+// checked return that a caller forgets to inspect WOULD be silent — the write appears to
+// succeed while the refusal evaporates. So: THIS MIGRATION STAYS SHELVED until it is
+// paired with an algedonic-channel design for the checked-return path — something that
+// makes a dropped check* result exactly as loud as a throw is today (surfaced to the UI,
+// logged where pain is read, whatever the eventual design says — not decided here, only
+// gated on). Until that pairing lands: the throwing path stays the live one, on purpose,
+// not by default. Do not flip layP to the check* variants without that channel; a silent
+// checked-return regime would be a REGRESSION against "nothing should be silent," not
+// progress toward it.
 export function checkSublimeNeverCloses(soc: Society, slug: string, subject: string, object: string, quality: Quality): string | null {
   // q-sublime-pole designation itself is structural; it is exempt (like q-end-pole).
   if (quality === "q-sublime-pole") return null;
@@ -427,6 +458,11 @@ export class Society {
     // the "refusal not a throw" ruling (2026-07-07) has a ready non-throwing twin for the
     // sublime guards (checkSublimeNeverCloses/checkSublimeAcyclic) but layP hasn't been
     // swapped to call them; see their own doc-comments for why the swap waits on a ruling.
+    // RULING RECORDED (Hallie, 2026-07-15, morning): "Nothing should be silent - algedonic
+    // channel." A throw is loud, not silent — this migration STAYS SHELVED until paired
+    // with an algedonic-channel design for the checked-return path (see
+    // checkSublimeNeverCloses's own comment for the full ruling). The throwing path below
+    // is deliberate, not neglected.
     assertNoLure(slug, quality); // BLOCKS: q-lure is dead grammar (Hallie, 2026-07-06)
     assertNakedPole(this, slug, subject, object, quality); // BLOCKS: nothing touches a naked pole
     assertSublimeNeverCloses(this, slug, subject, object, quality); // BLOCKS: sublimes never close
@@ -560,7 +596,13 @@ function isOccluder(soc: Society, occludeEdge: string, asOf?: number): boolean {
  *  read, honestly named.) Under the every-event-is-done-to/by-its-author ruling this read
  *  trends toward true for every authored event once authorship-establishment lands; its
  *  honest use is occlusion-sensitive display, not doneness. For doneness, read
- *  establishedTo (frame-relative reachability, below). */
+ *  establishedTo (frame-relative reachability, below).
+ *
+ *  BARE-CLOSING TRACE (2026-07-15): this reads prehensionsONTO `beat` — edges pointing
+ *  AT it. A closing points the other way (OUT of the End, `end ~because~ now`, subject
+ *  the End) — so this was never the "is this End closed" read (endActual is), and a bare
+ *  closing changes nothing here: this function never saw closings either way. Traced,
+ *  not touched. */
 export function groundedForAnyFrame(soc: Society, beat: string, asOf?: number): boolean {
   // TODO(socratic): why check isOccluded on the prehension slug (p.slug, the edge) instead of also checking if the prehension's subject (the grounding frame) is occluded?
   return prehensionsOnto(soc, beat, "q-grounding", asOf).some((p) => !isOccluded(soc, p.slug, asOf));
@@ -583,14 +625,21 @@ export function isEstablished(soc: Society, beat: string, asOf?: number): boolea
 /** reaches: is `to` reachable from `from` along un-occluded prehensions co-prehending
  *  `quality`, walking subject→object, as of a moment? The BFS that existed twice
  *  (intervalOf's private walk here, done_to in gen4-policy) held once — the Now-pole
- *  minutes' gift-channel extraction, landed. `from === to` reaches trivially. */
+ *  minutes' gift-channel extraction, landed. `from === to` reaches trivially.
+ *
+ *  BARE-CLOSING RULING (2026-07-15): when walking "q-grounding" specifically, a node that
+ *  is a designated End-pole may leave it via a BARE edge (the closing — see
+ *  closingEdgesFrom's own doc) as well as the legacy quality-carrying spelling. Every
+ *  live caller of reaches passes "q-grounding" (grepped), so this is scoped to that
+ *  quality only — an ordinary lateral quality's walk is untouched, exactly as before. */
 export function reaches(soc: Society, from: string, to: string, quality: Quality, asOf?: number): boolean {
   if (from === to) return true;
   const seen = new Set<string>([from]);
   const stack = [from];
   while (stack.length) {
     const n = stack.pop()!;
-    for (const p of prehensionsFrom(soc, n, quality, asOf)) {
+    const edges = quality === "q-grounding" ? closingEdgesFrom(soc, n, asOf) : prehensionsFrom(soc, n, quality, asOf);
+    for (const p of edges) {
       if (isOccluded(soc, p.slug, asOf)) continue;
       const next = p.object!;
       if (next === to) return true;
@@ -635,24 +684,48 @@ export function confidence(soc: Society, beat: string, asOf?: number): number {
 }
 
 // ── DEPENDENCY / STRAIN READS ──────────────────────────────────────────────────
-// One structural edge — q-depends-on — read in several directions. "blocked" and
-// "parallelizable" are NOT stored flags; they are READINGS of depends-on against
-// establishment (and, like every read here, against a moment via asOf). The law: one
-// edge, many reads; never store the derived. A dep that establishes stops blocking the
-// instant it does, with no write — because blocked was never a fact, only a reading.
+// One structural edge — q-blocked-by (RENAMED from q-depends-on, Hallie, 2026-07-15:
+// "depends on is too close to need to drift and we need the language to be the
+// language") — read in several directions. "blocked" and "parallelizable" are NOT
+// stored flags; they are READINGS of blocked-by against establishment (and, like every
+// read here, against a moment via asOf). The law: one edge, many reads; never store the
+// derived. A dep that establishes stops blocking the instant it does, with no write —
+// because blocked was never a fact, only a reading.
+//
+// BOTH-SPELLINGS WINDOW (dated 2026-07-15): live canon carries exactly 2 legacy
+// q-depends-on rows. Append-only means that ink stays — so every read below honors
+// EITHER spelling. New writes must use q-blocked-by only; q-depends-on is retired ink,
+// not a live grammar choice. Drop the q-depends-on half of these reads once no legacy
+// row remains (a greppable fact, same exit shape as pathosOf's).
+//
+// FUNCTION-NAME HANDOFF (deliberately NOT renamed this pass): dependsOn/dependentsOf
+// keep their names. dependsOn is imported by stories.ts (not this file's to edit —
+// one-file-one-agent) and by test/depends.test.ts + test/drop.test.ts (outside item 3's
+// scope, the only test-editing door this pass opened). Renaming the function here would
+// break both without my being able to repair them. Reasoned deferral, not an oversight:
+// "the language to be the language" is satisfied by the quality-string rename above;
+// dependsOn is an English verb phrase, not a q- spelling echo, so it doesn't carry the
+// same drift risk. stories.ts's own agent can pick up blockedBy/blockersOf (or keep
+// dependsOn) with full context once it follows this rename through.
 
-/** dependsOn: the beats this one is waiting ON (its blockers) — the q-depends-on edges
- *  FROM this beat (this beat as subject). Non-superseded, as of a moment. */
+/** dependsOn: the beats this one is waiting ON (its blockers) — the q-blocked-by edges
+ *  FROM this beat (this beat as subject), plus legacy q-depends-on rows (both-spellings
+ *  window, see above). Non-superseded, as of a moment. */
 export function dependsOn(soc: Society, beat: string, asOf?: number): string[] {
-  return prehensionsFrom(soc, beat, "q-depends-on", asOf)
+  const fresh = prehensionsFrom(soc, beat, "q-blocked-by", asOf);
+  const legacy = prehensionsFrom(soc, beat, "q-depends-on", asOf);
+  return [...fresh, ...legacy]
     .filter((p) => !isOccluded(soc, p.slug, asOf))
     .map((p) => p.object!).filter(Boolean);
 }
 
 /** dependentsOf: the beats waiting on THIS one — the BACKWARD read (this beat as object).
- *  "who is blocked because of me." The mirror dependsOn couldn't see. */
+ *  "who is blocked because of me." The mirror dependsOn couldn't see. Reads both
+ *  spellings (both-spellings window, see above). */
 export function dependentsOf(soc: Society, beat: string, asOf?: number): string[] {
-  return prehensionsOnto(soc, beat, "q-depends-on", asOf)
+  const fresh = prehensionsOnto(soc, beat, "q-blocked-by", asOf);
+  const legacy = prehensionsOnto(soc, beat, "q-depends-on", asOf);
+  return [...fresh, ...legacy]
     .filter((p) => !isOccluded(soc, p.slug, asOf))
     .map((p) => p.subject!).filter(Boolean);
 }
@@ -882,6 +955,9 @@ export function storyNow(story: string): string {
  *  relationship is the convener's proposal, STANDING UNLESS SHE AMENDS IT). With the
  *  closing's `end ~because~ now`, the closed circuit is a literal because-path
  *  End → Now-lineage → Once. */
+// BARE-CLOSING TRACE (2026-07-15): unpackPoles' idempotency reads the q-end-pole
+// DESIGNATION (below), never the closing — a closed End is still designated, so a bare
+// closing changes nothing here. Untouched by construction; traced, not touched.
 export function unpackPoles(soc: Society, event: string, end = `${event}~hea`): PoleUnpack {
   const now = storyNow(event);
   const existing = prehensionsFrom(soc, event, "q-end-pole")[0];
@@ -896,12 +972,33 @@ export function unpackPoles(soc: Society, event: string, end = `${event}~hea`): 
   return { once: event, end, pole, now };
 }
 
+/** closingEdgesFrom: the edges that CLOSE this End-pole — un-occluded, as of a moment.
+ *  BARE-CLOSING RULING, MECHANIZED (Hallie, 2026-07-15: "yes its edge direction"; "schedule
+ *  it and feel free to act on it"): a closing is EITHER a legacy quality-carrying
+ *  `q-grounding` edge FROM `end` (the migration-era spelling — honored forever, append-
+ *  only) OR a bare edge (no quality at all) FROM `end` — recognized as a closing SOLELY
+ *  because `end` is a designated End-pole (isDesignatedEndPole) and the edge left it: no
+ *  quality-marker is read, per the address law, edge-direction alone carries the meaning.
+ *  This is the one place that structural fact gets turned into a read — every caller that
+ *  needs to know "is this End closed" or "walk through a closing" goes through here now,
+ *  so the bare/legacy union lives in ONE place, not re-derived at each call site. */
+function closingEdgesFrom(soc: Society, end: string, asOf?: number): EventRow[] {
+  const quality = prehensionsFrom(soc, end, "q-grounding", asOf);
+  if (!isDesignatedEndPole(soc, end, asOf)) return quality.filter((p) => !isOccluded(soc, p.slug, asOf));
+  const bare = soc.all().filter(
+    (b) => b.subject === end && b.object !== null && visibleAt(b, asOf) && !hasAnyQuality(soc, b.slug, asOf),
+  );
+  return [...quality, ...bare].filter((p) => !isOccluded(soc, p.slug, asOf));
+}
+
 /** endActual: is this End-pole ACTUAL — is it because something (per the pole law, the
- *  Now of its closing)? Reads the un-occluded outgoing q-grounding edges FROM the End.
- *  Before the done-verb lays `end ~because~ now`, the End rests on nothing it grounds
- *  from — scripted, open, a differential. */
+ *  Now of its closing)? Reads the un-occluded outgoing closing edges FROM the End — a
+ *  bare edge out (the current closePole shape) or a legacy quality-carrying q-grounding
+ *  edge out (both-spellings window, same law as the dependency rename: the ink stays).
+ *  Before the done-verb closes, the End rests on nothing it grounds from — scripted,
+ *  open, a differential. */
 export function endActual(soc: Society, end: string, asOf?: number): boolean {
-  return prehensionsFrom(soc, end, "q-grounding", asOf).some((p) => !isOccluded(soc, p.slug, asOf));
+  return closingEdgesFrom(soc, end, asOf).length > 0;
 }
 
 /** chargesOn: the charges on a differential — a PURE ADDRESS READ (the naked-pole law's
@@ -932,17 +1029,27 @@ export function layCharge(soc: Society, story: string, by: string, content = "ch
 }
 
 /** closePole: the done-verb's kernel half — the End, now actual, is BECAUSE the Now of
- *  its closing (`end ~because~ now`, the ONE grounding the address law lets leave a naked
+ *  its closing (`end ~because~ now`, the ONE edge the address law lets leave a naked
  *  pole). Closes in the story's OWN frame (SOFD): the closing Now is storyNow, so the
  *  closed circuit is the literal because-path End → storyNow → Once. Other frames read
  *  the closing when it establishes to them (see voltageOf — discharge propagates, never a
  *  global zero); a closer's own frame acknowledges by grounding its now in the returned
- *  closing edge. Idempotent per lay. */
+ *  closing edge. Idempotent per lay.
+ *
+ *  BARE CLOSING (Hallie, 2026-07-15: "yes its edge direction... no quality needed";
+ *  "schedule it and feel free to act on it"): this used to close via
+ *  layP(closing, ..., theEnd, u.now, "q-grounding"). It now lays the closing as a BARE
+ *  edge — soc.lay() directly, no quality, no '~q' mode-beat — because a bare edge OUT of
+ *  a designated End-pole structurally IS the closing (edge direction alone carries the
+ *  meaning; see assertNakedPole's OUT-of-pole comment and closingEdgesFrom's doc, which
+ *  every read that recognizes a closing now goes through). This never reaches layP at all
+ *  — a bare .lay() doesn't call assertNakedPole — so it needs no guard exemption; it was
+ *  already legal by the address law's own terms, same as chargesOn's bare-onto model. */
 export function closePole(soc: Society, story: string, end?: string): string {
   const u = unpackPoles(soc, story, end ?? undefined);
   const theEnd = end ?? u.end;
   const closing = `${theEnd}~because~${u.now}`;
-  soc.layP(closing, `the end is because now (frame: ${story})`, theEnd, u.now, "q-grounding");
+  soc.lay({ slug: closing, content: `the end is because now (frame: ${story})`, subject: theEnd, object: u.now });
   return closing;
 }
 
@@ -967,7 +1074,7 @@ export function voltageOf(soc: Society, story: string, ground = storyNow(story),
   let v = 0;
   for (const p of poles) {
     const end = p.object!;
-    const closings = prehensionsFrom(soc, end, "q-grounding", asOf).filter((c) => !isOccluded(soc, c.slug, asOf));
+    const closings = closingEdgesFrom(soc, end, asOf); // bare or legacy q-grounding — see its own doc
     const closedHere = closings.length > 0 && (
       // SOFD: a closing on this story's End is an event laid IN the story's own course,
       // so the story's OWN frame witnesses it by definition — whoever's Now it closed
@@ -1106,24 +1213,13 @@ export function assigneesOf(soc: Society, card: string): string[] {
     .filter(Boolean);
 }
 
-// DEPRECATION CANDIDATE (Hallie, 2026-07-15, flagged not ordered: "drama isn't really in
-// the picture any more. We may need to deprecate that"). These two reads serve the drama
-// concept; nothing else in this kernel branches on q-resolves. Not removed — a candidate
-// is not a corpse, and break-forward cuts on a ruling, not a maybe. If the ruling hardens:
-// resolutionOf/isResolved go, and q-resolves drops out of KernelQuality with them.
-/** resolutionOf: given a DRAMA slug, the story that settles it — read from the drama's OWN
- *  side in ONE pass. A drama is resolved iff a non-superseded q-resolves prehension runs
- *  from it to some story (its object). Returns the story slug, or null if still open. */
-export function resolutionOf(soc: Society, drama: string): string | null {
-  // TODO(socratic): if a drama q-resolves to multiple stories (ambiguous resolution), find() returns the first — is that a conflict that should error instead?
-  const r = prehensionsFrom(soc, drama, "q-resolves").find((p) => !isOccluded(soc, p.slug));
-  return r?.object ?? null;
-}
-
-/** isResolved: is this drama settled? The boolean companion to resolutionOf. */
-export function isResolved(soc: Society, drama: string): boolean {
-  return resolutionOf(soc, drama) !== null;
-}
+// DRAMA CUT (Hallie, 2026-07-15: "drama isn't really in the picture any more... cut for
+// now and mark the commit" — "I suspect trub handles it"). resolutionOf/isResolved and
+// their q-resolves quality lived here, serving the drama concept; nothing else in this
+// kernel ever branched on q-resolves, and live canon carried ZERO q-resolves edges (data-
+// clean cut, no migration owed). Removed, not perished-in-place: the door is marked (see
+// the KernelQuality union tombstone above), not erased — a future drama pass may reopen
+// it once trub's own handling of resolution is legible enough to design against.
 
 /** cleanContent: strip legacy substance-smell from a beat's content on READ.
  *  Legacy beats stored a "[well]/[better] " prefix in content; new beats store clean.

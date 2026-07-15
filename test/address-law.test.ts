@@ -10,7 +10,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { Society, unpackPoles, closePole, chargesOn, layCharge } from "../src/index.js";
+import { Society, unpackPoles, closePole, chargesOn, layCharge, endActual, reaches } from "../src/index.js";
 
 const capture = (s: Society, slug: string) => s.lay({ slug, content: slug, subject: null, object: null });
 
@@ -68,14 +68,44 @@ describe("the naked-pole address law — the guard BLOCKS", () => {
   // vs. charge once quality-markers are gone — no guard-code change was needed to make
   // this true (assertNakedPole is reachable only through layP, which requires a Quality,
   // so a genuinely bare edge never reaches the guard at all; see the guard's own comment).
-  // This pins the ONTO side directly with a bare edge (the OUT side has no bare writer to
-  // call yet — closePole still closes via layP(..., "q-grounding"), honestly still true
-  // per the KernelQuality HONESTY CLAUSE).
+  // This pins the ONTO side directly with a bare edge.
   it("a bare edge (no quality) onto the open End-pole is a charge, never a guard trip — direction alone reads it", () => {
     const s = new Society();
     capture(s, "task");
     const p = unpackPoles(s, "task");
     s.lay({ slug: "end~because~now", content: "end ~because~ now", subject: "frame-someone", object: p.end });
     expect(chargesOn(s, p.end).map((c) => c.slug)).toContain("end~because~now");
+  });
+
+  // Pinned 2026-07-15 (bare-closing ruling MECHANIZED — Hallie: "yes its edge direction...
+  // schedule it and feel free to act on it"). closePole now closes with a BARE edge, not
+  // layP(..., "q-grounding") — this pins the OUT side the comment above once deferred:
+  // closePole's own write is now bare, and every closing-recognizing read (endActual,
+  // reaches walking "q-grounding", voltageOf) accepts it without a quality-marker.
+  it("closePole closes with a BARE edge — no '~q' mode-beat — and every closing-read accepts it", () => {
+    const s = new Society();
+    capture(s, "task");
+    const p = unpackPoles(s, "task");
+    expect(endActual(s, p.end)).toBe(false);
+    const closing = closePole(s, "task");
+    expect(s.has(`${closing}~q`)).toBe(false); // bare — no quality word minted, same as a charge
+    expect(endActual(s, p.end)).toBe(true); // endActual accepts the bare closing
+    expect(reaches(s, p.end, "task", "q-grounding")).toBe(true); // reaches walks through it too
+    // ordinary grammar applies again once actual — a bare edge OUT of the guard's OWN
+    // exemption list would still be refused if it weren't for the pole being closed now:
+    expect(() => s.layP("late-dep~onto~end", "a dependency on the closed End", p.end, "task", "q-depends-on"))
+      .not.toThrow();
+  });
+
+  // Pinned 2026-07-15, same wave: a LEGACY q-grounding-quality closing (the migration-era
+  // spelling, honored forever per append-only) is STILL read as a closing — the
+  // both-spellings law isn't just for q-depends-on/q-blocked-by, it's the same shape here.
+  it("a legacy q-grounding-quality closing (pre-rewrite ink) still reads as closed", () => {
+    const s = new Society();
+    capture(s, "legacy-task");
+    const p = unpackPoles(s, "legacy-task");
+    s.layP(`${p.end}~because~${p.now}`, "the end is because now (legacy spelling)", p.end, p.now, "q-grounding");
+    expect(endActual(s, p.end)).toBe(true);
+    expect(reaches(s, p.end, "legacy-task", "q-grounding")).toBe(true);
   });
 });

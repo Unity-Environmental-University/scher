@@ -85,9 +85,9 @@ export type ModeArm = (v: CardRead) => Node;
 // triage card) gets it for free instead of re-deriving the because-edge walk.
 //
 // FARADAY-CAGE RULE preserved exactly: only a beat's OWN direct because-edges show
-// — closing-edges (the End-pole machinery, subject/object shaped `hea-*`) are
-// structural plumbing, not a real relationship, and are filtered here at the read,
-// not left to every caller to remember to filter.
+// — closing-edges (the End-pole machinery) are structural plumbing, not a real
+// relationship, and are filtered here at the read, not left to every caller to
+// remember to filter.
 // UPSTREAM = everything that leads to a beat, by CAUSE or by ORIENTATION.
 // Two qualities carry that: q-grounding (a note grounds in its cause) and the bare
 // "because" bearing (a note/aim ORIENTS toward a user-story or higher aim — the
@@ -98,16 +98,33 @@ export type ModeArm = (v: CardRead) => Node;
 // card should show a todo's user-story and, on the user-story, what's directly upstream.)
 const UPSTREAM_QUALITIES: Quality[] = ["q-grounding", "because"];
 
+// FIX (2026-07-15, whole-codebase review sitting, tension hea-filter-mismatch): this
+// used to filter by slug prefix (`!o.startsWith("hea-")`), on the assumption that
+// every End-pole's slug looks like `hea-*`. It doesn't — the sitting's clerk confirmed
+// TWO coexisting End-pole naming conventions live in the same canon: unpackPoles's own
+// default mints `${event}~hea` (a SUFFIX), while the API layer's callers mint `hea-*`
+// (a PREFIX, see day-as-story.test.ts's captureIntoDay). The prefix filter caught one
+// convention and silently let the other leak into upstreams/downstreams. Per QUERIES.md
+// (opaque slugs, no string-matching) and tagsOf's own exemplar just below: read the
+// STRUCTURE instead of a name. A node is an End-pole iff it is the OBJECT of a live
+// (un-occluded) q-end-pole designation — exactly what society.ts's (unexported)
+// isOpenEndPole checks, minus the endActual exclusion (a CLOSED End-pole is still
+// closing-machinery, not a real relationship, so it stays filtered here too).
+function isEndPole(soc: Society, node: string, asOf?: number): boolean {
+  return prehensionsOnto(soc, node, "q-end-pole", asOf).length > 0;
+}
+
 /** upstreamsOf: events THIS beat leads FROM — by cause (q-grounding) OR by orientation
  *  ("because" bearing toward an aim/user-story). The ~because~-in bearings a reader
- *  climbs to see why / what this serves. Closing-edges (hea-*) excluded. Deduped. */
+ *  climbs to see why / what this serves. Closing-edges (End-poles, any naming
+ *  convention) excluded structurally — see isEndPole above. Deduped. */
 export function upstreamsOf(soc: Society, slug: string, asOf?: number): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const q of UPSTREAM_QUALITIES) {
     for (const p of prehensionsFrom(soc, slug, q, asOf)) {
       const o = p.object;
-      if (o && !o.startsWith("hea-") && !seen.has(o)) { seen.add(o); out.push(o); }
+      if (o && !isEndPole(soc, o, asOf) && !seen.has(o)) { seen.add(o); out.push(o); }
     }
   }
   return out;
@@ -115,16 +132,17 @@ export function upstreamsOf(soc: Society, slug: string, asOf?: number): string[]
 
 /** downstreamsOf: events that lead TO this beat — by cause (q-grounding) OR by
  *  orientation ("because" bearing). This event's own light-cone out / what orients
- *  toward it (on a user-story: its direct upstream bearers). Closing-edges excluded.
- *  Each entry is a candidate DOWNSTREAM ROW per the card anatomy: a superject-face
- *  reading of that event, rendered as a bordered sub-card by the caller's taste arm. */
+ *  toward it (on a user-story: its direct upstream bearers). Closing-edges excluded
+ *  structurally — see isEndPole above. Each entry is a candidate DOWNSTREAM ROW per
+ *  the card anatomy: a superject-face reading of that event, rendered as a bordered
+ *  sub-card by the caller's taste arm. */
 export function downstreamsOf(soc: Society, slug: string, asOf?: number): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const q of UPSTREAM_QUALITIES) {
     for (const p of prehensionsOnto(soc, slug, q, asOf)) {
       const s = p.subject;
-      if (s && !s.startsWith("hea-") && !seen.has(s)) { seen.add(s); out.push(s); }
+      if (s && !isEndPole(soc, s, asOf) && !seen.has(s)) { seen.add(s); out.push(s); }
     }
   }
   return out;
@@ -409,6 +427,15 @@ export function toggleButtonStory(soc: Society, params: ToggleButtonStoryParams)
       const liveNow = isEstablished(soc, target);
       if (!liveNow) {
         // CHECK: lay a fresh-slugged grounding (always new → never born-superseded).
+        // NAMED EXCEPTION to N4 (society.ts KernelQuality doc, "do not lay [q-grounding]
+        // in new writers"), surfaced by the 2026-07-15 review sitting (tension
+        // hea-filter-mismatch) as a live writer the honesty clause didn't name. Left AS
+        // q-grounding deliberately, not an oversight: isEstablished/groundedForAnyFrame
+        // still key on the literal "q-grounding" string today (the bare-because read
+        // side of the migration is ruled — society.ts:61-67 — but not yet mechanized).
+        // Writing a bare edge here now would silently desync this toggle's own `live`
+        // read (isEstablished would never see it) — worse than the debt it would repay.
+        // Revisit when the kernel read migrates; until then this stays honest, not fixed.
         soc.layP(`${groundSlug}-${nth++}`, `${by} grounds ${target}`, by, target, "q-grounding");
       } else {
         // TODO(socratic): why occlude ALL live groundings instead of just the most recent one — does every grounding participate equally in establishment, or are there scenarios where one grounding alone drives the mode?

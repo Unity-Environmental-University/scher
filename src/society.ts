@@ -65,6 +65,16 @@ export type KernelQuality =
   // is the closing. No quality needed: the pole's structure plus the edge's direction
   // carry the whole distinction. Recorded here so the migration inherits a ruling, not
   // a rediscovery.
+  //
+  // MECHANIZED, CHECKED (2026-07-15, cooling wave): assertNakedPole is reachable ONLY
+  // through layP, whose signature requires a Quality — a truly bare edge never reaches
+  // it (it's laid via Society.lay() directly, which doesn't call this guard). So "bare
+  // edge ONTO = charge" and "bare edge OUT = closing" are both ALREADY TRUE, for free,
+  // by construction; nothing needed to change in assertNakedPole itself. See its own
+  // comment at the OUT-of-pole check for the full call-graph trace. What's still
+  // literally q-grounding-shaped is closePole's OWN write (it lays the closing via
+  // layP(..., "q-grounding"), not a bare .lay()) — that rewrite belongs to closePole,
+  // not to this guard, and stays HONESTY-CLAUSE-true until it lands.
   | "q-grounding"
   // q-lure is DEAD — killed with fire (Hallie, 2026-07-06): it smuggled an agent (who
   // lures?) and could not state its own direction. It is NOT in this union and layP
@@ -194,12 +204,34 @@ export function assertNakedPole(
       `story (the pole's Once), or lay a bare edge if you mean a charge. (law: naked-pole)`,
     );
   }
+  // EDGE-DIRECTION RULING CHECKED AGAINST THE REAL CALL GRAPH (2026-07-15, acting on the
+  // whole-codebase review sitting's tension 1): Hallie's migration answer ("yes its edge
+  // direction... no quality needed" — see the MIGRATION ANSWER comment on KernelQuality
+  // above) says a bare edge OUT of an open End-pole should be the closing, no quality
+  // required. I checked: this guard is reachable from exactly one call site, layP (below),
+  // whose signature REQUIRES a Quality argument — there is no path by which a truly bare
+  // edge (no quality at all) ever reaches assertNakedPole, because a bare edge is laid via
+  // Society.lay() directly, which never calls this guard in the first place (grep confirms:
+  // every closePole/layCharge/fact.ts/stories.ts writer that touches a pole either lays bare
+  // via .lay() — never routing through here — or calls layP with the literal string
+  // "q-grounding"). So the ruling's "bare-out closes" half is ALREADY true today, for free,
+  // by construction: it never hits this check to be refused. What's left for THIS guard is
+  // narrower than the tension first read: keep recognizing "q-grounding" as the migration-
+  // era spelling of the closing for every layP-routed writer, until closePole itself is
+  // rewritten to close with a bare .lay() (that rewrite is closePole's, not this guard's —
+  // see the HONESTY CLAUSE on KernelQuality: closePole/unpackPoles still lay q-grounding).
+  // The day closePole switches, this line needs no change — a bare closing edge would
+  // already sail past this guard untouched, same as a bare charge does today (chargesOn's
+  // model). Pinned by a test below: address-law.test.ts covers the q-grounding exit; this
+  // file cannot pin "a bare edge closes" without a bare-edge writer to call, which doesn't
+  // exist yet and I'm not inventing one QUERIES.md wouldn't ask for.
   if (isOpenEndPole(soc, subject) && quality !== "q-grounding") {
     throw new Error(
       `[ADDRESS LAW] '${slug}' lays a ${quality} prehension OUT of the open End-pole ` +
-      `'${subject}'. The only edge that ever leaves a naked pole is its ONE closing ` +
-      `q-grounding ('end ~because~ now'). Fix: close the pole with q-grounding, or hang ` +
-      `this relation on the story instead. (law: naked-pole)`,
+      `'${subject}'. The only edges that ever leave a naked pole are its ONE closing ` +
+      `q-grounding ('end ~because~ now') or a bare edge (no quality at all — bare edges ` +
+      `never reach this check; lay them via Society.lay() directly). Fix: close the pole ` +
+      `with q-grounding, or hang this relation on the story instead. (law: naked-pole)`,
     );
   }
 }
@@ -246,6 +278,19 @@ export function assertNotMembershipContainment(slug: string, quality: Quality): 
 // effectively also a seizure wherever it landed in an event loop with no surrounding
 // try/catch. The RULE is unchanged — only the mechanism of refusal, from an exception to a
 // returned message layP can act on. Returns the violation message, or null if the write is fine.
+//
+// STATUS, CORRECTED (2026-07-15, cooling wave, tension 3: layP-dead-guards): the doc-comment
+// below on assertSublimeNeverCloses claimed layP calls THIS non-throwing function instead —
+// checked directly against layP's body: it does not. layP still calls the throwing
+// assert* wrapper (and its assertSublimeAcyclic sibling), same as it always has; this
+// check* function is correct, tested indirectly (assertSublimeNeverCloses delegates to it),
+// but has ZERO direct callers of its own. The throw→return swap in layP is a real behavior
+// change — every one of layP's ~26 call sites currently assumes a throw, not a checked
+// return — and isn't mine to make silently mid-cooling-pass; it needs its own ruling on
+// how callers should react to a non-throwing refusal (log and drop the write? surface to
+// UI? something else?). Until that ruling lands, the throwing path IS the live one for
+// all four of layP's guards, not just two — the "two migrated, two stalled" framing this
+// comment used to imply was itself inaccurate; none of layP's guards have migrated yet.
 export function checkSublimeNeverCloses(soc: Society, slug: string, subject: string, object: string, quality: Quality): string | null {
   // q-sublime-pole designation itself is structural; it is exempt (like q-end-pole).
   if (quality === "q-sublime-pole") return null;
@@ -261,9 +306,12 @@ export function checkSublimeNeverCloses(soc: Society, slug: string, subject: str
   return null;
 }
 
-/** @deprecated kept only so any external caller relying on the throwing shape still gets an
- *  error (now clearly attributed) rather than silent success; layP itself no longer calls
- *  this — it calls checkSublimeNeverCloses and refuses without throwing. */
+/** NOT deprecated, corrected 2026-07-15 (was wrongly marked @deprecated, claiming layP no
+ *  longer calls this — checked directly: it does, today, still throwing). This IS the live
+ *  path layP calls (see layP's body). checkSublimeNeverCloses above is the ready, tested
+ *  non-throwing twin, waiting on its own ruling for how layP's ~26 callers should react to
+ *  a checked return instead of a throw before the swap can land — see checkSublimeNeverCloses's
+ *  STATUS comment. Until then, this wrapper is not legacy scaffolding; it's the guard. */
 export function assertSublimeNeverCloses(soc: Society, slug: string, subject: string, object: string, quality: Quality): void {
   const violation = checkSublimeNeverCloses(soc, slug, subject, object, quality);
   if (violation) throw new Error(violation);
@@ -307,9 +355,12 @@ export function checkSublimeAcyclic(_soc: Society, _slug: string, _subject: stri
   return null;
 }
 
-/** @deprecated kept only so any external caller relying on the throwing shape still gets an
- *  error (now clearly attributed) rather than silent success; layP itself no longer calls
- *  this — it calls checkSublimeAcyclic and refuses without throwing. */
+/** NOT deprecated, corrected 2026-07-15 (was wrongly marked @deprecated, claiming layP no
+ *  longer calls this — checked directly: it does, today). This IS the live path layP calls.
+ *  checkSublimeAcyclic above always returns null now (the RELAXED cut removed everything it
+ *  ever refused), so in practice this wrapper never throws either — but it's still the
+ *  function layP actually invokes, not dead scaffolding. See assertSublimeNeverCloses's
+ *  sibling comment for the fuller status (same stalled-migration story, both guards). */
 export function assertSublimeAcyclic(soc: Society, slug: string, subject: string, object: string, quality: Quality): void {
   const violation = checkSublimeAcyclic(soc, slug, subject, object, quality);
   if (violation) throw new Error(violation);
@@ -372,10 +423,14 @@ export class Society {
   // I lay only the missing half and report true — is a half-mode-carrying prehension a state I mean to
   // permit, or a corruption the append-only law just made unfixable?
   layP(slug: string, content: string, subject: string, object: string, quality: Quality): boolean {
+    // All four guards below THROW today (confirmed 2026-07-15, cooling wave, tension 3) —
+    // the "refusal not a throw" ruling (2026-07-07) has a ready non-throwing twin for the
+    // sublime guards (checkSublimeNeverCloses/checkSublimeAcyclic) but layP hasn't been
+    // swapped to call them; see their own doc-comments for why the swap waits on a ruling.
     assertNoLure(slug, quality); // BLOCKS: q-lure is dead grammar (Hallie, 2026-07-06)
     assertNakedPole(this, slug, subject, object, quality); // BLOCKS: nothing touches a naked pole
     assertSublimeNeverCloses(this, slug, subject, object, quality); // BLOCKS: sublimes never close
-    assertSublimeAcyclic(this, slug, subject, object, quality); // BLOCKS: sublime-DAG stays acyclic
+    assertSublimeAcyclic(this, slug, subject, object, quality); // BLOCKS: sublime-DAG stays acyclic (currently never fires — RELAXED, see its own comment)
     assertNotMembershipContainment(slug, quality);
     // TODO(socratic): does the quality belong in the '~q' beat's content (as "[${quality}]"), or is it already fully encoded by the object field?
     const a = this.lay({ slug, content, subject, object });
@@ -1113,9 +1168,14 @@ export type HearingStatus =
  *  (ground) determines whose "established" reaches the author's work. Default to
  *  author's own frame (reflexivity — an author can see their own work).
  *
- *  LEGACY READ: authorship discovery parses the slug pattern "laid-{event}-by-{layer}";
- *  when scher-core's EventRow gains a real laid_by property column, the substance read
- *  walks the column and this parse becomes testimony to pre-column rows (ruling 13).
+ *  AUTHORSHIP DISCOVERY (rewritten 2026-07-15, cooling wave, tension 2): primary read is
+ *  the real EventRow.laid_by column — structural, no parsing. The slug pattern
+ *  "laid-{event}-by-{layer}" survives only as an EXPLICIT, DATED FALLBACK for legacy rows
+ *  laid before the column existed (gen4-policy's Rust side, lib.rs:749, has written both
+ *  the q-authorship edge and laid_by since; new data never depends on slug shape). A row
+ *  is read via the fallback iff it has no laid_by AND matches the legacy shape — so a
+ *  populated column always wins, and the parse never double-counts an event the column
+ *  already answered for.
  *
  *  ASSEMBLY LOGIC (pure composition of existing reads):
  *  1. Query laid_by(author) → all events where laid_by == author
@@ -1131,10 +1191,20 @@ export function biographyOf(soc: Society, author: string, ground?: string): Biog
   const entries: BiographyEntry[] = [];
   const readGround = ground ?? author;
 
-  // 1. Discover all events laid by the author. The authorship node names follow the
-  // pattern "laid-{event}-by-{layer}". We parse this slug and verify via the ~lays~
-  // edge co-prehending q-authorship. LEGACY READ (pending EventRow.laid_by column).
+  // 1. Discover all events laid by the author.
   const authorialEvents = new Set<string>();
+
+  // PRIMARY: the real laid_by column — structural, no slug parsed. Content beats only
+  // (a '~q' mode-beat or a prehension carrying laid_by would be a different question).
+  for (const beat of contentBeats(soc)) {
+    if (beat.laid_by === author) authorialEvents.add(beat.slug);
+  }
+
+  // FALLBACK, LEGACY ROWS ONLY (dated 2026-07-15; pre-laid_by-column data): the
+  // authorship node names followed the pattern "laid-{event}-by-{layer}" before
+  // scher-core wrote the column. Parse it and verify via the ~lays~ edge co-prehending
+  // q-authorship — but only for an event the column didn't already answer for, so a
+  // populated laid_by always wins and this parse never overrides or double-counts it.
   soc.all().forEach((beat) => {
     // Look for authorship nodes: laid-{event}-by-{layer}, subject/object null (nodes, not edges)
     if (beat.slug.startsWith("laid-") && beat.subject === null && beat.object === null) {
@@ -1142,7 +1212,9 @@ export function biographyOf(soc: Society, author: string, ground?: string): Biog
       const match = beat.slug.match(/^laid-(.+?)-by-(.+)$/);
       if (match) {
         const [, eventSlug, layerSlug] = match;
-        if (layerSlug === author) {
+        if (eventSlug && layerSlug === author && !authorialEvents.has(eventSlug)) {
+          const eventBeat = soc.get(eventSlug);
+          if (eventBeat && eventBeat.laid_by) return; // column already spoke for this event
           // Verify via ~lays~ edge co-prehending q-authorship
           const laysEdges = prehensionsFrom(soc, beat.slug, "q-authorship");
           const firstEdge = laysEdges[0];
@@ -1181,12 +1253,13 @@ export function biographyOf(soc: Society, author: string, ground?: string): Biog
       status = { type: "established", grounds: [readGround] };
       holders = [readGround];
     } else {
-      // Check for charges on the End-pole (task with open lure)
+      // Check for charges on the End-pole (an open End-pole with charges — q-lure is dead;
+      // see assertNoLure — comment corrected 2026-07-15, was stale "open lure" language)
       const storyEnd = endOf(soc, event);
       if (storyEnd) {
         const charges = chargesOn(soc, storyEnd);
         if (charges.length > 0) {
-          // 2d. Has open lures: → Charged(count)
+          // 2d. Has charges on its open End-pole: → Charged(count)
           status = { type: "charged", count: charges.length };
         } else {
           // 2e. No reach, no charges: → Floating (unheard)

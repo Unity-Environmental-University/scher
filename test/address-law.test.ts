@@ -62,4 +62,20 @@ describe("the naked-pole address law — the guard BLOCKS", () => {
     // the pole is itself a story whose End lies further in (why-chains do exactly this):
     expect(() => s.layP(`${p.end}~end-pole~further`, "onward", p.end, "further", "q-end-pole")).not.toThrow();
   });
+
+  // Pinned 2026-07-15 (whole-codebase review sitting, tension 1: edge-direction-
+  // unimplemented). Hallie's migration answer says edge DIRECTION alone settles closing
+  // vs. charge once quality-markers are gone — no guard-code change was needed to make
+  // this true (assertNakedPole is reachable only through layP, which requires a Quality,
+  // so a genuinely bare edge never reaches the guard at all; see the guard's own comment).
+  // This pins the ONTO side directly with a bare edge (the OUT side has no bare writer to
+  // call yet — closePole still closes via layP(..., "q-grounding"), honestly still true
+  // per the KernelQuality HONESTY CLAUSE).
+  it("a bare edge (no quality) onto the open End-pole is a charge, never a guard trip — direction alone reads it", () => {
+    const s = new Society();
+    capture(s, "task");
+    const p = unpackPoles(s, "task");
+    s.lay({ slug: "end~because~now", content: "end ~because~ now", subject: "frame-someone", object: p.end });
+    expect(chargesOn(s, p.end).map((c) => c.slug)).toContain("end~because~now");
+  });
 });

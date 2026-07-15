@@ -237,4 +237,48 @@ describe("biographyOf", () => {
     const entryKevin = bioFromKevin.find((e) => e.event === event1);
     expect(entryKevin?.status.type).toBe("established");
   });
+
+  // Pinned 2026-07-15 (whole-codebase review sitting, tension 2: biography-slug-parsing).
+  // The real EventRow.laid_by column is now the PRIMARY authorship read; the slug-parse
+  // is an explicit fallback for legacy rows only. This pins the column path directly —
+  // no "laid-{event}-by-{author}" node at all, discovery via laid_by alone.
+  it("discovers authorship via the real laid_by column — no slug-parse needed", () => {
+    const soc = new Society();
+
+    const event1 = "event-new-style";
+    soc.lay({ slug: event1, content: "written with the real column", subject: null, object: null, laid_by: "frame-liu" });
+
+    const bio = biographyOf(soc, "frame-liu");
+    expect(bio.length).toBe(1);
+    expect(bio[0]?.event).toBe(event1);
+    expect(bio[0]?.laid_by).toBe("frame-liu");
+  });
+
+  it("prefers the laid_by column over a legacy slug-parse node for the same event", () => {
+    const soc = new Society();
+
+    const event1 = "event-both";
+    // Column says frame-nadia; a legacy-shaped authorship node (wrongly, or from stale
+    // data) claims frame-owen. The column must win — it's the structural read.
+    soc.lay({ slug: event1, content: "column-authored", subject: null, object: null, laid_by: "frame-nadia" });
+    layAuthorship(soc, "frame-owen", event1);
+
+    const bioNadia = biographyOf(soc, "frame-nadia");
+    expect(bioNadia.map((e) => e.event)).toContain(event1);
+
+    const bioOwen = biographyOf(soc, "frame-owen");
+    expect(bioOwen.map((e) => e.event)).not.toContain(event1);
+  });
+
+  it("still finds a legacy row with no laid_by column via the dated slug-parse fallback", () => {
+    const soc = new Society();
+
+    const event1 = "event-legacy";
+    // No laid_by on this row — it predates the column, same as the other tests above.
+    soc.lay({ slug: event1, content: "pre-column work", subject: null, object: null });
+    layAuthorship(soc, "frame-pat", event1);
+
+    const bio = biographyOf(soc, "frame-pat");
+    expect(bio.map((e) => e.event)).toContain(event1);
+  });
 });

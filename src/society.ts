@@ -307,21 +307,25 @@ export function assertNotMembershipContainment(slug: string, quality: Quality): 
 // all four of layP's guards, not just two — the "two migrated, two stalled" framing this
 // comment used to imply was itself inaccurate; none of layP's guards have migrated yet.
 //
-// RULING, RECORDED VERBATIM-ISH (Hallie, 2026-07-15, morning): "Nothing should be silent -
-// algedonic channel." Any refusal or laundering must signal LOUDLY; silent defaults are
-// forbidden across this codebase, not just here — the same law that makes floatingCharge/
-// overload (below, THE ALGEDONIC CHANNEL section) refuse to threshold or filter quietly.
-// Read against that law, a throw is NOT the silent case — an uncaught exception is loud
-// (it stops the world, it shows up in a stack trace, nobody mistakes it for success). A
-// checked return that a caller forgets to inspect WOULD be silent — the write appears to
-// succeed while the refusal evaporates. So: THIS MIGRATION STAYS SHELVED until it is
-// paired with an algedonic-channel design for the checked-return path — something that
-// makes a dropped check* result exactly as loud as a throw is today (surfaced to the UI,
-// logged where pain is read, whatever the eventual design says — not decided here, only
-// gated on). Until that pairing lands: the throwing path stays the live one, on purpose,
-// not by default. Do not flip layP to the check* variants without that channel; a silent
-// checked-return regime would be a REGRESSION against "nothing should be silent," not
-// progress toward it.
+// RULED, CLOSED (Hallie, 2026-07-15, after the algedonic-channel sitting —
+// docs/committees/2026-07-15-algedonic-channel-sitting.md): "Yeah we don't need it
+// explicit — pain should show the shape." The skeptic's position carried: the guards KEEP
+// THROWING. No refusal-event machinery, no check* wiring in layP, no speculative channel
+// design. This is not a shelved migration anymore; it is a decided non-build. The earlier
+// law still stands ("Nothing should be silent - algedonic channel", 2026-07-15 morning) —
+// and a throw satisfies it: an uncaught exception is loud (it stops the world, it shows up
+// in a stack trace, nobody mistakes it for success), while a checked return a caller
+// forgets to inspect WOULD be silent — the write appears to succeed while the refusal
+// evaporates. The question re-opens only when real pain — actual users hitting actual
+// silent refusals — reveals what shape the channel wants. Until then: throwing path,
+// on purpose. Do not flip layP to the check* variants; a silent checked-return regime
+// would be a REGRESSION against "nothing should be silent," not progress toward it.
+//
+// What that makes checkSublimeNeverCloses (and checkSublimeAcyclic below): non-throwing
+// twins with no direct caller and no pending migration. They are kept ink — correct,
+// tested through their assert* wrappers, waiting for a pain-revealed shape that may
+// never come, and fair candidates for a future cut if it doesn't. Not deleted here;
+// the ruling was about not-building the channel, not about removing what exists.
 export function checkSublimeNeverCloses(soc: Society, slug: string, subject: string, object: string, quality: Quality): string | null {
   // q-sublime-pole designation itself is structural; it is exempt (like q-end-pole).
   if (quality === "q-sublime-pole") return null;
@@ -339,10 +343,9 @@ export function checkSublimeNeverCloses(soc: Society, slug: string, subject: str
 
 /** NOT deprecated, corrected 2026-07-15 (was wrongly marked @deprecated, claiming layP no
  *  longer calls this — checked directly: it does, today, still throwing). This IS the live
- *  path layP calls (see layP's body). checkSublimeNeverCloses above is the ready, tested
- *  non-throwing twin, waiting on its own ruling for how layP's ~26 callers should react to
- *  a checked return instead of a throw before the swap can land — see checkSublimeNeverCloses's
- *  STATUS comment. Until then, this wrapper is not legacy scaffolding; it's the guard. */
+ *  path layP calls (see layP's body). The swap to the non-throwing twin is now CLOSED by
+ *  ruling, not pending (Hallie, 2026-07-15: "pain should show the shape") — see the RULED
+ *  comment on checkSublimeNeverCloses above. This wrapper is the guard, on purpose. */
 export function assertSublimeNeverCloses(soc: Society, slug: string, subject: string, object: string, quality: Quality): void {
   const violation = checkSublimeNeverCloses(soc, slug, subject, object, quality);
   if (violation) throw new Error(violation);
@@ -390,8 +393,9 @@ export function checkSublimeAcyclic(_soc: Society, _slug: string, _subject: stri
  *  longer calls this — checked directly: it does, today). This IS the live path layP calls.
  *  checkSublimeAcyclic above always returns null now (the RELAXED cut removed everything it
  *  ever refused), so in practice this wrapper never throws either — but it's still the
- *  function layP actually invokes, not dead scaffolding. See assertSublimeNeverCloses's
- *  sibling comment for the fuller status (same stalled-migration story, both guards). */
+ *  function layP actually invokes, not dead scaffolding. The throw→check swap is CLOSED by
+ *  ruling for both guards (Hallie, 2026-07-15: "pain should show the shape") — see the
+ *  RULED comment on checkSublimeNeverCloses above. */
 export function assertSublimeAcyclic(soc: Society, slug: string, subject: string, object: string, quality: Quality): void {
   const violation = checkSublimeAcyclic(soc, slug, subject, object, quality);
   if (violation) throw new Error(violation);
@@ -454,15 +458,12 @@ export class Society {
   // I lay only the missing half and report true — is a half-mode-carrying prehension a state I mean to
   // permit, or a corruption the append-only law just made unfixable?
   layP(slug: string, content: string, subject: string, object: string, quality: Quality): boolean {
-    // All four guards below THROW today (confirmed 2026-07-15, cooling wave, tension 3) —
-    // the "refusal not a throw" ruling (2026-07-07) has a ready non-throwing twin for the
-    // sublime guards (checkSublimeNeverCloses/checkSublimeAcyclic) but layP hasn't been
-    // swapped to call them; see their own doc-comments for why the swap waits on a ruling.
-    // RULING RECORDED (Hallie, 2026-07-15, morning): "Nothing should be silent - algedonic
-    // channel." A throw is loud, not silent — this migration STAYS SHELVED until paired
-    // with an algedonic-channel design for the checked-return path (see
-    // checkSublimeNeverCloses's own comment for the full ruling). The throwing path below
-    // is deliberate, not neglected.
+    // All four guards below THROW, by RULING, not by neglect (Hallie, 2026-07-15, after
+    // the algedonic-channel sitting: "Yeah we don't need it explicit — pain should show
+    // the shape"). The throw→check migration is CLOSED, not shelved: no check* wiring
+    // here, no refusal-event machinery, until real pain from actual silent refusals
+    // reveals what shape a channel wants. A throw is loud; that satisfies "nothing should
+    // be silent." Full ruling on checkSublimeNeverCloses's comment above.
     assertNoLure(slug, quality); // BLOCKS: q-lure is dead grammar (Hallie, 2026-07-06)
     assertNakedPole(this, slug, subject, object, quality); // BLOCKS: nothing touches a naked pole
     assertSublimeNeverCloses(this, slug, subject, object, quality); // BLOCKS: sublimes never close

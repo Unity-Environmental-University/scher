@@ -57,6 +57,14 @@ export type KernelQuality =
   // here means the WRITE grammar is closed, not that the reads are gone — the machinery
   // migrates to the bare because-edge at its own roadmap point, and until it does, laid
   // q-grounding rows stay honored (append-only: the ink stays, as always).
+  //
+  // MIGRATION ANSWER, RULED (Hallie, 2026-07-15: "yes its edge direction"): the tension
+  // above — how do the naked-pole law and sublime guard tell a closing from a charge
+  // once the quality-marker is gone — is settled by EDGE DIRECTION alone. Under
+  // bare-because, a bare edge ONTO an open End-pole is a charge; a bare edge OUT of it
+  // is the closing. No quality needed: the pole's structure plus the edge's direction
+  // carry the whole distinction. Recorded here so the migration inherits a ruling, not
+  // a rediscovery.
   | "q-grounding"
   // q-lure is DEAD — killed with fire (Hallie, 2026-07-06): it smuggled an agent (who
   // lures?) and could not state its own direction. It is NOT in this union and layP

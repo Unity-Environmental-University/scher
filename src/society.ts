@@ -45,10 +45,18 @@ export interface EventRow {
 // typo'd q-groundng on a name the kernel actually reads — while letting new lateral
 // qualities typecheck without editing this file.)
 export type KernelQuality =
-  // N4 (Hallie, 2026-07-03): under the universal-grounding ruling the explicit q-grounding
-  // mode-beat is BEGINNING DEPRECATION — every because-edge grounds relative to its laying
-  // frame, so the marker trends redundant. Still fully usable until a future roadmap point;
-  // reads keep honoring it. New writers should know the stock is scheduled, not eternal.
+  // N4 hardened (Hallie, 2026-07-15; supersedes the 2026-07-03 "beginning deprecation"):
+  // q-grounding is PURELY DEPRECATED. "because is the one relation" is a laid event in the
+  // live canon — the bare because-edge IS the relation, and the explicit q-grounding
+  // mode-marker is redundant ink. Do not lay it in new writers.
+  //
+  // HONESTY CLAUSE (my comments never pretend): the kernel still BRANCHES on this string.
+  // reaches/establishedTo walk the grounding topology by this quality; the naked-pole
+  // closing rule (assertNakedPole) and the sublime guard (checkSublimeNeverCloses) key on
+  // it; closePole/unpackPoles LAY it; groundedForAnyFrame reads it. "Purely deprecated"
+  // here means the WRITE grammar is closed, not that the reads are gone — the machinery
+  // migrates to the bare because-edge at its own roadmap point, and until it does, laid
+  // q-grounding rows stay honored (append-only: the ink stays, as always).
   | "q-grounding"
   // q-lure is DEAD — killed with fire (Hallie, 2026-07-06): it smuggled an agent (who
   // lures?) and could not state its own direction. It is NOT in this union and layP
@@ -1035,6 +1043,11 @@ export function assigneesOf(soc: Society, card: string): string[] {
     .filter(Boolean);
 }
 
+// DEPRECATION CANDIDATE (Hallie, 2026-07-15, flagged not ordered: "drama isn't really in
+// the picture any more. We may need to deprecate that"). These two reads serve the drama
+// concept; nothing else in this kernel branches on q-resolves. Not removed — a candidate
+// is not a corpse, and break-forward cuts on a ruling, not a maybe. If the ruling hardens:
+// resolutionOf/isResolved go, and q-resolves drops out of KernelQuality with them.
 /** resolutionOf: given a DRAMA slug, the story that settles it — read from the drama's OWN
  *  side in ONE pass. A drama is resolved iff a non-superseded q-resolves prehension runs
  *  from it to some story (its object). Returns the story slug, or null if still open. */

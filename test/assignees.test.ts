@@ -9,7 +9,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { Society, assigneesOf } from "../src/society.js";
+import { Society } from "../src/society.js";
+import { assigneesOf } from "../src/strain.js";
 
 function board() {
   const soc = new Society([

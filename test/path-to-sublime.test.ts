@@ -17,8 +17,9 @@
 
 import { describe, it, expect } from "vitest";
 import {
-  Society, pathToSublime, isSublimePole, bearingsOf, unpackPoles,
+  Society, isSublimePole, unpackPoles,
 } from "../src/society.js";
+import { pathToSublime, bearingsOf } from "../src/sublimes.js";
 
 function node(s: Society, slug: string, content = slug) {
   if (!s.has(slug)) s.lay({ slug, content, subject: null, object: null });

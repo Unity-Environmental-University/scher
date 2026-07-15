@@ -10,7 +10,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { Society, dependsOn, dependentsOf, prehensionsOnto, reactionsOn } from "../src/society.js";
+import { Society, prehensionsOnto } from "../src/society.js";
+import { dependsOn, dependentsOf } from "../src/strain.js";
+import { reactionsOn } from "../src/pathos.js";
 import { dropStory, relateBuckets, composerStory, reactionStory, type ModeArm } from "../src/stories.js";
 
 // test-owned taste: dropStory's default card render needs a modeArm (the mode-copy is

@@ -19,7 +19,8 @@
 import { el, on } from "./dom.js";
 import { project } from "./projection.js";
 import { reading, readCard, cardStory, type CardRead, type ModeArm } from "./stories.js";
-import { Society, isEstablished, isSublimePole, bearingsOf, storyBearingsOf } from "./society.js";
+import { Society, isEstablished, isSublimePole } from "./society.js";
+import { bearingsOf, storyBearingsOf } from "./sublimes.js";
 
 /** the three faces. INTERIOR = becoming; SUPERJECT = datum-for-the-next; PROPOSITION =
  *  not-yet-actual (renders as superject + a not-yet skin). */

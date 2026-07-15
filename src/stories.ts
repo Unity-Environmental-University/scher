@@ -7,6 +7,16 @@
 // these hold state. They READ the society (via society.ts reads) and re-project when
 // it changes (via cell.ts batching on Society.rev). A Button's press LAYS a beat —
 // the only write — so the UI writes into the canon, append-only, by construction.
+//
+// SPLIT (2026-07-15, separation-of-concerns pass): this file used to hold the whole
+// story-constructor family in one piece. Three cohesive seams moved to sibling files
+// — card-reads.ts (the pure (Society,slug)->shape reads: readCard, upstreams/
+// downstreams/tags, requires/contains/enables), button-story.ts (buttonStory +
+// toggleButtonStory), board-drop.ts (boardStory, dropStory, relateBuckets). This file
+// re-exports all three at their original names, so every external importer — the
+// index.ts barrel, eventview.ts, glossary.ts, the frontend's direct `/scher/dist/
+// stories.js` imports, and every test — sees the exact same surface as before.
+// Behavior is byte-identical; only the file boundary moved.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { derive, type Read } from "./cell.js";
@@ -16,21 +26,53 @@ import { eventView, type SuperjectArm } from "./eventview.js";
 import { createFisheye, type FisheyeOpts } from "./fisheye.js";
 import {
   Society,
-  modeAt,
-  confidence,
-  reactionsOn,
-  isOccluded,
   isEstablished,
-  prehensionsFrom,
+  isOccluded,
   prehensionsOnto,
   intervalOf,
   endOf,
   isStory,
   unpackPoles,
-  dependsOn,
-  type Mode,
-  type Quality,
 } from "./society.js";
+// reactionsOn: cut from society.ts into pathos.ts (2026-07-15, separation-of-
+// concerns pass, society.ts's own advocate) — same name, new source file.
+import { reactionsOn } from "./pathos.js";
+import { readCard, type CardRead } from "./card-reads.js";
+import { buttonStory } from "./button-story.js";
+
+export {
+  type CardRead,
+  readCard,
+  type TagRead,
+  upstreamsOf,
+  downstreamsOf,
+  tagsOf,
+  type CardInteriorRead,
+  readCardInterior,
+  type RequiresRow,
+  requiresOf,
+  containsOf,
+  enablesOf,
+  type CardAnatomyRead,
+  readCardAnatomy,
+} from "./card-reads.js";
+
+export {
+  type ButtonStoryParams,
+  buttonStory,
+  type ToggleButtonStoryParams,
+  toggleButtonStory,
+} from "./button-story.js";
+
+export {
+  type BoardColumn,
+  type BoardStoryParams,
+  boardStory,
+  type DropBucket,
+  type DropStoryParams,
+  dropStory,
+  relateBuckets,
+} from "./board-drop.js";
 
 /** A reading-cell over a society: re-derives whenever the society appends (rev bumps).
  *  This is the bridge — a Cell whose value is a DETERMINED READING of the society,
@@ -43,269 +85,14 @@ export function reading<T>(soc: Society, read: (s: Society) => T): Read<T> {
 // ── CARD STORY ────────────────────────────────────────────────────────────────
 // Reads ONE beat (its content + its determined mode + its pathos) and projects a
 // card. Reusable: point it at any slug. The card IS the reading of that beat-Story.
-
-/** the READ: pure (Society, slug) → structural shape. No English, no symbols — just what's
- *  true of the beat. This is the half of cardStory that belongs to scher (a scher-read per
- *  the reads/spreads boundary, CLEARNESS-reads-spreads.md 2026-07-10: mode-DETECTION is a
- *  scher-read that "survives clean"; mode-COPY/VISUAL is Penelope taste). */
-export interface CardRead {
-  slug: string;
-  content: string;
-  mode: Mode;
-  conf: number;
-  pathos: { key: string; count: number }[];
-}
-
-export function readCard(soc: Society, slug: string): CardRead {
-  const beat = soc.get(slug);
-  // TODO(socratic): why does modeAt return something that needs `as Mode` cast — is the query's return type too wide, or is modeAt sometimes returning a non-Mode value that should be caught?
-  return {
-    slug,
-    content: beat?.content ?? `(no beat: ${slug})`,
-    mode: modeAt(soc, slug) as Mode,
-    conf: confidence(soc, slug),
-    pathos: reactionsOn(soc, slug),
-  };
-}
+// The READ half (readCard, CardRead, and the card-interior/card-anatomy reads) now
+// lives in card-reads.ts (re-exported above) — this is the DOM-projecting half.
 
 /** the TASTE arm: given the structural read, render the mode's copy/symbol. Caller-supplied
  *  — cardStory does not hard-code English here. No default is baked into scher; a caller that
  *  wants a default (e.g. a demo, a test) supplies its own, because the copy is Penelope's, not
  *  scher's, to author. */
 export type ModeArm = (v: CardRead) => Node;
-
-// ── CARD-INTERIOR READS — upstreams / downstreams / tags ────────────────────────
-// Hallie's card anatomy (fleet-card-anatomy sketch, 2026-07-10): ↑UPSTREAMS (the
-// ~because~-in bearings), the name+description+TAGS edge-strip, ↓DOWNSTREAMS (this
-// event's own light-cone out). All three are pure (Society, slug) -> shape reads —
-// no DOM, no English, same discipline as readCard/readEventView. Board.ts's
-// computeUpstreamDownstream (event-3037, the Faraday-cage rule) did this ad hoc,
-// app-side, duplicating a read that belongs here — upstreamsOf/downstreamsOf are
-// that read PROMOTED to scher so board.ts (and any future caller: a minimap, a
-// triage card) gets it for free instead of re-deriving the because-edge walk.
-//
-// FARADAY-CAGE RULE preserved exactly: only a beat's OWN direct because-edges show
-// — closing-edges (the End-pole machinery) are structural plumbing, not a real
-// relationship, and are filtered here at the read, not left to every caller to
-// remember to filter.
-// UPSTREAM = everything that leads to a beat, by CAUSE or by ORIENTATION.
-// Two qualities carry that: q-grounding (a note grounds in its cause) and the bare
-// "because" bearing (a note/aim ORIENTS toward a user-story or higher aim — the
-// bear-toward door, api/src/bujo_write.rs, 2026-07-10). Hallie's ruling (2026-07-10):
-// "inside a story ≠ orienting toward a user-story" — that distinction lives at the
-// STORY-MEMBERSHIP layer (loose vs inside), NOT here. On the CARD, both a cause and a
-// bearing are simply "directly upstream," so the card's up/down read walks BOTH. (The
-// card should show a todo's user-story and, on the user-story, what's directly upstream.)
-const UPSTREAM_QUALITIES: Quality[] = ["q-grounding", "because"];
-
-// FIX (2026-07-15, whole-codebase review sitting, tension hea-filter-mismatch): this
-// used to filter by slug prefix (`!o.startsWith("hea-")`), on the assumption that
-// every End-pole's slug looks like `hea-*`. It doesn't — the sitting's clerk confirmed
-// TWO coexisting End-pole naming conventions live in the same canon: unpackPoles's own
-// default mints `${event}~hea` (a SUFFIX), while the API layer's callers mint `hea-*`
-// (a PREFIX, see day-as-story.test.ts's captureIntoDay). The prefix filter caught one
-// convention and silently let the other leak into upstreams/downstreams. Per QUERIES.md
-// (opaque slugs, no string-matching) and tagsOf's own exemplar just below: read the
-// STRUCTURE instead of a name. A node is an End-pole iff it is the OBJECT of a live
-// (un-occluded) q-end-pole designation — exactly what society.ts's (unexported)
-// isOpenEndPole checks, minus the endActual exclusion (a CLOSED End-pole is still
-// closing-machinery, not a real relationship, so it stays filtered here too).
-function isEndPole(soc: Society, node: string, asOf?: number): boolean {
-  return prehensionsOnto(soc, node, "q-end-pole", asOf).length > 0;
-}
-
-/** upstreamsOf: events THIS beat leads FROM — by cause (q-grounding) OR by orientation
- *  ("because" bearing toward an aim/user-story). The ~because~-in bearings a reader
- *  climbs to see why / what this serves. Closing-edges (End-poles, any naming
- *  convention) excluded structurally — see isEndPole above. Deduped. */
-export function upstreamsOf(soc: Society, slug: string, asOf?: number): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const q of UPSTREAM_QUALITIES) {
-    for (const p of prehensionsFrom(soc, slug, q, asOf)) {
-      const o = p.object;
-      if (o && !isEndPole(soc, o, asOf) && !seen.has(o)) { seen.add(o); out.push(o); }
-    }
-  }
-  return out;
-}
-
-/** downstreamsOf: events that lead TO this beat — by cause (q-grounding) OR by
- *  orientation ("because" bearing). This event's own light-cone out / what orients
- *  toward it (on a user-story: its direct upstream bearers). Closing-edges excluded
- *  structurally — see isEndPole above. Each entry is a candidate DOWNSTREAM ROW per
- *  the card anatomy: a superject-face reading of that event, rendered as a bordered
- *  sub-card by the caller's taste arm. */
-export function downstreamsOf(soc: Society, slug: string, asOf?: number): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const q of UPSTREAM_QUALITIES) {
-    for (const p of prehensionsOnto(soc, slug, q, asOf)) {
-      const s = p.subject;
-      if (s && !isEndPole(soc, s, asOf) && !seen.has(s)) { seen.add(s); out.push(s); }
-    }
-  }
-  return out;
-}
-
-/** tagsOf: this beat's ad-hoc qualities, laid through the q-tag- / q-collection-
- *  reserved-prefix door (cf47da6, api/src/bujo_write.rs) — a bujo SECTION is a
- *  story-plus-a-quality (q-collection-shopping), and a bare tag is q-tag-<name>.
- *  Reads the quality VALUE off each prehension touching this beat (either side —
- *  a tag can be laid subject=beat or object=beat, same as any lateral edge) and
- *  keeps only the ones matching the reserved prefixes. This is reading structured
- *  data (the quality field, via prehendsAs's own `~q` convention), never parsing a
- *  slug — the QUERIES.md discipline this file already holds throughout. Returns
- *  the bare tag name (the quality string with its reserved prefix stripped) once
- *  per distinct tag, occluded prehensions excluded. */
-export interface TagRead {
-  /** the bare tag name, prefix stripped (e.g. "shopping" from "q-collection-shopping"). */
-  name: string;
-  /** which reserved door this tag came through. */
-  kind: "tag" | "collection";
-  /** the full quality string, for a caller that wants to re-query or re-lay it. */
-  quality: string;
-}
-
-const TAG_PREFIX = "q-tag-";
-const COLLECTION_PREFIX = "q-collection-";
-
-export function tagsOf(soc: Society, slug: string, asOf?: number): TagRead[] {
-  const seen = new Set<string>();
-  const out: TagRead[] = [];
-  const touching = soc.all().filter(
-    (b) => (b.subject === slug || b.object === slug) && b.subject !== null && b.object !== null,
-  );
-  for (const p of touching) {
-    if (isOccluded(soc, p.slug, asOf)) continue;
-    const q = soc.get(`${p.slug}~q`);
-    if (!q) continue;
-    const quality = q.object;
-    if (!quality) continue;
-    let kind: TagRead["kind"] | null = null;
-    let name = "";
-    if (quality.startsWith(TAG_PREFIX)) { kind = "tag"; name = quality.slice(TAG_PREFIX.length); }
-    else if (quality.startsWith(COLLECTION_PREFIX)) { kind = "collection"; name = quality.slice(COLLECTION_PREFIX.length); }
-    if (!kind || seen.has(quality)) continue;
-    seen.add(quality);
-    out.push({ name, kind, quality });
-  }
-  return out;
-}
-
-/** readCardInterior: the READ the card's interior mode needs, assembled — the
- *  same beat-level facts readCard already reads (content/mode/pathos) PLUS the
- *  three anatomy reads above. One call for eventview.ts's interior arm to build
- *  the whole card from, instead of four separate reads each re-deriving. */
-export interface CardInteriorRead extends CardRead {
-  upstreams: string[];
-  downstreams: string[];
-  tags: TagRead[];
-}
-
-export function readCardInterior(soc: Society, slug: string, asOf?: number): CardInteriorRead {
-  return {
-    ...readCard(soc, slug),
-    upstreams: upstreamsOf(soc, slug, asOf),
-    downstreams: downstreamsOf(soc, slug, asOf),
-    tags: tagsOf(soc, slug, asOf),
-  };
-}
-
-// ── REQUIRES / CONTAINS / ENABLES — Hallie's card anatomy (fleet-card-anatomy
-// sketch, HALLIE-SKETCH-requires-contains-enables.png; verified muslin at
-// from-ithaca-muslins/recess-cards/card-v1.html). Three reads, ONE new, two reused
-// — see the doc on each for why. This is the read CONTRACT board.ts/cblock-skins.css
-// compose against; the shapes below are final unless a real render need reshapes them.
-//
-// THE SEAM (surfaced, not guessed past): does REQUIRES = upstreamsOf? NO — and this
-// is the one genuinely new read here. upstreamsOf/downstreamsOf walk q-grounding +
-// "because": a CALM, ALREADY-RESOLVED provenance read ("what this beat already
-// grabbed / climbed from," "why this exists"). Hallie's REQUIRES is a different verb
-// entirely: "the events this beat must RECEIVE to be true" — the REDUCTION. A story
-// IS the events it must receive; REQUIRES asks which of those it has NOT yet received.
-// That is an OWED / met-vs-pending question, structurally distinct from "already
-// happened, upstream of me" — upstreamsOf cannot answer it (a beat's upstreams are, by
-// construction, already-landed prehensions; there is no "pending upstream"). The
-// q-blocked-by family (dependsOn/blockedOnNow, society.ts ~570; RENAMED from q-depends-on,
-// Hallie 2026-07-15 — both spellings still honored on read) is the correct
-// substrate: it is EXACTLY "beats this one is waiting to receive," with isEstablished
-// as the met/pending discriminant already built in. requiresOf below is that read,
-// promoted to the card-anatomy shape (met flag inline, so a caller doesn't need two
-// calls to render "struck-through=met, highlighted=pending" — the v1 muslin's own
-// finding, corroborated independently by the v1 builder).
-
-/** one REQUIRES row: a required event + whether it has been received (met) yet. */
-export interface RequiresRow {
-  slug: string;
-  /** has this required event been established (received)? true = met (render
-   *  struck-through per the muslin); false = still owed (render highlighted/pending). */
-  met: boolean;
-}
-
-/** requiresOf: the events this beat must RECEIVE to be true — its q-blocked-by
- *  edges (dependsOn; both-spellings, legacy q-depends-on honored too — society.ts's
- *  rename doc), each carrying its own met/pending state (isEstablished).
- *  NEW READ (not a reuse of upstreamsOf — see the seam note above). Ordering:
- *  dependsOn's own edge order (no stored index — topological/insertion, not a rank). */
-export function requiresOf(soc: Society, slug: string, asOf?: number): RequiresRow[] {
-  return dependsOn(soc, slug, asOf).map((r) => ({ slug: r, met: isEstablished(soc, r, asOf) }));
-}
-
-/** containsOf: this beat's interior members — a REUSE, not a new read. CONTAINS is
- *  exactly what frameStory/readCardInterior already call "the interval minus its own
- *  lips": intervalOf(once, end) filtered to interior, which is membership read as
- *  BETWEENNESS (not ~holds~ string-match — ~holds~ is deprecated per the settled
- *  ontology, and this read never touches it). A leaf beat (isStory=false) has no
- *  interior at all — CONTAINS is empty, not an error; the card still opens, just with
- *  an empty middle compartment (mirrors the muslin's task-kind example: "no interior
- *  members — a task can be a leaf"). Depth is the caller's concern (eventview.ts's
- *  existing INLINE_OPEN_DEPTH_CAP / frameStory's depth<1 cap) — this read returns ONE
- *  level flat, same discipline as upstreamsOf/downstreamsOf returning flat slug lists. */
-export function containsOf(soc: Society, slug: string, asOf?: number): string[] {
-  if (!isStory(soc, slug)) return [];
-  const end = endOf(soc, slug);
-  if (!end) return [];
-  return intervalOf(soc, slug, end).filter((b) => b !== slug && b !== end);
-}
-
-/** enablesOf: what this beat makes possible / grounds forward, toward V=0 (the sea).
- *  A REUSE, not a new read: this is downstreamsOf, renamed at the call site to match
- *  Hallie's anatomy vocabulary. downstreamsOf ALREADY reads "events that lead TO this
- *  beat" via the same q-grounding+because walk, forward-facing exactly as ENABLES
- *  wants — the muslin's own REAL-INTEGRATION MAP calls this "the closest 1:1 match of
- *  any compartment to existing code," and reading the ontology confirms it: no new
- *  substrate needed. Kept as a thin alias (not a re-export of the bare name) so a
- *  caller composing the three-compartment contract can import requiresOf/containsOf/
- *  enablesOf as one matched family, without upstreamsOf/downstreamsOf's older
- *  provenance-flavored names leaking into card-anatomy call sites. */
-export function enablesOf(soc: Society, slug: string, asOf?: number): string[] {
-  return downstreamsOf(soc, slug, asOf);
-}
-
-/** readCardAnatomy: the READ contract for Hallie's three-compartment card — one call
- *  assembling requiresOf/containsOf/enablesOf (+ the base beat facts) for board.ts's
- *  buildCardInterior and cblock-skins.css's compartment layout to compose against.
- *  Mirrors readCardInterior's shape/spirit (upstreams/downstreams/tags) but is NOT a
- *  replacement for it — readCardInterior's provenance anatomy (↑upstreams / ↓downstreams
- *  / tags) is a different, still-live reading (eventview.ts's interior mode uses it
- *  today); this is the NEW three-compartment reading Hallie's sketch asks for. Both may
- *  coexist on a card until/unless Penelope's render decides to retire one — that
- *  retirement is a Penelope-taste/board.ts call, not scher's to make here. */
-export interface CardAnatomyRead extends CardRead {
-  requires: RequiresRow[];
-  contains: string[];
-  enables: string[];
-}
-
-export function readCardAnatomy(soc: Society, slug: string, asOf?: number): CardAnatomyRead {
-  return {
-    ...readCard(soc, slug),
-    requires: requiresOf(soc, slug, asOf),
-    contains: containsOf(soc, slug, asOf),
-    enables: enablesOf(soc, slug, asOf),
-  };
-}
 
 export interface CardStoryParams {
   slug: string;
@@ -348,121 +135,6 @@ export function cardStory(soc: Society, params: CardStoryParams): Node {
       card.appendChild(p);
     }
     return card;
-  }).node;
-}
-
-// ── BUTTON STORY ──────────────────────────────────────────────────────────────
-// A Story whose determined values are (label, enabled) READ from the society, and
-// whose PRESS lays a beat. The button does not "do an action" — it appends to the
-// society, and every reading re-derives. check=ground, star, share are all buttonStories.
-
-export interface ButtonStoryParams {
-  /** the label — a fixed string, or a reading over the society. */
-  label: string | ((s: Society) => string);
-  /** enabled — default always; or a reading (e.g. disabled once grounded). */
-  enabled?: (s: Society) => boolean;
-  /** the press: LAY into the society. The only write. */
-  press: (s: Society) => void;
-  class?: string;
-}
-
-export function buttonStory(soc: Society, params: ButtonStoryParams): Node {
-  // TODO(socratic): why does buttonStory default enabled to true, while enabled-checking still happens at click time — is the default meant to be defensive fallback or is the button always enabled by construction?
-  const read = reading(soc, (s) => ({
-    label: typeof params.label === "function" ? params.label(s) : params.label,
-    enabled: params.enabled ? params.enabled(s) : true,
-  }));
-
-  return project(read, (v) => {
-    const btn = el("button", {
-      class: `story-button ${params.class ?? ""}`,
-      attrs: { disabled: v.enabled ? undefined : "true" },
-    }, v.label) as HTMLButtonElement;
-    // TODO(socratic): why gate the click handler on v.enabled instead of letting the disabled attr work and checking at press-time, like toggleButtonStory does?
-    if (v.enabled) on(btn, "click", () => params.press(soc));  // press = lay a beat
-    return btn;
-  }).node;
-}
-
-// ── TOGGLE (UNCHECKABLE) BUTTON STORY — append-only undo via SUPERSEDE ──────────
-// An "uncheckable" check. Press once: ground the beat (lay a grounding). Press again:
-// UNGROUND — but you never delete; you lay a SUPERSEDE beat onto the grounding. The
-// grounding STAYS IN INK; the read ignores it; the card flips back to scripted. The
-// society's count only ever rises — undo is an append. (git-for-meaning: revert is a
-// commit, not a rewrite.) check=ground is this. star-toggle is this.
-export interface ToggleButtonStoryParams {
-  /** the target beat this toggle grounds/ungrounds. */
-  target: string;
-  /** the frame (standpoint) doing the grounding — must exist in the society. */
-  by: string;
-  /** stable slug for THIS toggle's grounding (so re-press is idempotent / supersede-able). */
-  groundSlug: string;
-  labelChecked?: string;
-  labelUnchecked?: string;
-  class?: string;
-}
-
-export function toggleButtonStory(soc: Society, params: ToggleButtonStoryParams): Node {
-  const { target, by, groundSlug } = params;
-
-  // TODO(socratic): the comment says "this fixes the one-loop bug" but why was reading a FIXED slug the bug — what makes a fixed slug desync and does nth++ guarantee freshness even across multiple toggles of the same target?
-  // ANSWERED(walk 2026-07-02): the append-only law is why — a slug can only be laid ONCE (re-lay is inert), so re-grounding must mint a fresh slug each cycle, and any read pinned to one fixed slug goes stale after the first occlude/re-ground; reading the TARGET's establishment (below) is slug-free and never desyncs. nth++ freshness has its own open bug at fix-list #8. — see append-only law / walk plan B#8
-  // LIVE = does the TARGET have any non-superseded grounding? (the truth, not a single
-  // slug's state). This is what fixes the one-loop bug: each re-ground uses a FRESH slug,
-  // so reading a fixed slug desyncs after one cycle. Read the establishment of the target.
-  const read = reading(soc, (s) => ({ live: isEstablished(s, target) }));
-
-  // every grounding this toggle lays gets a unique slug (groundSlug + a counter) so a
-  // re-ground is always a NEW, non-superseded beat — and uncheck supersedes ALL of them.
-  let nth = 0;
-
-  return project(read, (v) => {
-    const btn = el("button", {
-      class: `story-button toggle ${v.live ? "checked" : ""} ${params.class ?? ""}`,
-    }, v.live ? (params.labelChecked ?? "☑ grounded — untick to supersede")
-              : (params.labelUnchecked ?? "☐ check = ground")) as HTMLButtonElement;
-
-    on(btn, "click", () => {
-      // TODO(socratic): liveNow is re-read from scratch at click time, but why — could the projection have staled between render and click, or is this defending against some edge case in the batching/revision system?
-      // re-read live AT CLICK TIME (don't trust the captured v — defensive against any
-      // stale projection). The society is the source of truth.
-      const liveNow = isEstablished(soc, target);
-      if (!liveNow) {
-        // CHECK: lay a fresh-slugged grounding (always new → never born-superseded).
-        // NAMED EXCEPTION to N4 (society.ts KernelQuality doc, "do not lay [q-grounding]
-        // in new writers"), surfaced by the 2026-07-15 review sitting (tension
-        // hea-filter-mismatch) as a live writer the honesty clause didn't name. Left AS
-        // q-grounding deliberately, not an oversight.
-        // RE-CHECKED (2026-07-15, follow-up wave, against the now-landed closePole bare-
-        // closing mechanization): the kernel's bare-edge migration is scoped to closing
-        // edges OUT OF a designated End-pole (closingEdgesFrom, isDesignatedEndPole) —
-        // this write grounds ONTO an arbitrary `target`, which is never an End-pole in
-        // this call shape. isEstablished/groundedForAnyFrame reads that shape via a plain
-        // `prehensionsOnto(soc, beat, "q-grounding")` string filter — untouched by the
-        // migration by construction (society.ts's own KernelQuality doc names this exact
-        // case: "groundedForAnyFrame reads it — ordinary grounding-onto, unrelated to
-        // pole-closing"; "toggle-buttons — see stories.ts's NAMED EXCEPTION — still lay
-        // and read it"). So my stated blocker is still exactly true, unchanged by the
-        // kernel's work: writing a bare edge here would silently desync this toggle's own
-        // `live` read (isEstablished would never see a bare onto-edge either — that read
-        // was never migrated to closingEdgesFrom, only the FROM-an-End-pole walk was).
-        // Revisit only if isEstablished's own read grammar changes; until then this stays
-        // honest, not fixed.
-        soc.layP(`${groundSlug}-${nth++}`, `${by} grounds ${target}`, by, target, "q-grounding");
-      } else {
-        // TODO(socratic): why occlude ALL live groundings instead of just the most recent one — does every grounding participate equally in establishment, or are there scenarios where one grounding alone drives the mode?
-        // UNCHECK = OCCLUDE every live grounding onto the target (2026-06-26: was a self-loop
-        // supersede the freeze 409s / isOccluded ignores). `by` is the named occluder. Append-only:
-        // the groundings stay in ink, the read ignores them. The society count RISES on undo.
-        const liveGroundings = prehensionsOnto(soc, target, "q-grounding").filter(
-          (p) => !isOccluded(soc, p.slug),
-        );
-        for (const g of liveGroundings) {
-          soc.layP(`occ-${g.slug}`, `${by} un-grounds ${g.slug} (uncheck)`, by, g.slug, "q-occludes");
-        }
-      }
-    });
-    return btn;
   }).node;
 }
 
@@ -1028,179 +700,10 @@ export function viewCardStory(soc: Society, params: ViewCardParams): Node {
   return cardStory(soc, { slug, ...common, modeArm });
 }
 
-// ── BOARD STORY — "a board is a row of Lists, each over its own slice." ─────────
-// The flat structure under EVERY board screen (Trello columns, a sprint board, a kanban):
-// a row of columns, each a listStory over a caller-supplied slice. scher knows NOTHING
-// about which columns exist — the domain lives entirely in the slice functions the caller
-// passes (e.g. {name:'Doing', slice: s => beatsInMode(s,'doing')}). That keeps boardStory
-// domain-free: a board IS a row of listStorys (the missing primitive, now present).
-// Each member renders through `item` (default: a View Card — so a story-beat in a column
-// unfolds as its interior frame, one level, by the same betweenness read).
-export interface BoardColumn {
-  /** the column heading. */
-  name: string;
-  /** the slice: given the society, the ordered beat-slugs in this column. */
-  slice: (s: Society) => string[];
-}
-
-export interface BoardStoryParams {
-  columns: BoardColumn[];
-  /** per-item render (default: a View Card — leaf→card, story→frame). */
-  item?: (soc: Society, slug: string) => Node;
-  standpoint?: string;
-  class?: string;
-  /** the TASTE arm, used only by the default per-item render (ignored if `item` is
-   *  supplied — the caller's own `item` owns its own taste then). */
-  modeArm?: ModeArm;
-}
-
-export function boardStory(soc: Society, params: BoardStoryParams): Node {
-  const board = el("div", { class: `story-board ${params.class ?? ""}` });
-  const sp = params.standpoint;
-  // TODO(socratic): why does boardStory pass standpoint conditionally to viewCardStory (matching listStory), but what if both could unconditionally pass all optionals?
-  const renderItem = params.item ?? ((s: Society, slug: string) => {
-    if (!params.modeArm) throw new Error("boardStory: default card render needs params.modeArm (the taste arm) when no params.item is supplied");
-    return viewCardStory(s, sp !== undefined
-      ? { slug, standpoint: sp, modeArm: params.modeArm }
-      : { slug, modeArm: params.modeArm });
-  });
-
-  for (const col of params.columns) {
-    const column = el("div", { class: "board-column" });
-    // TODO(socratic): why count the slice length in a separate reading/project instead of inside the listStory's reading, where it's already computed?
-    // the heading carries a live count — a reading of the slice, re-derived on append.
-    const heading = project(
-      reading(soc, (s) => col.slice(s).length),
-      (n) => {
-        const h = el("div", { class: "board-column-head" });
-        h.appendChild(el("div", { class: "board-column-name" }, col.name));
-        h.appendChild(el("div", { class: "board-column-count" }, String(n)));
-        return h;
-      },
-    ).node;
-    column.appendChild(heading);
-    // the column body IS a listStory over this column's slice.
-    column.appendChild(listStory(soc, {
-      slice: col.slice,
-      item: renderItem,
-      ...(sp !== undefined ? { standpoint: sp } : {}),
-      class: "board-column-list",
-    }));
-    board.appendChild(column);
-  }
-  return board;
-}
-
-// ── DROP STORY — "a drop is a reading." ────────────────────────────────────────
-// The most imperative gesture in any UI — drag A onto B — collapses into ONE thing:
-// the drop LAYS a beat, and the view RE-DERIVES from the canon. There is NO imperative
-// drag-state: no HOT card, no stashed __dragA, no DOM bloom kept in memory. You drop, a
-// beat lands, every reading re-reads. That is the whole process-ontology thesis made into
-// a toy: the substance-flavoured interaction (move this thing onto that thing) becomes a
-// pure write-then-read, append-only.
-//
-// A bucket is a way A may relate to B. Two kinds, and the difference IS the law:
-//   • kind:'edge'       — lay a LATERAL prehension A --quality--> B (layP). depends-on, etc.
-//   • kind:'membership' — lay NOTHING lateral; place A so it sits BETWEEN B's Once/End.
-//                         Membership is betweenness, NEVER a stored containment edge — so
-//                         the caller supplies HOW A is repositioned (grammar-specific), and
-//                         the interval re-reads via intervalOf. (the settled gen3 law.)
-export interface DropBucket {
-  key: string;
-  label: string;
-  /** a one-line gloss of what this relation means (shown as the option's title). */
-  sub?: string;
-  kind: "edge" | "membership";
-  /** edge-kind only: the quality of the lateral prehension laid A --quality--> B. */
-  quality?: Quality;
-  /** membership-kind only: place A inside B's interval. The caller owns the betweenness
-   *  mechanics (e.g. lay a positioning edge between B's Once and End); dropStory itself
-   *  lays NOTHING for membership — it only invokes place(). No stored containment. */
-  place?: (soc: Society, a: string, b: string) => void;
-}
-
-export interface DropStoryParams {
-  /** the dragged beat A — the draggable handle (optional; each target is also draggable). */
-  source?: string;
-  /** the candidate targets B. Each becomes a drop zone offering the buckets. */
-  targets: string[];
-  buckets: DropBucket[];
-  /** how to render each target card (default: a View Card — leaf→card, story→frame). */
-  item?: (soc: Society, slug: string) => Node;
-  /** the TASTE arm, used only by the default `item` render (ignored if `item` is supplied). */
-  modeArm?: ModeArm;
-}
-
-/** dropStory: a lane of targets, each a drop-zone that, on drop of A, blooms a small
- *  picker of buckets; choosing one LAYS the chosen relation. The relations on each target
- *  RE-DERIVE from the canon — drop, and the board re-reads itself. Zero imperative
- *  drag-state: each card is itself a story (viewCardStory) that re-reads its own relations
- *  when the society appends, so the drop only ever LAYS — the re-derivation is the cards'
- *  own, by construction. Returns the lane node. */
-export function dropStory(soc: Society, params: DropStoryParams): Node {
-  const drawCard = params.item ?? ((s: Society, slug: string) => {
-    if (!params.modeArm) throw new Error("dropStory: default card render needs params.modeArm (the taste arm) when no params.item is supplied");
-    return viewCardStory(s, { slug, modeArm: params.modeArm });
-  });
-  const lane = el("div", { class: "drop-lane" });
-
-  // TODO(socratic): why check a === b in fire, when a comes from the dragged card and b from the drop target — can the UI allow dragging a card onto itself?
-  // fire() is the WHOLE write surface: one beat (edge) or one caller-owned place()
-  // (membership) per drop — nothing else. This is the dropStory thesis in three lines.
-  const fire = (bucket: DropBucket, a: string, b: string) => {
-    if (a === b) return;                          // a card can't relate to itself
-    // TODO(socratic): layP's slug format (a-key-b) is deterministic, so a second drop with the same bucket onto the same target will be idempotent — but is that the intended behavior, or should each drop lay a new edge?
-    if (bucket.kind === "edge" && bucket.quality) {
-      // lay the lateral edge; idempotent by slug. The view re-derives — nothing else to do.
-      soc.layP(`${a}-${bucket.key}-${b}`, `${a} ${bucket.label} ${b}`, a, b, bucket.quality);
-    } else if (bucket.kind === "membership" && bucket.place) {
-      bucket.place(soc, a, b);                     // betweenness, caller-owned; NO stored edge
-    }
-  };
-
-  for (const target of params.targets) {
-    const card = drawCard(soc, target) as HTMLElement;
-    card.setAttribute("draggable", "true");
-    on(card, "dragstart", (e) => (e as DragEvent).dataTransfer?.setData("text/plain", target));
-    on(card, "dragover", (e) => e.preventDefault());   // allow drop
-    on(card, "drop", (e) => {
-      e.preventDefault();
-      const a = (e as DragEvent).dataTransfer?.getData("text/plain");
-      // TODO(socratic): the check !a || a === target happens here, but a is only set if dragstart fired on a card — is there a way the dragstart could fail and a be missing, or is the !a check purely defensive?
-      if (!a || a === target) return;
-      // the buckets bloom as a small picker; choosing one fires the lay. The picker is a
-      // reading of "a drag is hovering here", not stored state — it lives only for this drop.
-      const picker = el("div", { class: "drop-picker" });
-      for (const bucket of params.buckets) {
-        const opt = el("button", {
-          class: `drop-bucket drop-${bucket.kind}`,
-          attrs: { title: bucket.sub ?? "" },
-          on: { click: (ev) => { ev.stopPropagation(); fire(bucket, a, target); picker.remove(); } },
-        }, bucket.label);
-        picker.appendChild(opt);
-      }
-      card.appendChild(picker);
-    });
-    lane.appendChild(card);
-  }
-  return lane;
-}
-
-/** the standard relate (A onto B): Blocked-By (a lateral edge) / Sub-Beat-Of (membership).
- *  Sub-beat-of is membership — the caller passes `place` to position A in B's interval,
- *  because betweenness is caller-owned grammar, never a stored containment edge.
- *  RENAMED (Hallie, 2026-07-15, q-blocked-by rename): this is a WRITER — it used to lay
- *  q-depends-on, now lays q-blocked-by, per "new writes: q-blocked-by only" (society.ts's
- *  KernelQuality doc). The label changes too ("Depends On" → "Blocked By"): "the language
- *  to be the language" was the reason for the quality rename, and a label that still says
- *  the retired word right next to the edge it lays would be the exact drift the rename was
- *  meant to stop. Key stays "depends-on" — see the doc below on why. */
-export function relateBuckets(place: (soc: Society, a: string, b: string) => void): DropBucket[] {
-  return [
-    { key: "depends-on", label: "Blocked By", sub: "A needs B first (lateral edge)", kind: "edge", quality: "q-blocked-by" },
-    { key: "sub-beat", label: "Sub-Beat Of", sub: "A is PART of B — membership = betweenness, not a stored edge", kind: "membership", place },
-  ];
-}
+// ── BOARD STORY / DROP STORY / relateBuckets ─────────────────────────────────
+// Moved to board-drop.ts (2026-07-15 split) — re-exported above at the top of
+// this file. boardStory composes listStory per column; dropStory/relateBuckets
+// wire drag-and-drop-as-a-lay onto viewCardStory targets. See board-drop.ts.
 
 // ── COMPOSER STORY — the conjugate of the Button. ──────────────────────────────
 // buttonStory's press lays a FIXED beat; composerStory's submit lays a beat carrying the

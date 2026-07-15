@@ -28,8 +28,8 @@ import {
   prehensionsOnto,
   isOccluded,
   isSublimePole,
-  groundedBy,
 } from "../src/society.js";
+import { groundedBy } from "../src/strain.js";
 
 let _id = 0;
 const rid = () => "gc" + (_id++);

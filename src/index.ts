@@ -49,6 +49,16 @@ export {
 // TODO(socratic): I call this block "the gen3 substance" in a lib whose grammar refuses substance — is that name a joke that still tells the truth, or has a store-shaped thing actually snuck in under a process vocabulary?
 // TODO(socratic): thirty-odd loose read functions all taking a Society — at what point does this flat surface stop being "one import surface" and start hiding that these reads cluster into three or four frames (blocking, mood, story-shape, authorship) that want names of their own?
 // the gen3 substance: the society + its reads ("a value is read, not stored")
+//
+// SPLIT (2026-07-15, separation-of-concerns pass, society.ts's own agent): the single
+// flat surface below is unchanged for every IMPORTER of this barrel (same names, same
+// re-export list) — only the source files moved. society.ts keeps the mutually-
+// recursive kernel (Society, guards, witnessing, establishment, poles/voltage/
+// algedonic — voltageOf calls establishedTo which calls reaches which calls
+// closingEdgesFrom, a real cycle that resisted further splitting). strain.ts,
+// pathos.ts, biography.ts, sublimes.ts hold the leaf read-families that only ever
+// call INTO the kernel, never back. Mechanical edit only (this barrel is unclaimed,
+// per the DRAMA CUT precedent above) — not a claim on index.ts.
 export {
   Society,
   prehendsAs,
@@ -56,23 +66,12 @@ export {
   prehensionsOnto,
   prehensionsFrom,
   isOccluded,
-  dependsOn,
-  dependentsOf,
-  blockedOnNow,
-  isBlocked,
-  parallelizable,
-  whoWaitsOn,
-  stressOf,
   isEstablished, // deprecated alias — see groundedForAnyFrame / establishedTo
   groundedForAnyFrame,
   reaches,
   establishedTo,
   modeAt,
   confidence,
-  groundedBy,
-  excludedBy,
-  pathosOf,
-  reactionsOn,
   isStory,
   intervalOf,
   endOf,
@@ -93,22 +92,54 @@ export {
   type FloatingCharge,
   type VoltageReading,
   contentBeats,
-  authorOf,
   type EventRow,
   type Quality,
   type Mode,
-  type Pathos,
-  assigneesOf,
   // resolutionOf/isResolved: DRAMA CUT (Hallie, 2026-07-15) — removed from society.ts
   // (see its own tombstone comment on the KernelQuality union). Mechanical unblock only,
   // done by society.ts's agent because this barrel file is unclaimed and the two dead
   // re-exports failed `npm run check` for the whole package — not a claim on index.ts.
   cleanContent,
+} from "./society.js";
+
+// dependency/strain reads + assigneesOf/distanceToHEA — cut from society.ts into
+// strain.ts (2026-07-15, separation-of-concerns pass). Same names, new source file.
+export {
+  dependsOn,
+  dependentsOf,
+  blockedOnNow,
+  isBlocked,
+  parallelizable,
+  whoWaitsOn,
+  stressOf,
+  groundedBy,
+  excludedBy,
   distanceToHEA,
+  assigneesOf,
+} from "./strain.js";
+
+// q-feel reaction reads — cut from society.ts into pathos.ts (2026-07-15,
+// separation-of-concerns pass). Same names, new source file.
+export {
+  pathosOf,
+  reactionsOn,
+  type Pathos,
+} from "./pathos.js";
+
+// the O1 "nothing unheard" biography read + authorOf — cut from society.ts into
+// biography.ts (2026-07-15, separation-of-concerns pass). Same names, new source file.
+export {
+  authorOf,
   biographyOf,
   type BiographyEntry,
   type HearingStatus,
-} from "./society.js";
+} from "./biography.js";
+
+// the sublime-DAG reads (bearings, service chains, path-to-sublime) — cut from
+// society.ts into sublimes.ts (2026-07-15, separation-of-concerns pass). Same
+// names, new source file. (Not previously in the barrel's export list — these
+// reads exist in society.ts today with no re-export here; left un-added to avoid
+// widening index.ts's surface beyond what this pass's mandate covers. See report.)
 
 // the reusable STORY-CONSTRUCTORS ("everything is a Story, incl. a UI component")
 export {

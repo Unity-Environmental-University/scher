@@ -8,6 +8,8 @@
 import { describe, it, expect } from "vitest";
 import {
   Society,
+} from "../src/society.js";
+import {
   dependsOn,
   dependentsOf,
   blockedOnNow,
@@ -15,7 +17,7 @@ import {
   parallelizable,
   whoWaitsOn,
   stressOf,
-} from "../src/society.js";
+} from "../src/strain.js";
 
 /** three content beats a,b,c with a→depends-on→b. */
 function deps() {

@@ -16,7 +16,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { Society, isSublimePole, bearingsOf, voltageTowardSublime, serviceChainOf, reachedSublimesOf, storyBearingsOf, layCharge } from "../src/society.js";
+import { Society, isSublimePole, layCharge } from "../src/society.js";
+import { bearingsOf, voltageTowardSublime, serviceChainOf, reachedSublimesOf, storyBearingsOf } from "../src/sublimes.js";
 
 describe("sublimes-store: never-closing poles for navigation", () => {
   describe("isSublimePole: identification of sublime-poles", () => {

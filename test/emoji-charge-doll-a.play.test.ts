@@ -26,7 +26,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { Society, reactionsOn, pathosOf, prehensionsOnto, isOccluded } from "../src/society.js";
+import { Society, prehensionsOnto, isOccluded } from "../src/society.js";
+import { reactionsOn, pathosOf } from "../src/pathos.js";
 import { reactionStory } from "../src/stories.js";
 
 function beat(s: Society, slug: string, content = slug) {

@@ -125,7 +125,7 @@ impl EdgeWord {
 // caller gets has provably round-tripped through the parser. The day the canon is laid in
 // `because` form directly, this bridge's RENDER step becomes the identity and only the
 // quality-name mapping (grounds→[], holds→[], depends-on/occludes kept) remains.
-use crate::{prehensions_from, Society, Q_DEPENDS_ON, Q_EXCLUSION, Q_GROUNDING, Q_OCCLUDES};
+use crate::{prehensions_from, Society, Q_BLOCKED_BY, Q_DEPENDS_ON, Q_EXCLUSION, Q_GROUNDING, Q_OCCLUDES};
 
 /// Map a stored gen3 quality to its gen4 because-flavor — the PLAIN-MOUTH words (no SAT
 /// words). `grounding`/`holds` were rulings-to-DIE (bare `because` / betweenness) → no
@@ -166,7 +166,8 @@ use crate::{prehensions_from, Society, Q_DEPENDS_ON, Q_EXCLUSION, Q_GROUNDING, Q
 fn gen4_quality(stored: &str) -> Option<&'static str> {
     match stored {
         Q_GROUNDING => None,              // = bare `because`; the relation, not a mode
-        Q_DEPENDS_ON => Some("needs"),    // but-for / necessary
+        Q_DEPENDS_ON => Some("needs"),    // but-for / necessary (LEGACY spelling — 2026-07-15 rename)
+        Q_BLOCKED_BY => Some("needs"),    // same relation, current spelling (both-spellings window)
         Q_OCCLUDES => Some("hides"),      // negative — was here, removed (recallable)
         Q_EXCLUSION => Some("ignores"),   // negative — never admitted (the master-negative)
         _ => None,
@@ -203,7 +204,8 @@ fn gen4_quality(stored: &str) -> Option<&'static str> {
 pub fn because_edges_from(soc: &Society, a: &str) -> Vec<EdgeWord> {
     // a beat is `because` of b for each grounding/depends-on/exclusion it carries toward b.
     let mut out = Vec::new();
-    for quality in [Q_GROUNDING, Q_DEPENDS_ON, Q_OCCLUDES, Q_EXCLUSION] {
+    // Q_BLOCKED_BY alongside legacy Q_DEPENDS_ON: both-spellings window (2026-07-15 rename).
+    for quality in [Q_GROUNDING, Q_BLOCKED_BY, Q_DEPENDS_ON, Q_OCCLUDES, Q_EXCLUSION] {
         for p in prehensions_from(soc, a, quality, None) {
             let Some(b) = p.object.as_deref() else { continue };
             let q = gen4_quality(quality);

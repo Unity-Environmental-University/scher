@@ -41,7 +41,14 @@ pub mod contraction;
 pub const Q_GROUNDING: &str = "q-grounding";
 pub const Q_EXCLUSION: &str = "q-exclusion";
 pub const Q_OCCLUDES: &str = "q-occludes";
+/// LEGACY SPELLING (renamed to `q-blocked-by`, Hallie, 2026-07-15: "depends-on is too
+/// close to need to drift and we need the language to be the language"). Live canon
+/// carries exactly 2 legacy q-depends-on rows — append-only ink, it stays; the
+/// depends_on/dependents_of read family below honors BOTH spellings (both-spellings
+/// window, mirroring scher/src/strain.ts). New writes: Q_BLOCKED_BY only.
 pub const Q_DEPENDS_ON: &str = "q-depends-on";
+/// The current spelling of the dependency edge (2026-07-15 rename — see Q_DEPENDS_ON).
+pub const Q_BLOCKED_BY: &str = "q-blocked-by";
 /// The `designate-trub` relate-door's quality (api/src/bujo_write.rs, "designate-trub" bucket,
 /// Hallie 2026-07-10): a bare designation edge, stamped POSITIVELY — "the nag" should be a
 /// pain, not an inferred absence, so trub never gets a checkmark, it keys on a quality. Named
@@ -585,6 +592,12 @@ pub fn is_established(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
 /// `quality`, walking subject→object, as of a moment? The BFS that existed twice
 /// (`interval_of`'s private walk here, `done_to` in gen4-policy) held once — the Now-pole
 /// minutes' gift-channel extraction, landed. `from == to` reaches trivially.
+///
+/// BARE-CLOSING RULING (2026-07-15, ported 2026-07-16 — mirrors `reaches` in society.ts):
+/// when walking Q_GROUNDING specifically, a node that is a designated End-pole may leave
+/// it via a BARE edge (the closing — see closing_edges_from's own doc) as well as the
+/// legacy quality-carrying spelling. Scoped to that quality only — an ordinary lateral
+/// quality's walk is untouched, exactly as before.
 pub fn reaches(soc: &Society, from: &str, to: &str, quality: &str, as_of: Option<u64>) -> bool {
     if from == to {
         return true;
@@ -593,7 +606,12 @@ pub fn reaches(soc: &Society, from: &str, to: &str, quality: &str, as_of: Option
     seen.insert(from.to_string());
     let mut stack = vec![from.to_string()];
     while let Some(n) = stack.pop() {
-        for p in prehensions_from(soc, &n, quality, as_of) {
+        let edges = if quality == Q_GROUNDING {
+            closing_edges_from(soc, &n, as_of)
+        } else {
+            prehensions_from(soc, &n, quality, as_of)
+        };
+        for p in edges {
             if is_occluded(soc, &p.slug, as_of) {
                 continue;
             }
@@ -613,12 +631,19 @@ pub fn reaches(soc: &Society, from: &str, to: &str, quality: &str, as_of: Option
 /// `quality` (subject→object), as of a moment — `reaches` run to exhaustion instead of
 /// early-exit. Includes `from` itself (mirroring `reaches`'s trivial from==to case). For a
 /// caller asking `reaches(from, X)` for many X against one frontier, one set beats N walks.
+/// Carries the same bare-closing union on the Q_GROUNDING walk as `reaches` (above) — the
+/// two walks must agree or a fan-out establishment read would diverge from the pairwise one.
 pub fn reaches_set(soc: &Society, from: &str, quality: &str, as_of: Option<u64>) -> std::collections::HashSet<String> {
     let mut seen = std::collections::HashSet::new();
     seen.insert(from.to_string());
     let mut stack = vec![from.to_string()];
     while let Some(n) = stack.pop() {
-        for p in prehensions_from(soc, &n, quality, as_of) {
+        let edges = if quality == Q_GROUNDING {
+            closing_edges_from(soc, &n, as_of)
+        } else {
+            prehensions_from(soc, &n, quality, as_of)
+        };
+        for p in edges {
             if is_occluded(soc, &p.slug, as_of) {
                 continue;
             }
@@ -677,14 +702,25 @@ pub fn confidence(soc: &Society, row: &str, as_of: Option<u64>) -> f64 {
     g as f64 / (g + e) as f64
 }
 
-// ── DEPENDENCY READS — one edge (q-depends-on), read in several directions. "blocked" is
-// never stored; it is a READING of depends-on against establishment. ─────────────────────
+// ── DEPENDENCY READS — one edge (q-blocked-by, RENAMED from q-depends-on, Hallie,
+// 2026-07-15), read in several directions. "blocked" is never stored; it is a READING of
+// blocked-by against establishment.
+//
+// BOTH-SPELLINGS WINDOW (dated 2026-07-15, ported from scher/src/strain.ts — the TS twin):
+// live canon carries exactly 2 legacy q-depends-on rows. Append-only means that ink stays —
+// so the reads below honor EITHER spelling (fresh q-blocked-by first, then legacy, same
+// row order as the twin). New writes must use q-blocked-by only; drop the q-depends-on
+// half once no legacy row remains (a greppable fact, the pathosOf exit shape). ──────────
 
-/// dependsOn: the beats this one is waiting ON (its blockers) — non-occluded q-depends-on
-/// edges FROM this beat.
+/// dependsOn: the beats this one is waiting ON (its blockers) — non-occluded q-blocked-by
+/// edges FROM this beat, plus legacy q-depends-on rows (both-spellings window, above).
+/// Mirrors `dependsOn` in scher/src/strain.ts.
 pub fn depends_on(soc: &Society, row: &str, as_of: Option<u64>) -> Vec<String> {
-    prehensions_from(soc, row, Q_DEPENDS_ON, as_of)
+    let fresh = prehensions_from(soc, row, Q_BLOCKED_BY, as_of);
+    let legacy = prehensions_from(soc, row, Q_DEPENDS_ON, as_of);
+    fresh
         .iter()
+        .chain(legacy.iter())
         .filter(|p| !is_occluded(soc, &p.slug, as_of))
         // TODO(socratic): filter_map(|p| p.object.clone()) assumes every dependency edge has an object set; is that guaranteed by the grammar, or should a None-object edge be an error?
         // ANSWERED(walk 2026-07-02): guaranteed by the grammar — edges always carry both subject and object; filter_map is just the type-level unwrap of that fact. — see walk plan §A (grammar facts)
@@ -693,9 +729,13 @@ pub fn depends_on(soc: &Society, row: &str, as_of: Option<u64>) -> Vec<String> {
 }
 
 /// dependentsOf: the beats waiting on THIS one — the backward read (this beat as object).
+/// Reads both spellings (both-spellings window, above). Mirrors `dependentsOf` in strain.ts.
 pub fn dependents_of(soc: &Society, row: &str, as_of: Option<u64>) -> Vec<String> {
-    prehensions_onto(soc, row, Q_DEPENDS_ON, as_of)
+    let fresh = prehensions_onto(soc, row, Q_BLOCKED_BY, as_of);
+    let legacy = prehensions_onto(soc, row, Q_DEPENDS_ON, as_of);
+    fresh
         .iter()
+        .chain(legacy.iter())
         .filter(|p| !is_occluded(soc, &p.slug, as_of))
         // TODO(socratic): filter_map(|p| p.subject.clone()) assumes every dependency edge's subject is Some; if prehensions_onto already filters subject.is_some(), is the map redundant or does filter_map guard against a change to the grammar?
         // ANSWERED(walk 2026-07-02): redundant with prehensions_onto's filter — the same grammar fact (edges have both ends) unwrapped at the type level, not extra defense. — see walk plan §A (grammar facts)
@@ -879,13 +919,57 @@ pub fn end_of(soc: &Society, story: &str) -> Option<String> {
         .and_then(|b| b.object.clone())
 }
 
+/// is_designated_end_pole: is `node` the object of an un-occluded Q_END_POLE designation —
+/// structural End-hood, regardless of whether it has since closed? Factored out of
+/// is_open_end_pole (bare-closing conformance port, 2026-07-16; the TS twin factored it
+/// 2026-07-15) because the closing-recognition read below needs this same structural test
+/// on a node that IS actual (a closed End is still an End; only is_open_end_pole cares
+/// whether it's still naked). Mirrors `isDesignatedEndPole` in society.ts.
+fn is_designated_end_pole(soc: &Society, node: &str, as_of: Option<u64>) -> bool {
+    soc.edges_onto_object(node).any(|b| {
+        b.subject.is_some()
+            && prehends_as(soc, &b.slug, Q_END_POLE, as_of)
+            && !is_occluded(soc, &b.slug, as_of)
+    })
+}
+
+/// closing_edges_from: the edges that CLOSE this End-pole — un-occluded, as of a moment.
+/// BARE-CLOSING RULING, MECHANIZED (Hallie, 2026-07-15: "yes its edge direction"; "schedule
+/// it and feel free to act on it" — landed in the TS twin 2026-07-15, ported here
+/// 2026-07-16): a closing is EITHER a legacy quality-carrying Q_GROUNDING edge FROM `end`
+/// (the migration-era spelling — honored forever, append-only) OR a bare edge (no quality
+/// at all) FROM `end` — recognized as a closing SOLELY because `end` is a designated
+/// End-pole (is_designated_end_pole) and the edge left it: no quality-marker is read; per
+/// the address law, edge-direction alone carries the meaning. This is the one place that
+/// structural fact gets turned into a read — every caller that needs "is this End closed"
+/// or "walk through a closing" goes through here, so the bare/legacy union lives in ONE
+/// place, not re-derived at each call site. Mirrors `closingEdgesFrom` in society.ts
+/// (the bare scan is adjacency-indexed here, same rows the twin's full scan yields).
+fn closing_edges_from<'a>(soc: &'a Society, end: &str, as_of: Option<u64>) -> Vec<&'a EventRow> {
+    let quality = prehensions_from(soc, end, Q_GROUNDING, as_of);
+    if !is_designated_end_pole(soc, end, as_of) {
+        return quality
+            .into_iter()
+            .filter(|p| !is_occluded(soc, &p.slug, as_of))
+            .collect();
+    }
+    let bare = soc.edges_from_subject(end).filter(|b| {
+        b.object.is_some() && visible_at(b, as_of) && !has_any_quality(soc, &b.slug, as_of)
+    });
+    quality
+        .into_iter()
+        .chain(bare)
+        .filter(|p| !is_occluded(soc, &p.slug, as_of))
+        .collect()
+}
+
 /// end_actual: is this End-pole ACTUAL — is it because something (per the pole law, the
-/// Now of its closing: `end ~because~ now`)? Reads the un-occluded outgoing Q_GROUNDING
-/// edges FROM the End. Mirrors `endActual` in society.ts.
+/// Now of its closing: `end ~because~ now`)? Reads the un-occluded outgoing closing edges
+/// FROM the End — a bare edge out (the current closePole shape) or a legacy
+/// quality-carrying Q_GROUNDING edge out (both-spellings window, same law as the
+/// dependency rename: the ink stays). Mirrors `endActual` in society.ts.
 pub fn end_actual(soc: &Society, end: &str, as_of: Option<u64>) -> bool {
-    prehensions_from(soc, end, Q_GROUNDING, as_of)
-        .iter()
-        .any(|p| !is_occluded(soc, &p.slug, as_of))
+    !closing_edges_from(soc, end, as_of).is_empty()
 }
 
 /// story_now: the story's own frame's Now — the `{story}~now` constructor convention (an
@@ -898,13 +982,7 @@ pub fn story_now(story: &str) -> String {
 /// is_open_end_pole: is `node` a designated End-pole (object of an un-occluded
 /// Q_END_POLE edge) not yet actual? The address law guards exactly these.
 pub fn is_open_end_pole(soc: &Society, node: &str, as_of: Option<u64>) -> bool {
-    let designated = soc.all().any(|b| {
-        b.object.as_deref() == Some(node)
-            && b.subject.is_some()
-            && prehends_as(soc, &b.slug, Q_END_POLE, as_of)
-            && !is_occluded(soc, &b.slug, as_of)
-    });
-    designated && !end_actual(soc, node, as_of)
+    is_designated_end_pole(soc, node, as_of) && !end_actual(soc, node, as_of)
 }
 
 /// is_sublime_pole: is `node` a designated sublime-pole (object of an un-occluded
@@ -960,9 +1038,9 @@ pub fn voltage_of(soc: &Society, story: &str, ground: Option<&str>, as_of: Optio
     let mut v = 0;
     for p in poles {
         let Some(end) = p.object.as_deref() else { continue };
-        let closings: Vec<EventRow> = prehensions_from(soc, end, Q_GROUNDING, as_of)
+        // bare or legacy q-grounding — the union lives in closing_edges_from (its own doc)
+        let closings: Vec<EventRow> = closing_edges_from(soc, end, as_of)
             .into_iter()
-            .filter(|c| !is_occluded(soc, &c.slug, as_of))
             .cloned()
             .collect();
         let closed_here = !closings.is_empty()

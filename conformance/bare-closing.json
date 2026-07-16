@@ -1,0 +1,27 @@
+{
+  "name": "bare-closing",
+  "note": "First fixture of the twin conformance corpus (2026-07-16, bare-closing conformance port). NEUTRAL GROUND: this file belongs to neither twin's directory; both scher/src/society.ts (vitest: test/conformance.bare-closing.test.ts) and scher/scher-core/src/lib.rs (cargo: tests/bare_closing_fixture.rs) replay these SAME rows and must produce these SAME readings, or the engines have diverged. Rows are laid verbatim via the one write (lay), including the ~q mode-beats — no layP/lay_p constructor, so both harnesses stay byte-symmetric and guard-free. The scenario: a story unpacked into its three poles, one charge laid and witnessed by the story's own frame, then closed by a BARE edge out of the End (the 2026-07-15 bare-closing ruling: edge direction alone carries the meaning; no q-grounding marker). Expected reads pin end_actual/endActual, voltage_of/voltageOf, and the reaches walk THROUGH the bare closing, at asOf moments before and after each lay.",
+  "rows": [
+    { "slug": "task", "content": "a story", "witnessed": 1 },
+    { "slug": "task~hea", "content": "the End-pole of task, not yet actual", "witnessed": 2 },
+    { "slug": "task~end-pole~task~hea", "content": "End-pole designation (frame: task)", "subject": "task", "object": "task~hea", "witnessed": 3 },
+    { "slug": "task~end-pole~task~hea~q", "content": "End-pole designation (frame: task) [q-end-pole]", "subject": "task~end-pole~task~hea", "object": "q-end-pole", "witnessed": 3 },
+    { "slug": "task~now", "content": "the Now of task's own frame", "witnessed": 4 },
+    { "slug": "task~now~because~task", "content": "now is because events (frame: task)", "subject": "task~now", "object": "task", "witnessed": 5 },
+    { "slug": "task~now~because~task~q", "content": "now is because events (frame: task) [q-grounding]", "subject": "task~now~because~task", "object": "q-grounding", "witnessed": 5 },
+    { "slug": "hallie", "content": "the one who noticed", "witnessed": 6 },
+    { "slug": "task~hea~charge-0", "content": "charge", "subject": "hallie", "object": "task~hea", "witnessed": 7 },
+    { "slug": "task~now~because~task~hea~charge-0", "content": "the story's frame witnesses its charge", "subject": "task~now", "object": "task~hea~charge-0", "witnessed": 8 },
+    { "slug": "task~now~because~task~hea~charge-0~q", "content": "the story's frame witnesses its charge [q-grounding]", "subject": "task~now~because~task~hea~charge-0", "object": "q-grounding", "witnessed": 8 },
+    { "slug": "task~hea~because~task~now", "content": "the end is because now (frame: task)", "subject": "task~hea", "object": "task~now", "witnessed": 9 }
+  ],
+  "expect": [
+    { "read": "endActual", "node": "task~hea", "asOf": 8, "value": false },
+    { "read": "endActual", "node": "task~hea", "value": true },
+    { "read": "voltageOf", "story": "task", "asOf": 7, "value": 1 },
+    { "read": "voltageOf", "story": "task", "asOf": 8, "value": 2 },
+    { "read": "voltageOf", "story": "task", "value": 0 },
+    { "read": "reaches", "from": "task~hea", "to": "task", "quality": "q-grounding", "asOf": 8, "value": false },
+    { "read": "reaches", "from": "task~hea", "to": "task", "quality": "q-grounding", "value": true }
+  ]
+}

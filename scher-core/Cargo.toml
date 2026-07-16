@@ -9,3 +9,6 @@ description = "The pure append-only Society + reads from scher, in Rust. No view
 
 [dev-dependencies]
 proptest = "1"
+# conformance corpus replay only (tests/bare_closing_fixture.rs) — never a lib dependency;
+# the kernel itself stays dependency-free.
+serde_json = "1"

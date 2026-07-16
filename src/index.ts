@@ -74,6 +74,8 @@ export {
   confidence,
   isStory,
   intervalOf,
+  intervalContext,
+  type IntervalContext,
   endOf,
   unpackPoles,
   storyNow,

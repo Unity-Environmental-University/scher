@@ -766,10 +766,22 @@ export function contentBeats(soc: Society): EventRow[] {
   return soc.all().filter((b) => b.subject === null && !b.slug.endsWith("~q"));
 }
 
-/** interval_of: the causal diamond between a Once and an End — the forward-cone of
- *  `once` ∩ the backward-cone of `end`, following plain (non-quality) prehension edges.
- *  The interior of a Story. */
-export function intervalOf(soc: Society, once: string, end: string): string[] {
+/** IntervalContext: the plain-edge prepasses of intervalOf, hoisted so a caller doing
+ *  many interval reads in one paint can build them once. A per-paint DERIVATION passed
+ *  explicitly, never stored module-level — valid ONLY for the exact Society it was
+ *  derived from; any mutation or a new Society requires deriving a fresh one. */
+export interface IntervalContext {
+  /** objects of visible ~q mode-beats — the quality tokens classified OUT of the walk. */
+  qualityTokens: Set<string>;
+  /** plain-edge adjacency, subject→objects. */
+  fwdAdj: Map<string, string[]>;
+  /** plain-edge adjacency, object→subjects. */
+  bwdAdj: Map<string, string[]>;
+}
+
+/** Build the IntervalContext for `soc` — identical to what intervalOf builds internally
+ *  when no ctx is passed. See IntervalContext for the validity constraint. */
+export function intervalContext(soc: Society): IntervalContext {
   // Interval edges: every prehension that is not the quality machinery itself. Excluded:
   // ~q mode-beats (the constructor convention), and edges whose OBJECT is a quality token
   // — read structurally as "appears as the object of some visible ~q mode-beat," never by
@@ -803,6 +815,15 @@ export function intervalOf(soc: Society, once: string, end: string): string[] {
     const fl = fwdAdj.get(s); if (fl) fl.push(o); else fwdAdj.set(s, [o]);
     const bl = bwdAdj.get(o); if (bl) bl.push(s); else bwdAdj.set(o, [s]);
   }
+  return { qualityTokens, fwdAdj, bwdAdj };
+}
+
+/** interval_of: the causal diamond between a Once and an End — the forward-cone of
+ *  `once` ∩ the backward-cone of `end`, following plain (non-quality) prehension edges.
+ *  The interior of a Story. Optional `ctx` (intervalContext(soc), derived from THIS soc,
+ *  this paint) skips the two full-scan prepasses; absent, behavior is identical. */
+export function intervalOf(soc: Society, once: string, end: string, ctx?: IntervalContext): string[] {
+  const { fwdAdj, bwdAdj } = ctx ?? intervalContext(soc);
   // TODO(socratic): should interval-membership filter out occluded edges, and would that be a visible-at-moment issue too?
   const reach = (from: string, dir: "fwd" | "bwd"): Set<string> => {
     const adj = dir === "fwd" ? fwdAdj : bwdAdj;

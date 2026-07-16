@@ -9,7 +9,7 @@
 // membership edges cannot be laid bare. The first structural replacement (!hasAnyQuality on
 // the edge itself) excluded them all and emptied every production story interval.
 import { describe, it, expect } from "vitest";
-import { Society, intervalOf } from "../src/society.js";
+import { Society, intervalOf, intervalContext } from "../src/society.js";
 
 function node(s: Society, slug: string) {
   s.lay({ slug, content: slug, subject: null, object: null });
@@ -40,5 +40,32 @@ describe("intervalOf plain-edge classification (structural, no spelling)", () =>
 
     const interval = intervalOf(s, "once", "end");
     expect(interval).not.toContain("q-grounding");
+  });
+
+  it("optional IntervalContext yields identical results to the internal build (cycles + quality edges)", () => {
+    const s = new Society();
+    node(s, "once");
+    node(s, "beat-a");
+    node(s, "beat-b");
+    node(s, "end");
+    node(s, "outside");
+    // quality-carrying fabric, including a cycle beat-a <-> beat-b
+    s.layP("once~because~beat-a", "chain", "once", "beat-a", "q-grounding");
+    s.layP("beat-a~because~beat-b", "chain", "beat-a", "beat-b", "q-grounding");
+    s.layP("beat-b~because~beat-a", "chain", "beat-b", "beat-a", "q-grounding");
+    s.layP("beat-b~because~end", "chain", "beat-b", "end", "q-grounding");
+    // a plain (bare) edge and a branch that leaves the diamond
+    s.lay({ slug: "beat-a~plain~end", content: "plain", subject: "beat-a", object: "end" });
+    s.lay({ slug: "beat-a~stray", content: "stray", subject: "beat-a", object: "outside" });
+    // designation-shaped edge onto the quality token — classified out either way
+    s.lay({ slug: "end~designates", content: "smuggle", subject: "end", object: "q-grounding" });
+
+    const ctx = intervalContext(s);
+    expect(intervalOf(s, "once", "end", ctx)).toEqual(intervalOf(s, "once", "end"));
+    expect(intervalOf(s, "once", "end", ctx)).toEqual(
+      expect.arrayContaining(["once", "beat-a", "beat-b", "end"]),
+    );
+    expect(intervalOf(s, "once", "end", ctx)).not.toContain("outside");
+    expect(intervalOf(s, "once", "end", ctx)).not.toContain("q-grounding");
   });
 });

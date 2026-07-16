@@ -20,6 +20,7 @@ import {
   intervalOf,
   endOf,
   isStory,
+  type IntervalContext,
   type Mode,
   type Quality,
 } from "./society.js";
@@ -248,11 +249,13 @@ export function requiresOf(soc: Society, slug: string, asOf?: number): RequiresR
  *  members — a task can be a leaf"). Depth is the caller's concern (eventview.ts's
  *  existing INLINE_OPEN_DEPTH_CAP / frameStory's depth<1 cap) — this read returns ONE
  *  level flat, same discipline as upstreamsOf/downstreamsOf returning flat slug lists. */
-export function containsOf(soc: Society, slug: string, asOf?: number): string[] {
+export function containsOf(soc: Society, slug: string, asOf?: number, ctx?: IntervalContext): string[] {
+  // Optional ctx = intervalContext(soc), valid only for this exact soc — a per-paint
+  // derivation the caller passes explicitly; absent, intervalOf builds it internally.
   if (!isStory(soc, slug)) return [];
   const end = endOf(soc, slug);
   if (!end) return [];
-  return intervalOf(soc, slug, end).filter((b) => b !== slug && b !== end);
+  return intervalOf(soc, slug, end, ctx).filter((b) => b !== slug && b !== end);
 }
 
 /** enablesOf: what this beat makes possible / grounds forward, toward V=0 (the sea).
@@ -284,11 +287,12 @@ export interface CardAnatomyRead extends CardRead {
   enables: string[];
 }
 
-export function readCardAnatomy(soc: Society, slug: string, asOf?: number): CardAnatomyRead {
+export function readCardAnatomy(soc: Society, slug: string, asOf?: number, ctx?: IntervalContext): CardAnatomyRead {
+  // Optional ctx = intervalContext(soc), valid only for this exact soc (per-paint derivation).
   return {
     ...readCard(soc, slug),
     requires: requiresOf(soc, slug, asOf),
-    contains: containsOf(soc, slug, asOf),
+    contains: containsOf(soc, slug, asOf, ctx),
     enables: enablesOf(soc, slug, asOf),
   };
 }

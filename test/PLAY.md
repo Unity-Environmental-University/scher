@@ -28,6 +28,10 @@ cd scher && npm test                        # run everything (the dolls + the re
   own view is in there: walker, not arriver).
 - **orient-express** — detection IS re-reading; "the killer" collapses from one to twelve; Poirot
   OCCLUDES the truth (mercy), does not banish it (erasure).
+- **mrs-dalloway** — the imperfective at kernel level: two days straddle one Now without
+  containing each other; the party's grounds read future-perfect from the morning; the death
+  reaches the party only through Bradshaw's telling (mediation); the day declines from
+  imperfective into perfect when the party closes. For there she was.
 - **this-day** — the session modeled in its own grammar (the snake eats its tail gently).
 - **alignment** — the four readings of "alignment"; only Montessori reaches V=0. A regression test
   that FAILS if anyone wires a behaviorist path to the floor to flatter it.

@@ -791,16 +791,29 @@ export function intervalOf(soc: Society, once: string, end: string): string[] {
   const edges = soc.all().filter(
     (b) => b.subject !== null && b.object !== null && !qualityTokens.has(b.object) && !b.slug.endsWith("~q"),
   );
+  // Adjacency maps over the filtered plain edges, built once (was: the reach walk re-scanned
+  // the WHOLE edges array per stack node — O(interval_size × total_edges), the real quadratic
+  // cost here, worse than the two soc.all() prepasses above). Same edges, same steps: fwd
+  // walks subject→object, bwd the reverse. Mirrors lib.rs's fwd_adj/bwd_adj (interval_of,
+  // scher-core/src/lib.rs ~837-848), which solved this exact gap first.
+  const fwdAdj = new Map<string, string[]>();
+  const bwdAdj = new Map<string, string[]>();
+  for (const e of edges) {
+    const s = e.subject!, o = e.object!;
+    const fl = fwdAdj.get(s); if (fl) fl.push(o); else fwdAdj.set(s, [o]);
+    const bl = bwdAdj.get(o); if (bl) bl.push(s); else bwdAdj.set(o, [s]);
+  }
   // TODO(socratic): should interval-membership filter out occluded edges, and would that be a visible-at-moment issue too?
   const reach = (from: string, dir: "fwd" | "bwd"): Set<string> => {
+    const adj = dir === "fwd" ? fwdAdj : bwdAdj;
     const seen = new Set<string>([from]);
     const stack = [from];
     while (stack.length) {
       const n = stack.pop()!;
-      for (const e of edges) {
-        const next = dir === "fwd" ? (e.subject === n ? e.object : null)
-                                   : (e.object === n ? e.subject : null);
-        if (next && !seen.has(next)) { seen.add(next); stack.push(next); }
+      const nexts = adj.get(n);
+      if (!nexts) continue;
+      for (const next of nexts) {
+        if (!seen.has(next)) { seen.add(next); stack.push(next); }
       }
     }
     return seen;

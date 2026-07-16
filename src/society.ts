@@ -796,12 +796,22 @@ export function intervalContext(soc: Society): IntervalContext {
   // because under the address law a bare edge onto an open End reads as a charge). The
   // sitting's own invariant was "no kernel behavior change for any existing caller";
   // this restores it. Conformance twin: interval-plain-edges.test.ts / lib.rs tests.
+  //
+  // OCCLUSION (2026-07-16, TODO(socratic) at intervalOf answered): an occluded edge is not
+  // in the society's live fabric any more than an occluded prehension is live for
+  // prehensionsOnto/prehensionsFrom — the walk must not reach through it. Filtered here,
+  // once, at the same prepass that already excludes quality machinery, so every caller
+  // (fresh or ctx-cached) gets the same honest edge set. asOf-aware for the same reason
+  // visibleAt/isOccluded are elsewhere: reads the CURRENT moment (asOf undefined), matching
+  // every existing caller (todayview/card-reads build a fresh ctx per paint at now — no
+  // caller here needs an as-of-a-moment interval; if one ever does, add asOf then).
   const qualityTokens = new Set<string>();
   for (const b of soc.all()) {
     if (b.slug.endsWith("~q") && b.object !== null && visibleAt(b)) qualityTokens.add(b.object);
   }
   const edges = soc.all().filter(
-    (b) => b.subject !== null && b.object !== null && !qualityTokens.has(b.object) && !b.slug.endsWith("~q"),
+    (b) => b.subject !== null && b.object !== null && !qualityTokens.has(b.object) && !b.slug.endsWith("~q") &&
+      visibleAt(b) && !isOccluded(soc, b.slug),
   );
   // Adjacency maps over the filtered plain edges, built once (was: the reach walk re-scanned
   // the WHOLE edges array per stack node — O(interval_size × total_edges), the real quadratic
@@ -821,10 +831,12 @@ export function intervalContext(soc: Society): IntervalContext {
 /** interval_of: the causal diamond between a Once and an End — the forward-cone of
  *  `once` ∩ the backward-cone of `end`, following plain (non-quality) prehension edges.
  *  The interior of a Story. Optional `ctx` (intervalContext(soc), derived from THIS soc,
- *  this paint) skips the two full-scan prepasses; absent, behavior is identical. */
+ *  this paint) skips the two full-scan prepasses; absent, behavior is identical.
+ *  Occlusion-aware (2026-07-16): an occluded membership edge is not part of the walk — a
+ *  passed-in `ctx` must have been derived (via intervalContext) as-of the same moment this
+ *  call cares about, since occlusion is baked into ctx's adjacency at construction time. */
 export function intervalOf(soc: Society, once: string, end: string, ctx?: IntervalContext): string[] {
   const { fwdAdj, bwdAdj } = ctx ?? intervalContext(soc);
-  // TODO(socratic): should interval-membership filter out occluded edges, and would that be a visible-at-moment issue too?
   const reach = (from: string, dir: "fwd" | "bwd"): Set<string> => {
     const adj = dir === "fwd" ? fwdAdj : bwdAdj;
     const seen = new Set<string>([from]);

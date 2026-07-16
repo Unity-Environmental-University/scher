@@ -1,0 +1,28 @@
+{
+  "name": "interval-occlusion",
+  "note": "Second fixture of the twin conformance corpus (2026-07-16, occlusion-aware intervalOf). NEUTRAL GROUND: this file belongs to neither twin's directory; both scher/src/society.ts (vitest: test/conformance.interval-occlusion.test.ts) and scher/scher-core/src/lib.rs (cargo: tests/interval_occlusion_fixture.rs) replay these SAME rows and must produce these SAME readings. The scenario mirrors the migrate-shaped edit the app-side placement-laws law 7 fence caught: an event is grounded into an old story's End, that membership edge is then occluded, and the event is grounded into a new story's End instead. Rows are laid verbatim via the one write (lay), including the ~q mode-beats — no layP/lay_p constructor, so both harnesses stay byte-symmetric and guard-free. Expected reads pin intervalOf (current-moment, matching lib.rs's interval_of which reads occlusion as-of now — no asOf parameter on either twin's public signature, so this fixture stays signature-neutral) for both the old and new story's Once/End bounds AFTER the migrate completes, proving the occluded membership edge drops out of the old day's walk and the bare closing edge onto the old End does not resurrect it, while the new day's walk includes it.",
+  "rows": [
+    { "slug": "day-old-story", "content": "the old day", "witnessed": 1 },
+    { "slug": "day-old-end", "content": "the old day's End-pole", "witnessed": 1 },
+    { "slug": "pole-old", "content": "End-pole designation (frame: day-old-story)", "subject": "day-old-story", "object": "day-old-end", "witnessed": 1 },
+    { "slug": "pole-old~q", "content": "End-pole designation (frame: day-old-story) [q-end-pole]", "subject": "pole-old", "object": "q-end-pole", "witnessed": 1 },
+    { "slug": "day-new-story", "content": "the new day", "witnessed": 2 },
+    { "slug": "day-new-end", "content": "the new day's End-pole", "witnessed": 2 },
+    { "slug": "pole-new", "content": "End-pole designation (frame: day-new-story)", "subject": "day-new-story", "object": "day-new-end", "witnessed": 2 },
+    { "slug": "pole-new~q", "content": "End-pole designation (frame: day-new-story) [q-end-pole]", "subject": "pole-new", "object": "q-end-pole", "witnessed": 2 },
+    { "slug": "ev-migrant", "content": "the event that migrates days", "witnessed": 3 },
+    { "slug": "mig-act", "content": "the migrate action", "witnessed": 3 },
+    { "slug": "m-old", "content": "old membership", "subject": "day-old-story", "object": "ev-migrant", "witnessed": 4 },
+    { "slug": "m-old~q", "content": "old membership [q-grounding]", "subject": "m-old", "object": "q-grounding", "witnessed": 4 },
+    { "slug": "m-old-close", "content": "bare closing onto the old End", "subject": "ev-migrant", "object": "day-old-end", "witnessed": 5 },
+    { "slug": "occ-m-old", "content": "the migrate occludes the old membership", "subject": "mig-act", "object": "m-old", "witnessed": 6 },
+    { "slug": "occ-m-old~q", "content": "the migrate occludes the old membership [q-occludes]", "subject": "occ-m-old", "object": "q-occludes", "witnessed": 6 },
+    { "slug": "m-new", "content": "new membership", "subject": "day-new-story", "object": "ev-migrant", "witnessed": 7 },
+    { "slug": "m-new~q", "content": "new membership [q-grounding]", "subject": "m-new", "object": "q-grounding", "witnessed": 7 },
+    { "slug": "m-new-close", "content": "bare closing onto the new End", "subject": "ev-migrant", "object": "day-new-end", "witnessed": 8 }
+  ],
+  "expect": [
+    { "read": "intervalOf", "once": "day-old-story", "end": "day-old-end", "contains": [], "excludes": ["ev-migrant"] },
+    { "read": "intervalOf", "once": "day-new-story", "end": "day-new-end", "contains": ["ev-migrant"], "excludes": [] }
+  ]
+}

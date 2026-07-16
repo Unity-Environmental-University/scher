@@ -848,6 +848,12 @@ pub fn grounded_by(soc: &Society, row: &str) -> Vec<String> {
 /// stored containment. A beat is in the interval iff it is forward-reachable from `once` AND
 /// backward-reachable from `end` over plain edges (carrying no quality — has_any_quality —
 /// and not themselves `~q` mode-beats). Mirrors `intervalOf` in society.ts.
+///
+/// OCCLUSION (2026-07-16, TODO(socratic) answered): an occluded edge does not carry the walk
+/// — same discipline prehensions_onto/is_occluded already hold. Filtered in the same prepass
+/// that excludes quality machinery, so the fwd/bwd adjacency never reaches through a shadowed
+/// membership edge. Mirrors society.ts's intervalContext fix; conformance twin:
+/// interval-occlusion.json (replayed by both suites).
 pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
     let quality_tokens: std::collections::HashSet<&str> = soc
         .all()
@@ -871,6 +877,8 @@ pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
                 // address law reads them as charges. Mirrors intervalOf in society.ts.
                 && !quality_tokens.contains(b.object.as_deref().unwrap_or(""))
                 && !b.slug.ends_with("~q")
+                && visible_at(b, None)
+                && !is_occluded(soc, &b.slug, None)
         })
         .collect();
 

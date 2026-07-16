@@ -32,6 +32,12 @@ cd scher && npm test                        # run everything (the dolls + the re
   containing each other; the party's grounds read future-perfect from the morning; the death
   reaches the party only through Bradshaw's telling (mediation); the day declines from
   imperfective into perfect when the party closes. For there she was.
+- **hyperion** — the adversarial fixture: the Templar's End held open BY RIGHT (negative
+  capability landed — the 6/30 kalpa finding predicted the three-pole ruling); Rachel ages
+  backward while the canon only grows; the Time Tombs open in reverse insertion order
+  (witnessed against insertion — legal anti-time); the Shrike is a scripted future already
+  gripping the present (grammatical: that IS the horror); the Keats cybrid grounds in the
+  archive, never claims identity.
 - **this-day** — the session modeled in its own grammar (the snake eats its tail gently).
 - **alignment** — the four readings of "alignment"; only Montessori reaches V=0. A regression test
   that FAILS if anyone wires a behaviorist path to the floor to flatter it.

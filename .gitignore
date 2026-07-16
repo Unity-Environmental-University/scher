@@ -5,3 +5,4 @@ dollhouse/lib/
 
 # Rust core build dir
 scher-core/target/
+src/*.js

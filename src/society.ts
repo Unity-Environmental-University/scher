@@ -421,6 +421,21 @@ export class Society {
   /** rev bumps on every genuine append; Cells subscribe to it to know to re-read. */
   readonly rev: Cell<number>;
   #clock = 0;
+  // Adjacency indexes (ported from scher-core/src/lib.rs:167-179, 2026-07-15 —
+  // "society indexing architecture" deep-think, Lever A): edge slugs keyed by their
+  // subject / object. Maintained in #insert — safe because the society is append-only
+  // and a row's subject/object are never mutated after insert. These turn
+  // prehensionsOnto/prehensionsFrom (and the reads that route through them) from an
+  // O(n) soc.all().filter() scan into an O(degree) lookup. An INDEX, not a cache: it
+  // stores no derived value, only "which edge-slugs touch this node" — a fact true the
+  // instant the edge is laid and immutable thereafter under append-only. Every
+  // predicate that makes the read a derivation (visibleAt, prehendsAs, occlusion)
+  // still runs at read time, unchanged — only the candidate set shrinks. Kept in
+  // INSERTION order (never re-sorted) so a later asOf binary-search slice (Lever D) is
+  // available without a re-index — mirrors "same rows a full scan on subject == s
+  // yields, in insertion order" (lib.rs:220).
+  readonly #bySubject = new Map<string, string[]>();
+  readonly #byObject = new Map<string, string[]>();
 
   constructor(seed: ReadonlyArray<EventRow> = []) {
     this.rev = new Cell(0);
@@ -439,8 +454,45 @@ export class Society {
     const witnessed = b.witnessed ?? this.#clock + 1;
     // TODO(socratic): is the default-witnessed clock-increment-then-assign the right order, or should auto-stamps lag behind explicit ones?
     this.#clock = Math.max(this.#clock, witnessed);
+    // Index population mirrors lib.rs:209-214 exactly: subject/object of the RAW beat
+    // as laid (not the stamped copy — subject/object are untouched by the witnessed
+    // stamp either way), pushed in insertion order.
+    if (b.subject !== null && b.subject !== undefined) {
+      const list = this.#bySubject.get(b.subject);
+      if (list) list.push(b.slug); else this.#bySubject.set(b.subject, [b.slug]);
+    }
+    if (b.object !== null && b.object !== undefined) {
+      const list = this.#byObject.get(b.object);
+      if (list) list.push(b.slug); else this.#byObject.set(b.object, [b.slug]);
+    }
     this.#beats.set(b.slug, { ...b, witnessed });
     return true;
+  }
+
+  /** Edges whose SUBJECT is `s` (adjacency-indexed; same rows a full scan on
+   *  `subject === s` yields, in insertion order — mirrors edges_from_subject, lib.rs:221-223). */
+  edgesFromSubject(s: string): EventRow[] {
+    const slugs = this.#bySubject.get(s);
+    if (!slugs) return [];
+    const out: EventRow[] = [];
+    for (const slug of slugs) {
+      const row = this.#beats.get(slug);
+      if (row) out.push(row);
+    }
+    return out;
+  }
+
+  /** Edges whose OBJECT is `o` (adjacency-indexed mirror of edgesFromSubject — mirrors
+   *  edges_onto_object, lib.rs:226-228). */
+  edgesOntoObject(o: string): EventRow[] {
+    const slugs = this.#byObject.get(o);
+    if (!slugs) return [];
+    const out: EventRow[] = [];
+    for (const slug of slugs) {
+      const row = this.#beats.get(slug);
+      if (row) out.push(row);
+    }
+    return out;
   }
 
   /** Lay a beat into the society (the only write). Returns true if it was a genuine
@@ -547,8 +599,10 @@ export function hasAnyQuality(soc: Society, pslug: string, asOf?: number): boole
 /** Every prehension reaching `beat` as object, co-prehending `quality`, as of a moment.
  *  Returns the prehension beats (whose `subject` is the frame/standpoint that laid it). */
 export function prehensionsOnto(soc: Society, beat: string, quality: Quality, asOf?: number): EventRow[] {
-  return soc.all().filter(
-    (b) => b.object === beat && b.subject !== null && visibleAt(b, asOf) && prehendsAs(soc, b.slug, quality, asOf),
+  // Adjacency-indexed (was a full soc.all() scan per call — ported fix, mirrors
+  // scher-core/src/lib.rs prehensions_onto, 2026-07-15).
+  return soc.edgesOntoObject(beat).filter(
+    (b) => b.subject !== null && visibleAt(b, asOf) && prehendsAs(soc, b.slug, quality, asOf),
   );
 }
 
@@ -557,8 +611,10 @@ export function prehensionsOnto(soc: Society, beat: string, quality: Quality, as
  *  object); this one sees edges FROM a beat (beat as subject). A lateral relation (depends-on,
  *  assigned-to) is laid A→B, so it is only legible from A's side through a -From read. */
 export function prehensionsFrom(soc: Society, beat: string, quality: Quality, asOf?: number): EventRow[] {
-  return soc.all().filter(
-    (b) => b.subject === beat && b.object !== null && visibleAt(b, asOf) && prehendsAs(soc, b.slug, quality, asOf),
+  // Adjacency-indexed (mirror of prehensionsOnto's fix; mirrors
+  // scher-core/src/lib.rs prehensions_from, 2026-07-15).
+  return soc.edgesFromSubject(beat).filter(
+    (b) => b.object !== null && visibleAt(b, asOf) && prehendsAs(soc, b.slug, quality, asOf),
   );
 }
 
@@ -575,8 +631,10 @@ export function prehensionsFrom(soc: Society, beat: string, quality: Quality, as
  *  a point on the trajectory, visible only after it lands. */
 export function isOccluded(soc: Society, target: string, asOf?: number): boolean {
   // TODO(socratic): the b.subject !== target guard — why exclude self-occlusion (if that's even layable), and what does it mean if it were?
-  return soc.all().some((b) =>
-    b.object === target && b.subject !== null && b.subject !== target &&
+  // Adjacency-indexed (was a full soc.all() scan — ported fix, mirrors scher-core/src/lib.rs
+  // is_occluded's use of edges_onto_object, Lever A residual, 2026-07-16).
+  return soc.edgesOntoObject(target).some((b) =>
+    b.subject !== null && b.subject !== target &&
     visibleAt(b, asOf) && prehendsAs(soc, b.slug, "q-occludes", asOf) &&
     // emergent un-occlusion: an occluder that is itself occluded casts no shadow (one level).
     !isOccluder(soc, b.slug, asOf));
@@ -586,8 +644,9 @@ export function isOccluded(soc: Society, target: string, asOf?: number): boolean
  *  design there is no deep recursion: un-occlusion is the absence of a LIVE occluder, read fresh. */
 function isOccluder(soc: Society, occludeEdge: string, asOf?: number): boolean {
   // TODO(socratic): why is this logic a separate function instead of inlined in isOccluded, and does "one level only" mean we never ask isOccluder recursively?
-  return soc.all().some((b) =>
-    b.object === occludeEdge && b.subject !== null && b.subject !== occludeEdge &&
+  // Adjacency-indexed (Lever A residual, 2026-07-16 — same pattern as isOccluded above).
+  return soc.edgesOntoObject(occludeEdge).some((b) =>
+    b.subject !== null && b.subject !== occludeEdge &&
     visibleAt(b, asOf) && prehendsAs(soc, b.slug, "q-occludes", asOf));
 }
 
@@ -874,8 +933,10 @@ export function endActual(soc: Society, end: string, asOf?: number): boolean {
  *  charge is a property of the EDGE, never of node-contents (Hallie, 2026-07-06). The
  *  designation edge (quality-carrying) and ~q machinery classify out structurally. */
 export function chargesOn(soc: Society, end: string, asOf?: number): EventRow[] {
-  return soc.all().filter(
-    (b) => b.object === end && b.subject !== null && visibleAt(b, asOf) &&
+  // Adjacency-indexed (was a full soc.all() scan — ported fix, Lever A residual, 2026-07-16,
+  // mirrors scher-core/src/lib.rs's use of edges_onto_object for the same b.object === end filter).
+  return soc.edgesOntoObject(end).filter(
+    (b) => b.subject !== null && visibleAt(b, asOf) &&
       !hasAnyQuality(soc, b.slug, asOf) && !isOccluded(soc, b.slug, asOf),
   );
 }

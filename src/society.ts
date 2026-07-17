@@ -1157,6 +1157,10 @@ export function membersOf(soc: Society, event: string, asOf?: number): string[] 
 //       the closest." I return them as a flat closest-first array (a path, not a nested
 //       structure) — the tree shape (siblings/branches) isn't specified anywhere I could
 //       find, and inventing a branching shape felt like writing spec, not reading one.
+//       CORRECTED (THE LURE LAW, below): the walk that finds "closest" no longer tests
+//       whether an after-tree node IS itself a sublime-pole reached via grounding — see
+//       sublimesChargedFrom's own doc for why that was structurally impossible in the
+//       first place, and what it climbs instead.
 //
 // INTERIOR'S DOMAIN AND FUTURE'S DEFINITION, CORRECTED TWICE (coordinator, 2026-07-17):
 // round 1 established the domain is the interval set, not membersOf (an open event's
@@ -1171,6 +1175,18 @@ export function membersOf(soc: Society, event: string, asOf?: number): string[] 
 // what's left in the interval — begun, but neither ahead of the Now (prehending it) nor
 // behind it (gathered by it): the imperfective straddler. membersOf ITSELF IS UNCHANGED
 // by either round — it defines membership, not interior; the fence stays as it was.
+//
+// THE LURE LAW (Hallie, grooming minutes 2026-07-17, 09:38 — verbatim, naming this whole
+// semantics): "doneness is frame relative... From the perspective of the END it has
+// happened but nothing can prehend the end. THIS is how it works. Events have a LURE
+// (not in code but in concept) but prehension by the future is appetition, prehension by
+// now is past." This CONFIRMS future = prehends-the-Now (round 2, above) and fixes
+// sublimesTree/indirectSublimesTree a third time: a sublime's grip on an event is
+// APPETITION, read as a CHARGE (a bare prehension landing on the sublime-pole node,
+// chargesOn's exact shape) — never grounding. See sublimesChargedFrom's own doc for the
+// mechanics and why the OLD sublimesTree filter (testing whether a q-grounding-reached
+// after-tree node was itself isSublimePole) could never fire: nothing reaches a
+// designated pole via grounding in the first place.
 
 /** Buckets is the shape drawer-contents.md item 10 asks for. `sublimesTree` is a flat
  *  closest-first array (see call (c) above), not a nested tree. */
@@ -1180,14 +1196,28 @@ export interface Buckets {
   interior: { future: string[]; present: string[]; past: string[] };
 }
 
-/** isSublime here means "never-closing" in the local sense this bucket read needs: a
- *  designated End-pole that is not actual AND whose owning story's Now never gathers
- *  anything (an idle open differential) reads the same as a true q-sublime-pole for
- *  bucketing purposes — but the STRUCTURAL sublime (isSublimePole) is the honest test;
- *  a merely-not-yet-closed ordinary story is not a sublime, it is just open. Bucketing
- *  only ever needs the structural test. */
-function isSublimeNode(soc: Society, node: string, asOf?: number): boolean {
-  return isSublimePole(soc, node, asOf);
+/** sublimesChargedFrom: THE LURE LAW (Hallie, grooming minutes 2026-07-17, 09:38 —
+ *  verbatim: "doneness is frame relative... From the perspective of the END it has
+ *  happened but nothing can prehend the end. THIS is how it works. Events have a LURE
+ *  (not in code but in concept) but prehension by the future is appetition, prehension
+ *  by now is past"). A sublime's grip on an event is APPETITION — a CHARGE (a bare,
+ *  un-quality-carrying prehension) landing on the sublime-pole node — never grounding:
+ *  the anti-q-lure guard structurally refuses a sublime ever closing (checkSublime-
+ *  NeverCloses), and q-grounding is reserved for actual closings/membership, not for
+ *  reaching toward a star that is never reached. So "which sublimes does this event
+ *  sail under" is read the SAME WAY chargesOn reads "who charges this End" — bare
+ *  edges, un-occluded — just walked from the charger's side (edgesFromSubject) instead
+ *  of the charged-node's side (edgesOntoObject), filtered to sublime-pole targets.
+ *  Mirrors bearingsOf's semantics (sublimes.ts) but reads the truly bare edge shape
+ *  chargesOn/the address law define, not bearingsOf's own "because" quality-string
+ *  convention (a different, pre-existing sublime-orientation idiom this bucket read
+ *  does not disturb). */
+function sublimesChargedFrom(soc: Society, node: string, asOf?: number): string[] {
+  return soc.edgesFromSubject(node)
+    .filter((b) => b.object !== null && visibleAt(b, asOf) &&
+      !hasAnyQuality(soc, b.slug, asOf) && !isOccluded(soc, b.slug, asOf) &&
+      isSublimePole(soc, b.object, asOf))
+    .map((b) => b.object!);
 }
 
 /** intervalSet: the INTERIOR's domain — bounded by BOTH poles, wider than membersOf on
@@ -1251,7 +1281,18 @@ export function bucketsOf(soc: Society, event: string, asOf?: number): Buckets {
   // `event` itself, i.e. prehensionsOnto(event) gives edges whose object is event.
   const directAfterRows = prehensionsOnto(soc, event, "q-grounding", asOf);
   const directAfter = directAfterRows.map((p) => p.subject!).filter((n) => !isInfra(n));
-  const sublimesTree = directAfter.filter((m) => isSublimeNode(soc, m, asOf));
+  // sublimesTree: THE LURE LAW (see sublimesChargedFrom's own doc) — the stars a
+  // direct-after event sails under, found by CHARGE (bare prehension onto a sublime-pole
+  // node), never grounding. Closest-first: direct-after members contribute their stars
+  // in order, deduplicated, before indirect-after's stars are considered below.
+  const sublimesSeen = new Set<string>();
+  const sublimesTree: string[] = [];
+  for (const m of directAfter) {
+    for (const star of sublimesChargedFrom(soc, m, asOf)) {
+      if (sublimesSeen.has(star)) continue;
+      sublimesSeen.add(star); sublimesTree.push(star);
+    }
+  }
   const indirectAfterSeen = new Set<string>(directAfter);
   const indirectAfter: string[] = [];
   for (const m of directAfter) {
@@ -1261,7 +1302,14 @@ export function bucketsOf(soc: Society, event: string, asOf?: number): Buckets {
       indirectAfterSeen.add(n); indirectAfter.push(n);
     }
   }
-  const indirectSublimesTree = indirectAfter.filter((m) => isSublimeNode(soc, m, asOf));
+  const indirectSublimesSeen = new Set<string>(sublimesTree);
+  const indirectSublimesTree: string[] = [];
+  for (const m of indirectAfter) {
+    for (const star of sublimesChargedFrom(soc, m, asOf)) {
+      if (indirectSublimesSeen.has(star)) continue;
+      indirectSublimesSeen.add(star); indirectSublimesTree.push(star);
+    }
+  }
 
   // BEFORE: what this event prehends (call (a)) — prehensionsFrom(event) gives edges
   // whose subject is event, i.e. event ~because~ object.
@@ -1325,19 +1373,28 @@ export function countsOf(soc: Society, event: string, asOf?: number): BucketCoun
 
   const directAfterRows = prehensionsOnto(soc, event, "q-grounding", asOf);
   const directAfter = directAfterRows.map((p) => p.subject!).filter((n) => !isInfra(n));
-  let sublimesTree = 0;
-  const indirectAfterSeen = new Set<string>(directAfter);
-  let indirectAfter = 0, indirectSublimesTree = 0;
+  // sublimesTree via CHARGE, not grounding — THE LURE LAW, see sublimesChargedFrom's own doc.
+  const sublimesSeen = new Set<string>();
   for (const m of directAfter) {
-    if (isSublimeNode(soc, m, asOf)) sublimesTree++;
+    for (const star of sublimesChargedFrom(soc, m, asOf)) sublimesSeen.add(star);
+  }
+  const indirectAfterSeen = new Set<string>(directAfter);
+  const indirectAfterList: string[] = [];
+  for (const m of directAfter) {
     for (const p of prehensionsOnto(soc, m, "q-grounding", asOf)) {
       const n = p.subject!;
       if (isInfra(n) || indirectAfterSeen.has(n)) continue;
       indirectAfterSeen.add(n);
-      indirectAfter++;
-      if (isSublimeNode(soc, n, asOf)) indirectSublimesTree++;
+      indirectAfterList.push(n);
     }
   }
+  const indirectAfter = indirectAfterList.length;
+  const indirectSublimesSeen = new Set<string>(sublimesSeen);
+  for (const m of indirectAfterList) {
+    for (const star of sublimesChargedFrom(soc, m, asOf)) indirectSublimesSeen.add(star);
+  }
+  const sublimesTree = sublimesSeen.size;
+  const indirectSublimesTree = indirectSublimesSeen.size - sublimesSeen.size;
 
   const directBeforeRows = prehensionsFrom(soc, event, "q-grounding", asOf);
   const directBefore = directBeforeRows.map((p) => p.object!).filter((n) => !isInfra(n));

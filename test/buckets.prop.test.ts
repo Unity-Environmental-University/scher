@@ -35,6 +35,13 @@
 //   5. ~holds~ edges never change any bucket — the exact dead ink membership-topology's
 //      own fence pins for membersOf; bucketsOf is built on the same grounding walks, so
 //      this checks the inheritance actually holds, not just the law in prose.
+//   6. THE LURE LAW (Hallie, grooming minutes 2026-07-17, 09:38): a sublime's grip is
+//      appetition (a CHARGE at its designated node), never grounding. A charge from a
+//      direct-after event onto a designated sublime-pole surfaces that sublime in
+//      after.sublimesTree; an ordinary grounding edge toward the same node does NOT (the
+//      old sublimesTree filter tested isSublimePole on a q-grounding-reached node, which
+//      was structurally impossible to ever fire — nothing reaches a designated pole via
+//      grounding — so this property also guards against that dead-code regression).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
@@ -174,6 +181,66 @@ describe("bucketsOf — property 5: ~holds~ edges never change any bucket", () =
       expect(todos.length).toBeGreaterThan(0); // sanity: the fixture actually built todos
     });
   }
+});
+
+describe("bucketsOf — property 6: THE LURE LAW — sublimes climb by charge, not grounding", () => {
+  it("a charge from a direct-after event onto a designated sublime surfaces it in sublimesTree", () => {
+    const s = new Society();
+    lay(s, "the-day");
+    unpackPoles(s, "the-day");
+    grounds(s, "tomorrow", "the-day"); // tomorrow is directly after the-day
+    lay(s, "star-of-hope");
+    s.layP("tomorrow~sublime~star", "oriented to a star", "tomorrow", "star-of-hope", "q-sublime-pole");
+    // a bare charge FROM tomorrow ONTO the star — appetition, THE LURE LAW's shape.
+    s.lay({ slug: "tomorrow~because~star", content: "tomorrow sails under the star", subject: "tomorrow", object: "star-of-hope" });
+    const b = bucketsOf(s, "the-day");
+    expect(b.after.direct).toContain("tomorrow");
+    expect(b.after.sublimesTree).toContain("star-of-hope");
+  });
+
+  it("an ordinary GROUNDING edge toward the same node does NOT surface it in sublimesTree", () => {
+    const s = new Society();
+    lay(s, "the-day");
+    unpackPoles(s, "the-day");
+    grounds(s, "tomorrow", "the-day");
+    lay(s, "star-of-hope");
+    s.layP("tomorrow~sublime~star", "oriented to a star", "tomorrow", "star-of-hope", "q-sublime-pole");
+    // a q-grounding edge (quality-carrying) toward the star instead of a bare charge —
+    // this is NOT appetition under THE LURE LAW, and must not appear in sublimesTree.
+    s.layP("tomorrow~because~star-grounded", "a grounding edge, not a charge", "tomorrow", "star-of-hope", "q-grounding");
+    const b = bucketsOf(s, "the-day");
+    expect(b.after.direct).toContain("tomorrow");
+    expect(b.after.sublimesTree).not.toContain("star-of-hope");
+  });
+
+  it("indirectSublimesTree finds stars charged from indirect-after events, closest-first dedup", () => {
+    const s = new Society();
+    lay(s, "the-day");
+    unpackPoles(s, "the-day");
+    grounds(s, "tomorrow", "the-day");
+    grounds(s, "day-after-tomorrow", "tomorrow"); // indirect-after the-day
+    lay(s, "star-of-hope");
+    s.layP("d~sublime~star", "oriented to a star", "day-after-tomorrow", "star-of-hope", "q-sublime-pole");
+    s.lay({ slug: "dat~because~star", content: "charges the star", subject: "day-after-tomorrow", object: "star-of-hope" });
+    const b = bucketsOf(s, "the-day");
+    expect(b.after.indirect).toContain("day-after-tomorrow");
+    expect(b.after.sublimesTree).not.toContain("star-of-hope"); // not charged from a DIRECT member
+    expect(b.after.indirectSublimesTree).toContain("star-of-hope");
+  });
+
+  it("bucketsOf and countsOf agree on sublimesTree cardinality with a real charge present", () => {
+    const s = new Society();
+    lay(s, "the-day");
+    unpackPoles(s, "the-day");
+    grounds(s, "tomorrow", "the-day");
+    lay(s, "star-of-hope");
+    s.layP("tomorrow~sublime~star", "oriented to a star", "tomorrow", "star-of-hope", "q-sublime-pole");
+    s.lay({ slug: "tomorrow~because~star", content: "charges the star", subject: "tomorrow", object: "star-of-hope" });
+    const b = bucketsOf(s, "the-day");
+    const c = countsOf(s, "the-day");
+    expect(c.after.sublimesTree).toBe(b.after.sublimesTree.length);
+    expect(c.after.indirectSublimesTree).toBe(b.after.indirectSublimesTree.length);
+  });
 });
 
 describe("bucketsOf and countsOf agree on cardinality", () => {

@@ -1140,8 +1140,9 @@ export function membersOf(soc: Society, event: string, asOf?: number): string[] 
 // given an event, partition what's around it into the shapes the card UI's drawers and
 // interior sections read directly. ONE DERIVATION — bucketsOf never re-walks what
 // membersOf already establishes; "after"/"before" are OUTSIDE membership (prehending or
-// prehended-by the event itself, past its own bounds), "interior" is a partition OF
-// membersOf's own result by each member's relation to the card's OWN Now.
+// prehended-by the event itself, past its own bounds). "interior" is a partition of the
+// INTERVAL SET (see intervalSet's own doc — NOT membersOf; two rounds of correction
+// landed this, both traced there) by each member's relation to the card's OWN Now.
 //
 // AMBIGUOUS CALLS I HAD TO MAKE (named for Hallie — the prose left more than one honest
 // reading; see this function's own trace comments at each fork):
@@ -1156,12 +1157,20 @@ export function membersOf(soc: Society, event: string, asOf?: number): string[] 
 //       the closest." I return them as a flat closest-first array (a path, not a nested
 //       structure) — the tree shape (siblings/branches) isn't specified anywhere I could
 //       find, and inventing a branching shape felt like writing spec, not reading one.
-//   (d) Interior "present, the imperfective straddler": the proposal names it "began
-//       (grounds in Once) but End/Now hasn't gathered it" — for an event with no interior
-//       members of its own poles yet (not yet unpacked), a member can only ever be
-//       future or past relative to ITS OWN unpack state; I read "began" as "is itself a
-//       story whose Once grounds in the outer event" (isStory + reaches to the outer
-//       event's Once), not "member's own Once equals nothing."
+//
+// INTERIOR'S DOMAIN AND FUTURE'S DEFINITION, CORRECTED TWICE (coordinator, 2026-07-17):
+// round 1 established the domain is the interval set, not membersOf (an open event's
+// members are ALWAYS past under the fence's own law — gatherFrom is `now` for an open
+// event, so "gatherFrom reaches m" is definitionally true for every member — so
+// partitioning membersOf could never show future/present on a live card). Round 2
+// (after I surfaced that "reached by the End's scripted cone" collides with the address
+// law pre-close — see intervalSet's own doc) fixed FUTURE to item 9's exact words: "if an
+// event prehends that event's now, it has not yet happened in the context of that
+// event" — reaches(m, now), not "anything in the interval not yet gathered." past =
+// gathered by Now (≡ membersOf — kept as an explicit identity, not re-derived); present =
+// what's left in the interval — begun, but neither ahead of the Now (prehending it) nor
+// behind it (gathered by it): the imperfective straddler. membersOf ITSELF IS UNCHANGED
+// by either round — it defines membership, not interior; the fence stays as it was.
 
 /** Buckets is the shape drawer-contents.md item 10 asks for. `sublimesTree` is a flat
  *  closest-first array (see call (c) above), not a nested tree. */
@@ -1181,12 +1190,55 @@ function isSublimeNode(soc: Society, node: string, asOf?: number): boolean {
   return isSublimePole(soc, node, asOf);
 }
 
+/** intervalSet: the INTERIOR's domain — bounded by BOTH poles, wider than membersOf on
+ *  an open event (see the correction note above bucketsOf's ambiguous-calls list).
+ *
+ *  ADDRESS-LAW COLLISION, SURFACED AND RESOLVED FOR NOW (2026-07-17, flagged to the
+ *  coordinator before landing): the literal reading — "reached by the End's SCRIPTED
+ *  cone," i.e. reaches(end, m, "q-grounding") walked from the End node itself — is not
+ *  constructible as house-legal data while the End is still open. assertNakedPole's
+ *  address law makes q-grounding the ONE quality allowed to leave a naked pole precisely
+ *  BECAUSE it IS the closing (closingEdgesFrom/endActual read "some un-occluded
+ *  q-grounding edge out of a designated End-pole" as closed, full stop — there is no
+ *  second q-grounding-out-of-End shape that means "scripted, not yet actual"). Verified
+ *  directly: laying `end ~because~ someEvent` on a never-closed pole is accepted by
+ *  layP (the guard's own quality-exemption lets it through) but immediately flips
+ *  endActual(end) to true as a side effect — scripting onto an open End silently closes
+ *  it. So "reached by End, actualized or not" collapses to "reached by End AFTER it
+ *  closes" — which is already what membersOf covers via its own gatherFrom.
+ *
+ *  RESOLUTION, ROUND 2 (coordinator, 2026-07-17: "stop reaching for the End pre-close and
+ *  use item 9 verbatim... post-close, End-reachability becomes meaningful and SHOULD
+ *  converge with the closing→now chain — assert that convergence as a PROPERTY rather
+ *  than needing scripted-onto-End data at all"). intervalSet never reads the End at
+ *  all, open OR closed — a scripted future grips the present through an ordinary
+ *  Now-PREHENDING edge (m ~because~ now — item 9's own shape: "an event prehends that
+ *  event's now"), the same shape whether the story is open or has since closed. The
+ *  bounded interval is exactly groundedCone(event) (minus the pole/Now infrastructure):
+ *  everything that reaches E's Once through grounding. This makes future/present/past
+ *  (below) do ALL the work of distinguishing "already gathered" from "still ahead," and
+ *  is why closing a story changes NOTHING about its interval's membership, only (when
+ *  new gathering edges land) which bucket a given member falls into — the convergence
+ *  property bucketsOf's own tests assert. A never-unpacked event (no End at all) has no
+ *  bounded interval: empty, same as membersOf's empty case. */
+function intervalSet(soc: Society, event: string, asOf?: number): Set<string> {
+  const end = endOf(soc, event);
+  if (end === null) return new Set();
+  const now = storyNow(event);
+  const cone = groundedCone(soc, event, asOf); // grounds-in-Once candidates == the interval
+  const out = new Set<string>();
+  for (const m of cone) {
+    if (m === end || m === now) continue; // pole/Now machinery is not itself an interval member
+    out.add(m);
+  }
+  return out;
+}
+
 /** bucketsOf: the derived event → {after, before, interior} read (drawer-contents.md
  *  item 10). Built ON membersOf/its same grounding-walk primitives — one derivation,
  *  never two. Occlusion-honored throughout (every hop goes through prehensionsFrom/Onto,
  *  which already filter it). */
 export function bucketsOf(soc: Society, event: string, asOf?: number): Buckets {
-  const members = new Set(membersOf(soc, event, asOf));
   const now = storyNow(event);
   const hasNow = soc.has(now);
   const end = endOf(soc, event);
@@ -1225,20 +1277,24 @@ export function bucketsOf(soc: Society, event: string, asOf?: number): Buckets {
     }
   }
 
-  // INTERIOR: partition members by relation to E's OWN Now (item 8/9/10 of the proposal).
+  // INTERIOR: partition the INTERVAL SET by relation to E's OWN Now (item 8/9/10 of the
+  // proposal; domain AND future's definition corrected 2026-07-17, coordinator's second
+  // pass — see the note above bucketsOf's ambiguous-calls list and intervalSet's own
+  // doc). past = gathered by Now, the identity with membersOf kept explicit (membersOf
+  // itself is unchanged and does its own walk — this just names the overlap). FUTURE is
+  // drawer-contents.md item 9 VERBATIM — "if an event prehends that event's now, it has
+  // not yet happened in the context of that event" — i.e. reaches(m, now), not "anything
+  // in the interval not yet gathered" (that reading, dropped this pass, would have swept
+  // the imperfective straddler into future too). PRESENT is what's left: in the interval,
+  // begun, but neither cleanly ahead of the Now (prehending it) nor behind it (gathered
+  // by it) — the straddler item 9's own prose implies without naming.
   const future: string[] = [], present: string[] = [], past: string[] = [];
-  for (const m of members) {
+  for (const m of intervalSet(soc, event, asOf)) {
     const gatheredByNow = hasNow && reaches(soc, now, m, "q-grounding", asOf);
     if (gatheredByNow) { past.push(m); continue; }
     const prehendsNow = hasNow && reaches(soc, m, now, "q-grounding", asOf);
-    if (prehendsNow) {
-      // began (call (d)): is m itself a story whose course grounds back to E — the
-      // imperfective straddler — or a plain future member that hasn't started at all.
-      if (isStory(soc, m) && reaches(soc, m, event, "q-grounding", asOf)) present.push(m);
-      else future.push(m);
-    } else {
-      future.push(m); // reaches E's Once but not yet reached by/reaching Now: unstarted future
-    }
+    if (prehendsNow) future.push(m);
+    else present.push(m); // in the interval, not gathered, doesn't prehend the Now: the straddler
   }
 
   return {
@@ -1296,13 +1352,15 @@ export function countsOf(soc: Society, event: string, asOf?: number): BucketCoun
     }
   }
 
+  // INTERIOR domain is the interval set, not membersOf; future = prehends-Now (item 9
+  // verbatim), present = the straddler — see bucketsOf's own note.
   let future = 0, present = 0, past = 0;
-  for (const m of membersOf(soc, event, asOf)) {
+  for (const m of intervalSet(soc, event, asOf)) {
     const gatheredByNow = hasNow && reaches(soc, now, m, "q-grounding", asOf);
     if (gatheredByNow) { past++; continue; }
     const prehendsNow = hasNow && reaches(soc, m, now, "q-grounding", asOf);
-    if (prehendsNow && isStory(soc, m) && reaches(soc, m, event, "q-grounding", asOf)) present++;
-    else future++;
+    if (prehendsNow) future++;
+    else present++;
   }
 
   return {

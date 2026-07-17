@@ -1,6 +1,6 @@
 {
   "name": "membership-buckets",
-  "note": "Third fixture of the twin conformance corpus (2026-07-16 membership law + 2026-07-17 bucket read). NEUTRAL GROUND: this file belongs to neither twin's directory. TODO(rust-port, not this shift): scher-core/src/lib.rs has no membersOf/bucketsOf/countsOf yet — this fixture is laid down so that future port has neutral ground to replay against and prove conformance, same shape as bare-closing.json/interval-occlusion.json before it. Do not port in this shift (per Hallie's instruction); do port against THIS file, unedited, when the Rust twin is built. Rows are laid verbatim via the one write (lay), including ~q mode-beats — no layP/unpackPoles/closePole constructor calls recorded here (those helpers mutate a live Society object, not a replayable row log) — so a future harness in either language can replay these rows with its own bare `lay` and get byte-identical state. THREE SOCIETIES: (1) 'open-day' — an open (never-closed) event with two gathered members and one ungathered bystander, mirroring membership-topology.red.test.ts's OPEN case; (2) 'closed-day' — a closed event whose End gathered one member the Now never reached (interior.future), one member both Now and End reached (interior.past), demonstrating the interior partition needs a closed event to see all three buckets (an open event's members are always past — the Now IS the gathering edge, so 'gatherFrom reaches m' is definitionally true for every member); (3) 'the-sublime' — an ordinary unpack whose Now never gathers anything, membership and every interior bucket empty, mirroring the SUBLIME test in the red fence.",
+  "note": "Third fixture of the twin conformance corpus (2026-07-16 membership law + 2026-07-17 bucket read; interior domain and future's definition corrected TWICE in a same-day follow-up sitting — see society.ts's own trace comments above bucketsOf and intervalSet for the full history, including a house-law collision the first draft of this fixture ran into and does not repeat). NEUTRAL GROUND: this file belongs to neither twin's directory. TODO(rust-port, not this shift): scher-core/src/lib.rs has no membersOf/bucketsOf/countsOf yet — this fixture is laid down so a future port has neutral ground to replay against and prove conformance, same shape as bare-closing.json/interval-occlusion.json before it. Do not port in this shift (per Hallie's instruction); do port against THIS file, unedited, when the Rust twin is built. Rows are laid verbatim via the one write (lay), including ~q mode-beats — no layP/unpackPoles/closePole constructor calls recorded here (those helpers mutate a live Society object, not a replayable row log) — so a future harness in either language can replay these rows with its own bare `lay` and get byte-identical state. CORRECTED MODELING: scripted futures are laid as ordinary Now-PREHENDING edges (event ~because~ now — the future event grounds in the story's own Now-lineage, item 9's exact shape: 'an event prehends that event's now'), never as edges laid FROM the End node — the address law (assertNakedPole) makes q-grounding the ONE quality allowed to leave a naked End-pole precisely because it IS the closing; there is no second q-grounding-out-of-End shape meaning 'scripted, not yet actual' (verified: laying one flips endActual to true as a side effect). THREE SOCIETIES: (1) 'open-day' — an open (never-closed) event with two todos gathered by Now (past) and one todo that PREHENDS the Now but hasn't been gathered by it (interior.future, item 9's shape, live on an open card); (2) 'closed-day' — the SAME shape as open-day, then CLOSED (the end is because now) — demonstrating the convergence property: closing does not change future/present/past (the Now-prehending edge was already the whole story; the End's own backward reach post-close agrees with it, it does not narrow anything further here since nothing was ever scripted directly onto the End); (3) 'the-sublime' — an ordinary unpack whose Now never gathers anything: MEMBERSHIP is empty (mirroring the SUBLIME test in the red fence, unchanged), but interior is NOT — the interval set is still groundedCone (the two stories genuinely ground in the sublime's course), and since neither story prehends the sublime's Now nor is gathered by it, both land in PRESENT: the imperfective straddler, perpetually unresolved — a fitting reading for a receding horizon. This is a deliberate, corrected difference from an earlier draft of this fixture, which wrongly assumed interior had to mirror membersOf's emptiness; interior's domain (the interval set) and membersOf's domain are different reads by design (see society.ts's trace comments), and only membersOf carries the red fence's guarantee.",
   "societies": [
     {
       "id": "open-day",
@@ -12,42 +12,55 @@
         { "slug": "the-day~now", "content": "the Now of the-day's own frame", "witnessed": 4 },
         { "slug": "the-day~now~because~the-day", "content": "now is because events (frame: the-day)", "subject": "the-day~now", "object": "the-day", "witnessed": 5 },
         { "slug": "the-day~now~because~the-day~q", "content": "now is because events (frame: the-day) [q-grounding]", "subject": "the-day~now~because~the-day", "object": "q-grounding", "witnessed": 5 },
-        { "slug": "todo-a", "content": "todo-a", "witnessed": 6 },
+        { "slug": "todo-a", "content": "todo-a, gathered by Now: past", "witnessed": 6 },
         { "slug": "todo-a~because~the-day", "content": "grounds in", "subject": "todo-a", "object": "the-day", "witnessed": 7 },
         { "slug": "todo-a~because~the-day~q", "content": "grounds in [q-grounding]", "subject": "todo-a~because~the-day", "object": "q-grounding", "witnessed": 7 },
-        { "slug": "todo-b", "content": "todo-b", "witnessed": 8 },
+        { "slug": "todo-b", "content": "todo-b, gathered by Now: past", "witnessed": 8 },
         { "slug": "todo-b~because~the-day", "content": "grounds in", "subject": "todo-b", "object": "the-day", "witnessed": 9 },
         { "slug": "todo-b~because~the-day~q", "content": "grounds in [q-grounding]", "subject": "todo-b~because~the-day", "object": "q-grounding", "witnessed": 9 },
-        { "slug": "the-day~now~because~todo-a", "content": "grounds in", "subject": "the-day~now", "object": "todo-a", "witnessed": 10 },
+        { "slug": "the-day~now~because~todo-a", "content": "the Now gathers todo-a", "subject": "the-day~now", "object": "todo-a", "witnessed": 10 },
         { "slug": "the-day~now~because~todo-a~q", "content": "grounds in [q-grounding]", "subject": "the-day~now~because~todo-a", "object": "q-grounding", "witnessed": 10 },
-        { "slug": "the-day~now~because~todo-b", "content": "grounds in", "subject": "the-day~now", "object": "todo-b", "witnessed": 11 },
+        { "slug": "the-day~now~because~todo-b", "content": "the Now gathers todo-b", "subject": "the-day~now", "object": "todo-b", "witnessed": 11 },
         { "slug": "the-day~now~because~todo-b~q", "content": "grounds in [q-grounding]", "subject": "the-day~now~because~todo-b", "object": "q-grounding", "witnessed": 11 },
-        { "slug": "bystander", "content": "bystander", "witnessed": 12 },
-        { "slug": "bystander~because~the-day", "content": "grounds in (prehends, never gathered)", "subject": "bystander", "object": "the-day", "witnessed": 13 },
-        { "slug": "bystander~because~the-day~q", "content": "grounds in [q-grounding]", "subject": "bystander~because~the-day", "object": "q-grounding", "witnessed": 13 }
+        { "slug": "todo-future", "content": "grounds in Once, PREHENDS the Now, but the Now has not gathered it — item 9's future, live on an OPEN event", "witnessed": 12 },
+        { "slug": "todo-future~because~the-day", "content": "grounds in", "subject": "todo-future", "object": "the-day", "witnessed": 13 },
+        { "slug": "todo-future~because~the-day~q", "content": "grounds in [q-grounding]", "subject": "todo-future~because~the-day", "object": "q-grounding", "witnessed": 13 },
+        { "slug": "todo-future~because~the-day~now", "content": "todo-future prehends the day's Now (item 9's exact shape)", "subject": "todo-future", "object": "the-day~now", "witnessed": 14 },
+        { "slug": "todo-future~because~the-day~now~q", "content": "grounds in [q-grounding]", "subject": "todo-future~because~the-day~now", "object": "q-grounding", "witnessed": 14 },
+        { "slug": "bystander", "content": "bystander: prehends the day (in the interval, since it grounds in Once), never gathered by Now, never prehends the Now either — lands in PRESENT, the straddler (not outside the interval; membersOf is what excludes it, unchanged)", "witnessed": 15 },
+        { "slug": "bystander~because~the-day", "content": "grounds in (prehends, never gathered)", "subject": "bystander", "object": "the-day", "witnessed": 16 },
+        { "slug": "bystander~because~the-day~q", "content": "grounds in [q-grounding]", "subject": "bystander~because~the-day", "object": "q-grounding", "witnessed": 16 }
       ]
     },
     {
       "id": "closed-day",
       "rows": [
-        { "slug": "the-day", "content": "a closed day", "witnessed": 1 },
+        { "slug": "the-day", "content": "the SAME shape as open-day, then closed — proves the convergence property", "witnessed": 1 },
         { "slug": "the-day~hea", "content": "the End-pole of the-day, not yet actual", "witnessed": 2 },
         { "slug": "the-day~end-pole~the-day~hea", "content": "End-pole designation (frame: the-day)", "subject": "the-day", "object": "the-day~hea", "witnessed": 3 },
         { "slug": "the-day~end-pole~the-day~hea~q", "content": "End-pole designation (frame: the-day) [q-end-pole]", "subject": "the-day~end-pole~the-day~hea", "object": "q-end-pole", "witnessed": 3 },
         { "slug": "the-day~now", "content": "the Now of the-day's own frame", "witnessed": 4 },
         { "slug": "the-day~now~because~the-day", "content": "now is because events (frame: the-day)", "subject": "the-day~now", "object": "the-day", "witnessed": 5 },
         { "slug": "the-day~now~because~the-day~q", "content": "now is because events (frame: the-day) [q-grounding]", "subject": "the-day~now~because~the-day", "object": "q-grounding", "witnessed": 5 },
-        { "slug": "todo-past", "content": "gathered by both Now and End", "witnessed": 6 },
-        { "slug": "todo-past~because~the-day", "content": "grounds in", "subject": "todo-past", "object": "the-day", "witnessed": 7 },
-        { "slug": "todo-past~because~the-day~q", "content": "grounds in [q-grounding]", "subject": "todo-past~because~the-day", "object": "q-grounding", "witnessed": 7 },
-        { "slug": "the-day~now~because~todo-past", "content": "grounds in", "subject": "the-day~now", "object": "todo-past", "witnessed": 8 },
-        { "slug": "the-day~now~because~todo-past~q", "content": "grounds in [q-grounding]", "subject": "the-day~now~because~todo-past", "object": "q-grounding", "witnessed": 8 },
-        { "slug": "todo-future", "content": "grounds in Once, gathered only by End, never by Now — the interior FUTURE case", "witnessed": 9 },
-        { "slug": "todo-future~because~the-day", "content": "grounds in", "subject": "todo-future", "object": "the-day", "witnessed": 10 },
-        { "slug": "todo-future~because~the-day~q", "content": "grounds in [q-grounding]", "subject": "todo-future~because~the-day", "object": "q-grounding", "witnessed": 10 },
-        { "slug": "the-day~hea~because~todo-future", "content": "the End directly gathers the future todo (End's cone is wider than Now's at close)", "subject": "the-day~hea", "object": "todo-future", "witnessed": 11 },
-        { "slug": "the-day~hea~because~todo-future~q", "content": "grounds in [q-grounding]", "subject": "the-day~hea~because~todo-future", "object": "q-grounding", "witnessed": 11 },
-        { "slug": "the-day~hea~because~the-day~now", "content": "the end is because now (frame: the-day)", "subject": "the-day~hea", "object": "the-day~now", "witnessed": 12 }
+        { "slug": "todo-a", "content": "todo-a, gathered by Now: past", "witnessed": 6 },
+        { "slug": "todo-a~because~the-day", "content": "grounds in", "subject": "todo-a", "object": "the-day", "witnessed": 7 },
+        { "slug": "todo-a~because~the-day~q", "content": "grounds in [q-grounding]", "subject": "todo-a~because~the-day", "object": "q-grounding", "witnessed": 7 },
+        { "slug": "todo-b", "content": "todo-b, gathered by Now: past", "witnessed": 8 },
+        { "slug": "todo-b~because~the-day", "content": "grounds in", "subject": "todo-b", "object": "the-day", "witnessed": 9 },
+        { "slug": "todo-b~because~the-day~q", "content": "grounds in [q-grounding]", "subject": "todo-b~because~the-day", "object": "q-grounding", "witnessed": 9 },
+        { "slug": "the-day~now~because~todo-a", "content": "the Now gathers todo-a", "subject": "the-day~now", "object": "todo-a", "witnessed": 10 },
+        { "slug": "the-day~now~because~todo-a~q", "content": "grounds in [q-grounding]", "subject": "the-day~now~because~todo-a", "object": "q-grounding", "witnessed": 10 },
+        { "slug": "the-day~now~because~todo-b", "content": "the Now gathers todo-b", "subject": "the-day~now", "object": "todo-b", "witnessed": 11 },
+        { "slug": "the-day~now~because~todo-b~q", "content": "grounds in [q-grounding]", "subject": "the-day~now~because~todo-b", "object": "q-grounding", "witnessed": 11 },
+        { "slug": "todo-future", "content": "grounds in Once, PREHENDS the Now, but the Now has not gathered it — item 9's future, survives the close unchanged", "witnessed": 12 },
+        { "slug": "todo-future~because~the-day", "content": "grounds in", "subject": "todo-future", "object": "the-day", "witnessed": 13 },
+        { "slug": "todo-future~because~the-day~q", "content": "grounds in [q-grounding]", "subject": "todo-future~because~the-day", "object": "q-grounding", "witnessed": 13 },
+        { "slug": "todo-future~because~the-day~now", "content": "todo-future prehends the day's Now (item 9's exact shape)", "subject": "todo-future", "object": "the-day~now", "witnessed": 14 },
+        { "slug": "todo-future~because~the-day~now~q", "content": "grounds in [q-grounding]", "subject": "todo-future~because~the-day~now", "object": "q-grounding", "witnessed": 14 },
+        { "slug": "bystander", "content": "bystander: prehends the day (in the interval, since it grounds in Once), never gathered by Now, never prehends the Now either — lands in PRESENT, the straddler (not outside the interval; membersOf is what excludes it, unchanged)", "witnessed": 15 },
+        { "slug": "bystander~because~the-day", "content": "grounds in (prehends, never gathered)", "subject": "bystander", "object": "the-day", "witnessed": 16 },
+        { "slug": "bystander~because~the-day~q", "content": "grounds in [q-grounding]", "subject": "bystander~because~the-day", "object": "q-grounding", "witnessed": 16 },
+        { "slug": "the-day~hea~because~the-day~now", "content": "the end is because now (frame: the-day) — the ONE legal edge out of the naked End", "subject": "the-day~hea", "object": "the-day~now", "witnessed": 17 }
       ]
     },
     {
@@ -72,17 +85,18 @@
   "expect": [
     { "society": "open-day", "read": "membersOf", "event": "the-day", "value": ["todo-a", "todo-b"] },
     { "society": "open-day", "read": "bucketsOf.interior.past", "event": "the-day", "value": ["todo-a", "todo-b"] },
-    { "society": "open-day", "read": "bucketsOf.interior.future", "event": "the-day", "value": [] },
-    { "society": "open-day", "read": "bucketsOf.after.direct", "event": "the-day", "value": ["todo-a", "todo-b", "bystander"] },
+    { "society": "open-day", "read": "bucketsOf.interior.future", "event": "the-day", "value": ["todo-future"] },
+    { "society": "open-day", "read": "bucketsOf.interior.present", "event": "the-day", "value": ["bystander"] },
+    { "society": "open-day", "read": "bucketsOf.after.direct", "event": "the-day", "value": ["todo-a", "todo-b", "todo-future", "bystander"] },
 
-    { "society": "closed-day", "read": "membersOf", "event": "the-day", "value": ["todo-past", "todo-future"] },
-    { "society": "closed-day", "read": "bucketsOf.interior.past", "event": "the-day", "value": ["todo-past"] },
+    { "society": "closed-day", "read": "membersOf", "event": "the-day", "value": ["todo-a", "todo-b"] },
+    { "society": "closed-day", "read": "bucketsOf.interior.past", "event": "the-day", "value": ["todo-a", "todo-b"] },
     { "society": "closed-day", "read": "bucketsOf.interior.future", "event": "the-day", "value": ["todo-future"] },
-    { "society": "closed-day", "read": "bucketsOf.interior.present", "event": "the-day", "value": [] },
+    { "society": "closed-day", "read": "bucketsOf.interior.present", "event": "the-day", "value": ["bystander"] },
 
     { "society": "the-sublime", "read": "membersOf", "event": "the-sublime", "value": [] },
     { "society": "the-sublime", "read": "bucketsOf.interior.future", "event": "the-sublime", "value": [] },
-    { "society": "the-sublime", "read": "bucketsOf.interior.present", "event": "the-sublime", "value": [] },
+    { "society": "the-sublime", "read": "bucketsOf.interior.present", "event": "the-sublime", "value": ["story-x", "story-y"] },
     { "society": "the-sublime", "read": "bucketsOf.interior.past", "event": "the-sublime", "value": [] }
   ]
 }

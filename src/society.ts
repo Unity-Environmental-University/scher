@@ -1250,7 +1250,30 @@ function sublimesChargedFrom(soc: Society, node: string, asOf?: number): string[
  *  is why closing a story changes NOTHING about its interval's membership, only (when
  *  new gathering edges land) which bucket a given member falls into — the convergence
  *  property bucketsOf's own tests assert. A never-unpacked event (no End at all) has no
- *  bounded interval: empty, same as membersOf's empty case. */
+ *  bounded interval: empty, same as membersOf's empty case.
+ *
+ *  THE NAMED QUESTION, ANSWERED (Hallie, grooming minutes 2026-07-17 09:44, verbatim):
+ *  "Closing when we're not inside it. Depends on the reference frame." endActual's own
+ *  behavior above — reading ANY un-occluded q-grounding edge out of a designated End-pole
+ *  as a closing — is not a bug or an accidental collapse; it is the CORRECT reading FROM
+ *  OUTSIDE the event (the external vantage, perfect aspect: from out there, the End
+ *  having grounded in anything already IS its actualization). A frame standing INSIDE the
+ *  event's own course reads through its own Now instead (imperfective, from within) —
+ *  which is exactly the reading this file already uses everywhere except endActual
+ *  (reaches(m, now) for future, reaches(now, m) for past).
+ *
+ *  SHARPENED (Hallie, grooming minutes 2026-07-17 09:45, verbatim): "Where does the Now
+ *  of the story we're in stand w/r/t it is the question." Not inside/outside as
+ *  geometry — the precise spec for the penciled vantage read, if it's ever built:
+ *  endActualFor(soc, end, readerStory, asOf) = reaches(soc, storyNow(readerStory), <the
+ *  closing edge on end>, "q-grounding", asOf) — closed FOR US iff OUR Now reaches the
+ *  closing; another frame's Now having reached it does not close it for us. Same law as
+ *  done-relative-to-viewer (establishedTo), just the two-door version applied to a pole
+ *  instead of a beat.
+ *
+ *  No code change from either ruling: intervalSet/bucketsOf never call endActual, so
+ *  nothing here is blocked on it. This closes the question I raised in the ADDRESS-LAW
+ *  COLLISION note above as settled law, not an open wart. */
 function intervalSet(soc: Society, event: string, asOf?: number): Set<string> {
   const end = endOf(soc, event);
   if (end === null) return new Set();

@@ -1,0 +1,88 @@
+{
+  "name": "membership-buckets",
+  "note": "Third fixture of the twin conformance corpus (2026-07-16 membership law + 2026-07-17 bucket read). NEUTRAL GROUND: this file belongs to neither twin's directory. TODO(rust-port, not this shift): scher-core/src/lib.rs has no membersOf/bucketsOf/countsOf yet — this fixture is laid down so that future port has neutral ground to replay against and prove conformance, same shape as bare-closing.json/interval-occlusion.json before it. Do not port in this shift (per Hallie's instruction); do port against THIS file, unedited, when the Rust twin is built. Rows are laid verbatim via the one write (lay), including ~q mode-beats — no layP/unpackPoles/closePole constructor calls recorded here (those helpers mutate a live Society object, not a replayable row log) — so a future harness in either language can replay these rows with its own bare `lay` and get byte-identical state. THREE SOCIETIES: (1) 'open-day' — an open (never-closed) event with two gathered members and one ungathered bystander, mirroring membership-topology.red.test.ts's OPEN case; (2) 'closed-day' — a closed event whose End gathered one member the Now never reached (interior.future), one member both Now and End reached (interior.past), demonstrating the interior partition needs a closed event to see all three buckets (an open event's members are always past — the Now IS the gathering edge, so 'gatherFrom reaches m' is definitionally true for every member); (3) 'the-sublime' — an ordinary unpack whose Now never gathers anything, membership and every interior bucket empty, mirroring the SUBLIME test in the red fence.",
+  "societies": [
+    {
+      "id": "open-day",
+      "rows": [
+        { "slug": "the-day", "content": "an open day", "witnessed": 1 },
+        { "slug": "the-day~hea", "content": "the End-pole of the-day, not yet actual", "witnessed": 2 },
+        { "slug": "the-day~end-pole~the-day~hea", "content": "End-pole designation (frame: the-day)", "subject": "the-day", "object": "the-day~hea", "witnessed": 3 },
+        { "slug": "the-day~end-pole~the-day~hea~q", "content": "End-pole designation (frame: the-day) [q-end-pole]", "subject": "the-day~end-pole~the-day~hea", "object": "q-end-pole", "witnessed": 3 },
+        { "slug": "the-day~now", "content": "the Now of the-day's own frame", "witnessed": 4 },
+        { "slug": "the-day~now~because~the-day", "content": "now is because events (frame: the-day)", "subject": "the-day~now", "object": "the-day", "witnessed": 5 },
+        { "slug": "the-day~now~because~the-day~q", "content": "now is because events (frame: the-day) [q-grounding]", "subject": "the-day~now~because~the-day", "object": "q-grounding", "witnessed": 5 },
+        { "slug": "todo-a", "content": "todo-a", "witnessed": 6 },
+        { "slug": "todo-a~because~the-day", "content": "grounds in", "subject": "todo-a", "object": "the-day", "witnessed": 7 },
+        { "slug": "todo-a~because~the-day~q", "content": "grounds in [q-grounding]", "subject": "todo-a~because~the-day", "object": "q-grounding", "witnessed": 7 },
+        { "slug": "todo-b", "content": "todo-b", "witnessed": 8 },
+        { "slug": "todo-b~because~the-day", "content": "grounds in", "subject": "todo-b", "object": "the-day", "witnessed": 9 },
+        { "slug": "todo-b~because~the-day~q", "content": "grounds in [q-grounding]", "subject": "todo-b~because~the-day", "object": "q-grounding", "witnessed": 9 },
+        { "slug": "the-day~now~because~todo-a", "content": "grounds in", "subject": "the-day~now", "object": "todo-a", "witnessed": 10 },
+        { "slug": "the-day~now~because~todo-a~q", "content": "grounds in [q-grounding]", "subject": "the-day~now~because~todo-a", "object": "q-grounding", "witnessed": 10 },
+        { "slug": "the-day~now~because~todo-b", "content": "grounds in", "subject": "the-day~now", "object": "todo-b", "witnessed": 11 },
+        { "slug": "the-day~now~because~todo-b~q", "content": "grounds in [q-grounding]", "subject": "the-day~now~because~todo-b", "object": "q-grounding", "witnessed": 11 },
+        { "slug": "bystander", "content": "bystander", "witnessed": 12 },
+        { "slug": "bystander~because~the-day", "content": "grounds in (prehends, never gathered)", "subject": "bystander", "object": "the-day", "witnessed": 13 },
+        { "slug": "bystander~because~the-day~q", "content": "grounds in [q-grounding]", "subject": "bystander~because~the-day", "object": "q-grounding", "witnessed": 13 }
+      ]
+    },
+    {
+      "id": "closed-day",
+      "rows": [
+        { "slug": "the-day", "content": "a closed day", "witnessed": 1 },
+        { "slug": "the-day~hea", "content": "the End-pole of the-day, not yet actual", "witnessed": 2 },
+        { "slug": "the-day~end-pole~the-day~hea", "content": "End-pole designation (frame: the-day)", "subject": "the-day", "object": "the-day~hea", "witnessed": 3 },
+        { "slug": "the-day~end-pole~the-day~hea~q", "content": "End-pole designation (frame: the-day) [q-end-pole]", "subject": "the-day~end-pole~the-day~hea", "object": "q-end-pole", "witnessed": 3 },
+        { "slug": "the-day~now", "content": "the Now of the-day's own frame", "witnessed": 4 },
+        { "slug": "the-day~now~because~the-day", "content": "now is because events (frame: the-day)", "subject": "the-day~now", "object": "the-day", "witnessed": 5 },
+        { "slug": "the-day~now~because~the-day~q", "content": "now is because events (frame: the-day) [q-grounding]", "subject": "the-day~now~because~the-day", "object": "q-grounding", "witnessed": 5 },
+        { "slug": "todo-past", "content": "gathered by both Now and End", "witnessed": 6 },
+        { "slug": "todo-past~because~the-day", "content": "grounds in", "subject": "todo-past", "object": "the-day", "witnessed": 7 },
+        { "slug": "todo-past~because~the-day~q", "content": "grounds in [q-grounding]", "subject": "todo-past~because~the-day", "object": "q-grounding", "witnessed": 7 },
+        { "slug": "the-day~now~because~todo-past", "content": "grounds in", "subject": "the-day~now", "object": "todo-past", "witnessed": 8 },
+        { "slug": "the-day~now~because~todo-past~q", "content": "grounds in [q-grounding]", "subject": "the-day~now~because~todo-past", "object": "q-grounding", "witnessed": 8 },
+        { "slug": "todo-future", "content": "grounds in Once, gathered only by End, never by Now — the interior FUTURE case", "witnessed": 9 },
+        { "slug": "todo-future~because~the-day", "content": "grounds in", "subject": "todo-future", "object": "the-day", "witnessed": 10 },
+        { "slug": "todo-future~because~the-day~q", "content": "grounds in [q-grounding]", "subject": "todo-future~because~the-day", "object": "q-grounding", "witnessed": 10 },
+        { "slug": "the-day~hea~because~todo-future", "content": "the End directly gathers the future todo (End's cone is wider than Now's at close)", "subject": "the-day~hea", "object": "todo-future", "witnessed": 11 },
+        { "slug": "the-day~hea~because~todo-future~q", "content": "grounds in [q-grounding]", "subject": "the-day~hea~because~todo-future", "object": "q-grounding", "witnessed": 11 },
+        { "slug": "the-day~hea~because~the-day~now", "content": "the end is because now (frame: the-day)", "subject": "the-day~hea", "object": "the-day~now", "witnessed": 12 }
+      ]
+    },
+    {
+      "id": "the-sublime",
+      "rows": [
+        { "slug": "the-sublime", "content": "a receding horizon, not a destination", "witnessed": 1 },
+        { "slug": "the-sublime~hea", "content": "the End-pole of the-sublime, not yet actual", "witnessed": 2 },
+        { "slug": "the-sublime~end-pole~the-sublime~hea", "content": "End-pole designation (frame: the-sublime)", "subject": "the-sublime", "object": "the-sublime~hea", "witnessed": 3 },
+        { "slug": "the-sublime~end-pole~the-sublime~hea~q", "content": "End-pole designation (frame: the-sublime) [q-end-pole]", "subject": "the-sublime~end-pole~the-sublime~hea", "object": "q-end-pole", "witnessed": 3 },
+        { "slug": "the-sublime~now", "content": "the Now of the-sublime's own frame", "witnessed": 4 },
+        { "slug": "the-sublime~now~because~the-sublime", "content": "now is because events (frame: the-sublime)", "subject": "the-sublime~now", "object": "the-sublime", "witnessed": 5 },
+        { "slug": "the-sublime~now~because~the-sublime~q", "content": "now is because events (frame: the-sublime) [q-grounding]", "subject": "the-sublime~now~because~the-sublime", "object": "q-grounding", "witnessed": 5 },
+        { "slug": "story-x", "content": "story-x", "witnessed": 6 },
+        { "slug": "story-x~because~the-sublime", "content": "grounds in (steering pull is legal)", "subject": "story-x", "object": "the-sublime", "witnessed": 7 },
+        { "slug": "story-x~because~the-sublime~q", "content": "grounds in [q-grounding]", "subject": "story-x~because~the-sublime", "object": "q-grounding", "witnessed": 7 },
+        { "slug": "story-y", "content": "story-y", "witnessed": 8 },
+        { "slug": "story-y~because~the-sublime", "content": "grounds in (steering pull is legal)", "subject": "story-y", "object": "the-sublime", "witnessed": 9 },
+        { "slug": "story-y~because~the-sublime~q", "content": "grounds in [q-grounding]", "subject": "story-y~because~the-sublime", "object": "q-grounding", "witnessed": 9 }
+      ]
+    }
+  ],
+  "expect": [
+    { "society": "open-day", "read": "membersOf", "event": "the-day", "value": ["todo-a", "todo-b"] },
+    { "society": "open-day", "read": "bucketsOf.interior.past", "event": "the-day", "value": ["todo-a", "todo-b"] },
+    { "society": "open-day", "read": "bucketsOf.interior.future", "event": "the-day", "value": [] },
+    { "society": "open-day", "read": "bucketsOf.after.direct", "event": "the-day", "value": ["todo-a", "todo-b", "bystander"] },
+
+    { "society": "closed-day", "read": "membersOf", "event": "the-day", "value": ["todo-past", "todo-future"] },
+    { "society": "closed-day", "read": "bucketsOf.interior.past", "event": "the-day", "value": ["todo-past"] },
+    { "society": "closed-day", "read": "bucketsOf.interior.future", "event": "the-day", "value": ["todo-future"] },
+    { "society": "closed-day", "read": "bucketsOf.interior.present", "event": "the-day", "value": [] },
+
+    { "society": "the-sublime", "read": "membersOf", "event": "the-sublime", "value": [] },
+    { "society": "the-sublime", "read": "bucketsOf.interior.future", "event": "the-sublime", "value": [] },
+    { "society": "the-sublime", "read": "bucketsOf.interior.present", "event": "the-sublime", "value": [] },
+    { "society": "the-sublime", "read": "bucketsOf.interior.past", "event": "the-sublime", "value": [] }
+  ]
+}

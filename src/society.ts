@@ -1081,6 +1081,237 @@ export function reopenTask(soc: Society, story: string): PoleUnpack {
   return { once: story, end, pole, now: storyNow(story) };
 }
 
+// ── MEMBERSHIP: derived, never laid ink ─────────────────────────────────────────
+// Hallie's ruling, 2026-07-16 (membership-topology.red.test.ts's own header carries
+// the full ruling text): "holds shouldn't be a thing... It needs to not be." Membership
+// is determined topologically by an event's relation to E's Now and BOTH of its poles —
+// never a stored containment edge (q-containment already guards this shape, see
+// assertNotMembershipContainment above; that guard is about part/whole nesting ink,
+// this is the derivation the drawer/bucket UI actually reads).
+//
+// THE LAW: m is a member of E iff
+//   (1) m reaches E's Once through grounding (m ~…because…~> once(E) — m began inside
+//       E's course), AND
+//   (2) E's gathering edge reaches m: closed E → end(E) reaches m (the End's cone gathered
+//       it); open E → now(E) reaches m (the moving Now has it so far).
+// A never-unpacked event has no Now/End at all, so nothing gathers — empty membership,
+// same as a never-closing differential whose Now never advanced through anything.
+
+/** groundedCone: every node that reaches `once` through grounding — the backward cone,
+ *  walked via the REVERSE adjacency (prehensionsOnto, not reaches' forward BFS) so this
+ *  stays one index-backed walk instead of calling reaches() once per candidate node (which
+ *  would need the candidate set already in hand — the thing this function produces). Bounded
+ *  by the grounding fabric's actual size, never a soc.all() scan. */
+function groundedCone(soc: Society, once: string, asOf?: number): Set<string> {
+  const seen = new Set<string>();
+  const stack = [once];
+  while (stack.length) {
+    const n = stack.pop()!;
+    for (const p of prehensionsOnto(soc, n, "q-grounding", asOf)) {
+      if (isOccluded(soc, p.slug, asOf)) continue;
+      const m = p.subject!;
+      if (!seen.has(m)) { seen.add(m); stack.push(m); }
+    }
+  }
+  return seen;
+}
+
+/** membersOf: the derived membership read — the acceptance criteria of
+ *  membership-topology.red.test.ts, verbatim. `event` need not be unpacked; a never-
+ *  unpacked event has no gathering edge and returns []. `~holds~`/q-containment ink, if
+ *  any survives in a canon, is never consulted — this walks grounding and gathering only. */
+export function membersOf(soc: Society, event: string, asOf?: number): string[] {
+  const end = endOf(soc, event);
+  const now = storyNow(event);
+  const hasNow = soc.has(now); // storyNow is a pure address — existence means the unpack ran
+  if (end === null && !hasNow) return []; // never unpacked: nothing gathers, nothing is inside
+  const gatherFrom = end !== null && endActual(soc, end, asOf) ? end : now;
+  const cone = groundedCone(soc, event, asOf); // candidates: grounds in E's Once
+  const out: string[] = [];
+  for (const m of cone) {
+    if (m === end || m === now) continue; // the pole/Now machinery is not itself a member
+    if (reaches(soc, gatherFrom, m, "q-grounding", asOf)) out.push(m);
+  }
+  return out;
+}
+
+// ── BUCKETS: the drawer/interior read, built on membersOf's same walks ──────────────
+// Hallie's drawer-contents proposal (scratch/drawer-contents.md, 2026-07-17, item 10):
+// given an event, partition what's around it into the shapes the card UI's drawers and
+// interior sections read directly. ONE DERIVATION — bucketsOf never re-walks what
+// membersOf already establishes; "after"/"before" are OUTSIDE membership (prehending or
+// prehended-by the event itself, past its own bounds), "interior" is a partition OF
+// membersOf's own result by each member's relation to the card's OWN Now.
+//
+// AMBIGUOUS CALLS I HAD TO MAKE (named for Hallie — the prose left more than one honest
+// reading; see this function's own trace comments at each fork):
+//   (a) "Direct" after/before: the proposal's prose reads "what prehends this event
+//       directly" for Direct-After and "what this event prehends" for Direct-Before —
+//       I read "prehends" as the q-grounding walk (the only directional relation this
+//       kernel has that means "later grounds in earlier"), one hop, un-occluded.
+//   (b) "Indirect": "what prehends events on the expanded card" / "what direct contained
+//       events prehend" — I read this as one further hop PAST direct: prehending a
+//       direct-after node (not a member), or prehended-by a direct-before node.
+//   (c) Sublimes-tree: the proposal asks for sublimes "organized as a tree, starting with
+//       the closest." I return them as a flat closest-first array (a path, not a nested
+//       structure) — the tree shape (siblings/branches) isn't specified anywhere I could
+//       find, and inventing a branching shape felt like writing spec, not reading one.
+//   (d) Interior "present, the imperfective straddler": the proposal names it "began
+//       (grounds in Once) but End/Now hasn't gathered it" — for an event with no interior
+//       members of its own poles yet (not yet unpacked), a member can only ever be
+//       future or past relative to ITS OWN unpack state; I read "began" as "is itself a
+//       story whose Once grounds in the outer event" (isStory + reaches to the outer
+//       event's Once), not "member's own Once equals nothing."
+
+/** Buckets is the shape drawer-contents.md item 10 asks for. `sublimesTree` is a flat
+ *  closest-first array (see call (c) above), not a nested tree. */
+export interface Buckets {
+  after: { direct: string[]; sublimesTree: string[]; indirect: string[]; indirectSublimesTree: string[] };
+  before: { direct: string[]; indirect: string[] };
+  interior: { future: string[]; present: string[]; past: string[] };
+}
+
+/** isSublime here means "never-closing" in the local sense this bucket read needs: a
+ *  designated End-pole that is not actual AND whose owning story's Now never gathers
+ *  anything (an idle open differential) reads the same as a true q-sublime-pole for
+ *  bucketing purposes — but the STRUCTURAL sublime (isSublimePole) is the honest test;
+ *  a merely-not-yet-closed ordinary story is not a sublime, it is just open. Bucketing
+ *  only ever needs the structural test. */
+function isSublimeNode(soc: Society, node: string, asOf?: number): boolean {
+  return isSublimePole(soc, node, asOf);
+}
+
+/** bucketsOf: the derived event → {after, before, interior} read (drawer-contents.md
+ *  item 10). Built ON membersOf/its same grounding-walk primitives — one derivation,
+ *  never two. Occlusion-honored throughout (every hop goes through prehensionsFrom/Onto,
+ *  which already filter it). */
+export function bucketsOf(soc: Society, event: string, asOf?: number): Buckets {
+  const members = new Set(membersOf(soc, event, asOf));
+  const now = storyNow(event);
+  const hasNow = soc.has(now);
+  const end = endOf(soc, event);
+  // the event's OWN pole/Now infrastructure is never itself an after/before neighbor —
+  // unpackPoles lays `now~because~event` and `end~because~now`, both plain grounding
+  // edges, so without this filter the Now/End nodes leak into "what prehends this event."
+  const isInfra = (n: string) => n === now || n === end;
+
+  // AFTER: what prehends this event (call (a)) — edges FROM another node grounding-in
+  // `event` itself, i.e. prehensionsOnto(event) gives edges whose object is event.
+  const directAfterRows = prehensionsOnto(soc, event, "q-grounding", asOf);
+  const directAfter = directAfterRows.map((p) => p.subject!).filter((n) => !isInfra(n));
+  const sublimesTree = directAfter.filter((m) => isSublimeNode(soc, m, asOf));
+  const indirectAfterSeen = new Set<string>(directAfter);
+  const indirectAfter: string[] = [];
+  for (const m of directAfter) {
+    for (const p of prehensionsOnto(soc, m, "q-grounding", asOf)) {
+      const n = p.subject!;
+      if (isInfra(n) || indirectAfterSeen.has(n)) continue;
+      indirectAfterSeen.add(n); indirectAfter.push(n);
+    }
+  }
+  const indirectSublimesTree = indirectAfter.filter((m) => isSublimeNode(soc, m, asOf));
+
+  // BEFORE: what this event prehends (call (a)) — prehensionsFrom(event) gives edges
+  // whose subject is event, i.e. event ~because~ object.
+  const directBeforeRows = prehensionsFrom(soc, event, "q-grounding", asOf);
+  const directBefore = directBeforeRows.map((p) => p.object!).filter((n) => !isInfra(n));
+  const indirectBeforeSeen = new Set<string>(directBefore);
+  const indirectBefore: string[] = [];
+  for (const m of directBefore) {
+    for (const p of prehensionsFrom(soc, m, "q-grounding", asOf)) {
+      const n = p.object!;
+      if (isInfra(n) || indirectBeforeSeen.has(n)) continue;
+      indirectBeforeSeen.add(n); indirectBefore.push(n);
+    }
+  }
+
+  // INTERIOR: partition members by relation to E's OWN Now (item 8/9/10 of the proposal).
+  const future: string[] = [], present: string[] = [], past: string[] = [];
+  for (const m of members) {
+    const gatheredByNow = hasNow && reaches(soc, now, m, "q-grounding", asOf);
+    if (gatheredByNow) { past.push(m); continue; }
+    const prehendsNow = hasNow && reaches(soc, m, now, "q-grounding", asOf);
+    if (prehendsNow) {
+      // began (call (d)): is m itself a story whose course grounds back to E — the
+      // imperfective straddler — or a plain future member that hasn't started at all.
+      if (isStory(soc, m) && reaches(soc, m, event, "q-grounding", asOf)) present.push(m);
+      else future.push(m);
+    } else {
+      future.push(m); // reaches E's Once but not yet reached by/reaching Now: unstarted future
+    }
+  }
+
+  return {
+    after: { direct: directAfter, sublimesTree, indirect: indirectAfter, indirectSublimesTree },
+    before: { direct: directBefore, indirect: indirectBefore },
+    interior: { future, present, past },
+  };
+}
+
+/** countsOf: the coarse-LOD variant for the UI's collapsed/summary render — "how many,"
+ *  never the member list. NOT bucketsOf-then-.length: indirect after/before fan out (a
+ *  second hop over every direct neighbor's own neighbors), so a coarse caller that only
+ *  ever shows a badge should not pay to materialize and hold those arrays. Every leaf
+ *  below is counted from the same edge-rows bucketsOf reads (prehensionsOnto/From,
+ *  membersOf's cone) without ever collecting them into arrays — one derivation, cheaper
+ *  shape, not two derivations. */
+export interface BucketCounts {
+  after: { direct: number; sublimesTree: number; indirect: number; indirectSublimesTree: number };
+  before: { direct: number; indirect: number };
+  interior: { future: number; present: number; past: number };
+}
+
+export function countsOf(soc: Society, event: string, asOf?: number): BucketCounts {
+  const now = storyNow(event);
+  const hasNow = soc.has(now);
+  const end = endOf(soc, event);
+  const isInfra = (n: string) => n === now || n === end; // see bucketsOf's own comment
+
+  const directAfterRows = prehensionsOnto(soc, event, "q-grounding", asOf);
+  const directAfter = directAfterRows.map((p) => p.subject!).filter((n) => !isInfra(n));
+  let sublimesTree = 0;
+  const indirectAfterSeen = new Set<string>(directAfter);
+  let indirectAfter = 0, indirectSublimesTree = 0;
+  for (const m of directAfter) {
+    if (isSublimeNode(soc, m, asOf)) sublimesTree++;
+    for (const p of prehensionsOnto(soc, m, "q-grounding", asOf)) {
+      const n = p.subject!;
+      if (isInfra(n) || indirectAfterSeen.has(n)) continue;
+      indirectAfterSeen.add(n);
+      indirectAfter++;
+      if (isSublimeNode(soc, n, asOf)) indirectSublimesTree++;
+    }
+  }
+
+  const directBeforeRows = prehensionsFrom(soc, event, "q-grounding", asOf);
+  const directBefore = directBeforeRows.map((p) => p.object!).filter((n) => !isInfra(n));
+  const indirectBeforeSeen = new Set<string>(directBefore);
+  let indirectBefore = 0;
+  for (const m of directBefore) {
+    for (const p of prehensionsFrom(soc, m, "q-grounding", asOf)) {
+      const n = p.object!;
+      if (isInfra(n) || indirectBeforeSeen.has(n)) continue;
+      indirectBeforeSeen.add(n);
+      indirectBefore++;
+    }
+  }
+
+  let future = 0, present = 0, past = 0;
+  for (const m of membersOf(soc, event, asOf)) {
+    const gatheredByNow = hasNow && reaches(soc, now, m, "q-grounding", asOf);
+    if (gatheredByNow) { past++; continue; }
+    const prehendsNow = hasNow && reaches(soc, m, now, "q-grounding", asOf);
+    if (prehendsNow && isStory(soc, m) && reaches(soc, m, event, "q-grounding", asOf)) present++;
+    else future++;
+  }
+
+  return {
+    after: { direct: directAfter.length, sublimesTree, indirect: indirectAfter, indirectSublimesTree },
+    before: { direct: directBefore.length, indirect: indirectBefore },
+    interior: { future, present, past },
+  };
+}
+
 // ── THE ALGEDONIC CHANNEL (Beer) — pain the system must not be able to mute ──────────
 // Two READS, no writes. These are the algedonic channel of the viable system: the signal
 // that bypasses ordinary reporting because ordinary reporting is exactly what failed.

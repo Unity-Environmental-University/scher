@@ -33,6 +33,11 @@ import {
   endOf,
   isStory,
   unpackPoles,
+  assertNoLure,
+  assertNakedPole,
+  assertSublimeNeverCloses,
+  assertSublimeAcyclic,
+  assertNotMembershipContainment,
 } from "./society.js";
 // reactionsOn: cut from society.ts into pathos.ts (2026-07-15, separation-of-
 // concerns pass, society.ts's own advocate) — same name, new source file.
@@ -773,27 +778,72 @@ export function composerStory(soc: Society, params: ComposerStoryParams): Node {
 // never kernel-legible. See 2026-07-06-emoji-charge-quality-committee.md:52-92 (Proposal A).
 //
 // buttonStory lays a fixed beat; toggleButtonStory grounds/ungrounds a TARGET. reactionStory
-// is the third member: a press lays a q-feel prehension FROM the reacted-to beat ONTO the
-// standpoint doing the reacting, carrying an emoji in its content (the felt response —
-// pathos, not establishment). DIRECTION FLIPPED (Hallie, 2026-07-20,
-// "story-flip-q-feel-direction"): the EVENT prehends the emoji — subject=target,
-// object=by — same law as the same day's End-prehends-the-capture ruling: the abiding
-// thing (the beat, an enduring society) is the subject; each q-feel row is a new member
-// occasion of that society gathering the feel as its datum. It is uncheckable like the
-// toggle: press once to react, again to SUPERSEDE your own reaction (append-only undo —
-// your feel stays in ink, the read ignores it). The live state is read per-(standpoint,
-// emoji): does THIS standpoint's non-superseded q-feel of THIS emoji exist?
-// reactionsOn(beat) aggregates everyone's; this button is one reactor's one emoji.
+// is the third member: a press lays a q-feel prehension FROM the reacted-to beat ONTO a
+// lazily-minted EMOJI NODE (the felt response — pathos, not establishment), plus an
+// AUTHORSHIP pair naming who laid the reaction.
+//
+// EMOJI-AS-NODE (Hallie, "story-emoji-as-node", final q-feel ruling, 2026-07-20 —
+// supersedes the same day's earlier "story-flip-q-feel-direction" object=reactor shape):
+// subject=event, object=emoji-node (content = the emoji glyph).
+//
+// AUTHORSHIP RECONCILIATION (Hallie, same day, reconciling the twins): the reactor is who
+// LAID the feel, not who UTTERED something — q-utterance (authorOf, biography.ts) is the
+// SPEECH idiom, reserved for comments, and stays untouched. Reactions instead mirror
+// gen4-policy's lay_authorship (gen4-policy/src/lib.rs:790-805) exactly: the q-feel row's
+// OWN `laid_by` field is set inline (the constitutive/substance read — "no statement is
+// not spoken from"), PLUS the testimony pair — a `laid-{feelSlug}-by-{by}` node and its
+// `~lays~` edge co-prehending q-authorship (subject=node, object=feelSlug) — kept
+// deliberately redundant, per ruling 13's "both the column and the entry." Rust's
+// main.rs reactions_on already reads gen4_policy::laid_by; this keeps both doors reading
+// the identical shape. SINGLE-SHAPE READS ONLY (no dual-shape compatibility) — rows from
+// either of this same day's two earlier, since-superseded shapes wait for the kalpa.
 export interface ReactionStoryParams {
-  /** the beat being reacted to (the subject of the q-feel, post 2026-07-20 flip). */
+  /** the beat being reacted to (the subject of the q-feel edge). */
   target: string;
-  /** the standpoint doing the reacting (the object of the q-feel, post 2026-07-20 flip). */
+  /** the standpoint doing the reacting — sets the q-feel row's own laid_by inline, plus
+   *  the q-authorship testimony pair (see the AUTHORSHIP RECONCILIATION note above);
+   *  never rides the q-feel edge's subject/object. */
   by: string;
-  /** the emoji this button carries (its felt content). */
+  /** the emoji this button carries (the lazily-minted emoji-node's content). */
   emoji: string;
   /** stable slug stem for THIS reactor's reaction (so re-press is supersede-able). */
   reactSlug?: string;
   class?: string;
+}
+
+/** emojiNodeSlug: the deterministic, lazily-minted address for an emoji-as-node (never
+ *  parsed for meaning downstream — its CONTENT carries the glyph; the slug is just a
+ *  stable handle so repeated reacts with the same glyph share one node, opaque-slugs
+ *  law honored: nothing reads this slug's text, only mints/finds it by equality). */
+function emojiNodeSlug(emoji: string): string {
+  return `emoji-${emoji}`;
+}
+
+/** layReactionFeel: lays the q-feel edge WITH its laid_by set inline — layP itself has no
+ *  laid_by parameter (it lays a bare {slug, content, subject, object} row), so this
+ *  replicates layP's own guarded-write body (same four guards, same '~q' mode-beat) with
+ *  the one addition gen4-policy's lay_authorship makes on the primary row: the
+ *  constitutive laid_by field, set at lay time (append-only — never a post-hoc mutation). */
+function layReactionFeel(soc: Society, slug: string, content: string, subject: string, object: string, layer: string): boolean {
+  assertNoLure(slug, "q-feel");
+  assertNakedPole(soc, slug, subject, object, "q-feel");
+  assertSublimeNeverCloses(soc, slug, subject, object, "q-feel");
+  assertSublimeAcyclic(soc, slug, subject, object, "q-feel");
+  assertNotMembershipContainment(slug, "q-feel");
+  const a = soc.lay({ slug, content, subject, object, laid_by: layer });
+  const q = soc.lay({ slug: slug + "~q", content: `${content} [q-feel]`, subject: slug, object: "q-feel" });
+  return a || q;
+}
+
+/** layReactionAuthorship: the testimony pair, mirroring gen4-policy's lay_authorship
+ *  node+edge exactly (gen4-policy/src/lib.rs:797-804) — `laid-{event}-by-{layer}` node,
+ *  `~lays~` edge co-prehending q-authorship, subject=node/object=event. Deliberately
+ *  redundant with layReactionFeel's inline laid_by (ruling 13: "both the column and the
+ *  entry"). */
+function layReactionAuthorship(soc: Society, event: string, layer: string): void {
+  const node = `laid-${event}-by-${layer}`;
+  soc.lay({ slug: node, content: `${layer} laid ${event}`, subject: null, object: null });
+  soc.layP(`${node}~lays~${event}`, "authorship", node, event, "q-authorship");
 }
 
 export function reactionStory(soc: Society, params: ReactionStoryParams): Node {
@@ -821,16 +871,14 @@ export function reactionStory(soc: Society, params: ReactionStoryParams): Node {
         click: () => {
           // TODO(socratic): like toggleButtonStory, this re-reads isLive(soc) at click time — is the pattern that cached projections can stale between render and event, so every toggle/reaction needs to re-check?
           if (!isLive(soc)) {
-            // REACT: lay a q-feel FROM `target` ONTO `by`, the emoji as content.
-            // RULING: emoji is the CONTENT of the charge edge (F-A 2026-07-06: "emoji rides as
-            // content of q-feel, zero kernel change"). No new quality, no new address law — the
-            // edge is a bare q-feel prehension; the emoji string is the spectrum qualifier, read
-            // by caller convention (reactionsOn groups by emoji, chartOfVoltage folds by spectrum).
-            // DIRECTION FLIPPED (Hallie, 2026-07-20, "story-flip-q-feel-direction"): the EVENT
-            // prehends the emoji — subject=target (the enduring society), object=by (the
-            // reactor) — same law as End-prehends-the-capture: the abiding thing is the
-            // subject, each q-feel row a new member occasion gathering the feel as its datum.
-            soc.layP(slug, emoji, target, by, "q-feel");
+            // REACT: lazily mint the emoji-node (idempotent — lay() no-ops if it already
+            // exists), lay a q-feel FROM `target` ONTO the emoji-node WITH laid_by set,
+            // and the q-authorship testimony pair — mirrors gen4-policy's lay_authorship
+            // exactly (see the AUTHORSHIP RECONCILIATION note above).
+            const emojiNode = emojiNodeSlug(emoji);
+            soc.lay({ slug: emojiNode, content: emoji, subject: null, object: null });
+            layReactionFeel(soc, slug, emoji, target, emojiNode, by);
+            layReactionAuthorship(soc, slug, by);
           } else {
             // UN-REACT = OCCLUDE my own q-feel (2026-06-26: was a self-loop supersede). `by` is the
             // named occluder. Append-only; the read drops the occluded feel.

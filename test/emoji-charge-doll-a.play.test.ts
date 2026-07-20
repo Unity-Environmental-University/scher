@@ -26,7 +26,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { Society, prehensionsFrom, isOccluded } from "../src/society.js";
+import { Society, prehensionsFrom, prehensionsOnto } from "../src/society.js";
 import { reactionsOn, pathosOf } from "../src/pathos.js";
 import { reactionStory } from "../src/stories.js";
 
@@ -58,28 +58,44 @@ describe("DOLL A — emoji via the existing q-feel reaction shape", () => {
     // person, three times" question. FENCED FINDING for the committee minutes: pre-dates
     // this doll, orthogonal to "emoji as charge," worth a ticket of its own.
     expect(reactionsOn(s, "beat-1")).toEqual([]); // <- the honest, broken result today
-    // DIRECTION FLIPPED (2026-07-20, "story-flip-q-feel-direction"): the beat is now the
-    // subject of its own q-feel edges, the reactor the object.
-    const feels = prehensionsFrom(s, "beat-1", "q-feel").filter((p) => p.object === "ren" && p.content === "🔥");
+    // EMOJI-AS-NODE, the final q-feel ruling (Hallie, "story-emoji-as-node", 2026-07-20):
+    // the beat is subject, the lazily-minted emoji-node is object. AUTHORSHIP
+    // RECONCILIATION (same day): "ren" no longer rides the q-feel edge — it's set as
+    // laid_by on the q-feel row itself, mirroring gen4-policy's lay_authorship, never a
+    // q-utterance row (that idiom stays reserved for comments/speech).
+    const feels = prehensionsFrom(s, "beat-1", "q-feel").filter((p) => p.object === "emoji-🔥");
     expect(feels.length).toBe(1); // the one edge from click 1 — occluded, never revived
+    expect(s.get("feel-ren-🔥-beat-1")).toMatchObject({ laid_by: "ren" });
+    expect(s.get("laid-feel-ren-🔥-beat-1-by-ren")).toBeDefined();
   });
 
   it("a genuinely DIFFERENT reaction event (different reactSlug) from the same person on the same beat DOES accumulate as a second edge — the guard collapses same-button-repeat, not same-person-same-emoji as a concept", () => {
     const s = new Society();
     beat(s, "beat-1", "Deb: shipped the thing");
-    // two independently-slugged q-feel lays, both content 🔥, both by ren, from beat-1 —
-    // this is what the charter's "multiple edges to the same" would require if the UI
-    // ever allowed it (it currently doesn't: reactionStory's slug template forecloses it).
-    // DIRECTION FLIPPED (2026-07-20): subject=beat-1, object=ren.
-    s.layP("feel-ren-🔥-beat-1-a", "🔥", "beat-1", "ren", "q-feel");
-    s.layP("feel-ren-🔥-beat-1-b", "🔥", "beat-1", "ren", "q-feel");
+    // two independently-slugged q-feel lays, both onto the SAME lazily-minted emoji-node,
+    // both authored by ren — this is what the charter's "multiple edges to the same"
+    // would require if the UI ever allowed it (it currently doesn't: reactionStory's slug
+    // template forecloses it). EMOJI-AS-NODE, the final q-feel ruling (Hallie,
+    // "story-emoji-as-node", 2026-07-20): subject=beat-1, object=emoji-node.
+    // AUTHORSHIP RECONCILIATION (same day): laid_by set on each q-feel row directly,
+    // mirroring gen4-policy's lay_authorship, never a q-utterance row.
+    beat(s, "emoji-🔥", "🔥");
+    // laid via plain lay() (not layP — layP has no laid_by parameter, same constraint
+    // layReactionFeel in stories.ts works around) plus its own '~q' mode-beat, matching
+    // layP's constructor convention so prehensionsFrom's quality read (prehendsAs) sees it:
+    s.lay({ slug: "feel-ren-🔥-beat-1-a", content: "🔥", subject: "beat-1", object: "emoji-🔥", laid_by: "ren" });
+    s.lay({ slug: "feel-ren-🔥-beat-1-a~q", content: "🔥 [q-feel]", subject: "feel-ren-🔥-beat-1-a", object: "q-feel" });
+    s.lay({ slug: "feel-ren-🔥-beat-1-b", content: "🔥", subject: "beat-1", object: "emoji-🔥", laid_by: "ren" });
+    s.lay({ slug: "feel-ren-🔥-beat-1-b~q", content: "🔥 [q-feel]", subject: "feel-ren-🔥-beat-1-b", object: "q-feel" });
     // pathosOf (raw, unfiltered) counts both edges but only records "ren" once per hit —
     // by[] is push-per-edge, so it appears TWICE, honestly reflecting two edges:
     expect(pathosOf(s, "beat-1")).toEqual([{ key: "🔥", count: 2, by: ["ren", "ren"] }]);
     // FINDING: reactionsOn/pathosOf's "count" is a COUNT OF EDGES, and "value at each
-    // read" (the charter's phrase) already exists as `count` — no new node needed, the
-    // read already carries a number. The only foreclosure is at the UI layer
-    // (reactionStory's one-slug-per-person-per-emoji template), not in the read itself.
+    // read" (the charter's phrase) already exists as `count` — no new node needed for
+    // COUNTING (though the emoji itself is now a node, per the final ruling, for a
+    // different reason: giving the glyph a standing address). The only foreclosure is at
+    // the UI layer (reactionStory's one-slug-per-person-per-emoji template), not in the
+    // read itself.
   });
 
   it("the '🔥-ness of a whole day' — aggregating across MANY beats — is a derived read today: fold reactionsOn over the day's beats, no new machinery, no new node", () => {
@@ -104,21 +120,26 @@ describe("DOLL A — emoji via the existing q-feel reaction shape", () => {
     ]);
   });
 
-  it("'the society of 🔥' as a filter-read — every q-feel edge in the whole society whose content is 🔥 — needs no glyph-node: prehensionsOnto/soc.all() already answer it, confirming the charter's own hunch that this may be a derived society", () => {
+  it("REVERSED FINDING under the final ruling: 'the society of 🔥' now IS a real glyph-node — prehensionsOnto('emoji-🔥', 'q-feel') answers it directly, no derived filter needed", () => {
+    // SUPERSEDES this doll's original premise (charter, 2026-07-06): DOLL A originally
+    // found "no glyph-node needed, content is directly greppable on the edge." The FINAL
+    // q-feel ruling (Hallie, "story-emoji-as-node", 2026-07-20) overturns that finding on
+    // purpose: the emoji IS now a lazily-minted node, exactly the shape DOLL B explored as
+    // an alternative and this doll's own premise argued against. Kept here, corrected, as
+    // the honest record of the ruling's actual landing — not silently deleted.
     const s = new Society();
     beat(s, "b1", "one"); beat(s, "b2", "two");
     (reactionStory(s, { target: "b1", by: "ren", emoji: "🔥" }) as HTMLButtonElement).click();
     (reactionStory(s, { target: "b2", by: "sol", emoji: "😱" }) as HTMLButtonElement).click();
-    // the filter-read: no glyph-node exists, and none is needed — content is directly
-    // greppable ON THE STRUCTURAL EDGE (never by parsing a slug — this reads .content,
-    // the honest field, not the slug string; the opaque-slugs law is about slugs, not
-    // about the content field q-feel is defined to carry).
-    // DIRECTION FLIPPED (2026-07-20): the q-feel edge's subject is now the reacted-to
-    // beat, so the filter walks prehensionsFrom(subject) instead of prehensionsOnto(object).
-    const societyOfFireEdges = s.all().filter(
-      (b) => b.subject !== null && b.content === "🔥" && prehensionsFrom(s, b.subject!, "q-feel").some((p) => p.slug === b.slug),
-    );
+    // "the society of 🔥" is now a real address: every beat that q-feels the shared
+    // emoji-node "emoji-🔥" is directly readable via prehensionsOnto, no content filter
+    // over soc.all() required:
+    const societyOfFireEdges = prehensionsOnto(s, "emoji-🔥", "q-feel");
     expect(societyOfFireEdges.map((e) => e.subject)).toEqual(["b1"]);
+    // the emoji-node itself carries the glyph as its content — the honest, structural
+    // source of truth, never a slug parse:
+    expect(s.get("emoji-🔥")?.content).toBe("🔥");
+    expect(s.get("emoji-😱")?.content).toBe("😱");
   });
 
   it.todo("cross-story emoji tally established through a lineage/ground the way voltageOf reads charge relative to a frame — no current read folds reactionsOn across established-to frames");

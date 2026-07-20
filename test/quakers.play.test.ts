@@ -98,9 +98,11 @@ describe("The Society of Friends, Fox to today 🕊️", () => {
     ];
     for (const [body, parent] of today) {
       succeeds(s, body, parent);
-      // DIRECTION FLIPPED (Hallie, 2026-07-20, "story-flip-q-feel-direction"): the EVENT
-      // prehends the emoji — the abiding eternal-object (the Light) is the subject, each
-      // reading body the object of its own reading-edge.
+      // DIRECTION (Hallie, 2026-07-20, "story-flip-q-feel-direction", first sitting): the
+      // abiding eternal-object (the Light) is the subject, each reading body the object of
+      // its own reading-edge. DETERMINATION (2026-07-20, final "story-emoji-as-node"
+      // ruling): metaphorical/lateral q-feel use — object is an arbitrary gathered
+      // occasion (a reading body), never an emoji reaction — unchanged.
       s.layP(body + "-reads", `${body} reads the Light`, "the-inward-light", body, "q-feel"); // a reading-of
     }
     // three live bodies today, all reading the SAME Inward Light — plural frames on one eternal-object,

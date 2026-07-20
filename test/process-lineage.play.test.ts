@@ -79,9 +79,11 @@ describe("the grammar reads its own ancestry 🜔→🌊", () => {
     // running this test IS an actual occasion: it prehends the canon (the data) and perishes into a
     // result (pass). The 'many' (all these beats) 'become one' (this assertion) 'and are increased by
     // one' (the new datum: this test passed). Whitehead's category of the ultimate, executed.
-    // DIRECTION FLIPPED (Hallie, 2026-07-20, "story-flip-q-feel-direction"): the EVENT
-    // prehends the emoji — the abiding canon (this-canon) is the subject, gathering this
-    // test's occasion as its datum, not the other way round.
+    // DIRECTION (Hallie, 2026-07-20, "story-flip-q-feel-direction", first sitting): the
+    // abiding canon (this-canon) is the subject, gathering this test's occasion as its
+    // datum, not the other way round. DETERMINATION (2026-07-20, final
+    // "story-emoji-as-node" ruling): metaphorical/lateral q-feel use — object is an
+    // arbitrary gathered occasion, never an emoji reaction — unchanged.
     s.layP(rid() + "-pre", "this test prehends the canon", "this-canon", "ev-this-test", "q-feel");
     lay(s, "this-canon");
     const prehendsTheCanon = prehensionsFrom(s, "this-canon", "q-feel").some((e) => e.object === "ev-this-test");

@@ -22,10 +22,13 @@ import { Society, prehensionsFrom, prehensionsOnto, isOccluded } from "../src/so
 let _id = 0; const rid = () => "c" + (_id++);
 function lay(s: Society, slug: string) { if (!s.has(slug)) s.lay({ slug, content: slug, subject: null, object: null }); }
 /** a fragment is a TIME-SCATTERED SELF of Scaroth: the enduring being q-feels (gathers as a
- *  reading/instance of itself) each fragment. DIRECTION FLIPPED (Hallie, 2026-07-20,
- *  "story-flip-q-feel-direction"): the EVENT prehends the emoji — the abiding society
- *  (the being, SCAROTH) is the subject, each fragment the object of its own splinter-edge,
- *  matching this file's own "heal" shape below (scaroth-reunited ~q-feel~ era). */
+ *  reading/instance of itself) each fragment. DIRECTION (Hallie, 2026-07-20,
+ *  "story-flip-q-feel-direction", first sitting): the abiding society (the being,
+ *  SCAROTH) is the subject, each fragment the object of its own splinter-edge, matching
+ *  this file's own "heal" shape below (scaroth-reunited ~q-feel~ era). DETERMINATION
+ *  (2026-07-20, final "story-emoji-as-node" ruling): this is a metaphorical/lateral
+ *  q-feel use — object is an arbitrary gathered occasion (a splinter), never an emoji
+ *  reaction — so the emoji-node/authorship-row shape doesn't apply here; unchanged. */
 function fragmentOf(s: Society, fragment: string, being: string) {
   lay(s, fragment); lay(s, being);
   s.layP(rid() + "-frag", `${being} splinters into ${fragment}`, being, fragment, "q-feel");

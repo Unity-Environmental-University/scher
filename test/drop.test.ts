@@ -142,18 +142,28 @@ describe("reactionStory + reactionsOn — a typed prehension by a standpoint", (
     return new Society([{ slug: "post", content: "a post", subject: null, object: null }]);
   }
 
-  it("press lays a q-feel from the target onto the standpoint, read by reactionsOn", () => {
+  it("press lays a q-feel from the target onto a lazily-minted emoji-node, plus the lay_authorship testimony pair, read by reactionsOn", () => {
     const soc = withBeat();
     const btn = reactionStory(soc, { target: "post", by: "ann", emoji: "🔥" }) as HTMLButtonElement;
     expect(reactionsOn(soc, "post")).toEqual([]);
 
     btn.click();                                   // ann reacts 🔥
     expect(reactionsOn(soc, "post")).toEqual([{ key: "🔥", count: 1, by: ["ann"] }]);
-    // the q-feel is the typed prehension: subject=post, object=ann, content=emoji.
-    // DIRECTION FLIPPED (Hallie, 2026-07-20, "story-flip-q-feel-direction"): the EVENT
-    // prehends the emoji — the abiding beat is the subject, the reactor the object.
+    // EMOJI-AS-NODE, the final q-feel ruling (Hallie, "story-emoji-as-node", 2026-07-20):
+    // the q-feel edge is subject=post, object=the lazily-minted emoji-node (its own
+    // content carries the glyph). AUTHORSHIP RECONCILIATION (same day): the reactor is
+    // who LAID the feel — set on the q-feel row's OWN laid_by column, plus the
+    // gen4-policy-mirrored testimony pair (laid-{slug}-by-{layer} node + ~lays~ edge
+    // co-prehending q-authorship) — never a q-utterance row (that idiom stays reserved
+    // for comments/speech).
     const feel = soc.get("feel-ann-🔥-post");
-    expect(feel).toMatchObject({ subject: "post", object: "ann", content: "🔥" });
+    expect(feel).toMatchObject({ subject: "post", object: "emoji-🔥", laid_by: "ann" });
+    const emojiNode = soc.get("emoji-🔥");
+    expect(emojiNode?.content).toBe("🔥");
+    const authorshipNode = soc.get("laid-feel-ann-🔥-post-by-ann");
+    expect(authorshipNode).toBeDefined();
+    const authorshipEdge = soc.get("laid-feel-ann-🔥-post-by-ann~lays~feel-ann-🔥-post");
+    expect(authorshipEdge).toMatchObject({ subject: "laid-feel-ann-🔥-post-by-ann", object: "feel-ann-🔥-post" });
   });
 
   it("press-again supersedes my own reaction (append-only un-react)", () => {

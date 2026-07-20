@@ -86,9 +86,13 @@ export function routesTo(s: Society, start: string, target: string, seen = new S
 }
 
 /** every member that q-feels onto `event` (a reading-of, a splinter-of, a witness) — live only.
- *  Q-FEEL DIRECTION FLIP (Hallie, 2026-07-20, "story-flip-q-feel-direction"): the EVENT
- *  prehends the emoji — q-feel edges are now subject=event, object=reactor. Reads FROM
- *  `event` now; the reactor moves from .subject to .object. */
+ *  DIRECTION (Hallie, 2026-07-20, "story-flip-q-feel-direction", first sitting): the
+ *  ABIDING thing is the subject; the GATHERED occasion is the object. This is a
+ *  metaphorical/lateral use of q-feel (arbitrary gathered occasions — readings,
+ *  splinters, witnesses — never emoji reactions), so it is UNAFFECTED by the same day's
+ *  later "story-emoji-as-node" ruling (which only concerns emoji-reaction q-feel edges,
+ *  where the object becomes a lazily-minted emoji-node and the reactor moves to a
+ *  separate authorship row). Determination made explicit: this read stays as written. */
 export function feltOnto(s: Society, event: string): string[] {
   // TODO(socratic): heirsOf, feltOnto, and the occlusion-filtered map differ only in quale — is this the same read wanting to converge into one `liveOnto(s, event, quale)`?
   return prehensionsFrom(s, event, "q-feel").filter((e) => !isOccluded(s, e.slug)).map((e) => e.object!);

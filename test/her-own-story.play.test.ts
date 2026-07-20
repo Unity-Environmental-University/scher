@@ -30,9 +30,11 @@ function lay(s: Society, slug: string) {
   if (!s.has(slug)) s.lay({ slug, content: slug, subject: null, object: null });
 }
 /** an event WITNESSES another — a positive prehension, the taking-up that is reading.
- *  DIRECTION FLIPPED (Hallie, 2026-07-20, "story-flip-q-feel-direction"): the EVENT
- *  prehends the emoji — the abiding thing being read (`read`) is the subject, gathering
- *  each witnessing occasion (`reader`) as its datum. */
+ *  DIRECTION (Hallie, 2026-07-20, "story-flip-q-feel-direction", first sitting): the
+ *  abiding thing being read (`read`) is the subject, gathering each witnessing occasion
+ *  (`reader`) as its datum. DETERMINATION (2026-07-20, final "story-emoji-as-node"
+ *  ruling): metaphorical/lateral q-feel use — object is an arbitrary gathered occasion
+ *  (a witnessing), never an emoji reaction — unchanged. */
 function witnesses(s: Society, reader: string, read: string) {
   lay(s, reader); lay(s, read);
   s.layP(rid() + "-w", `${reader} witnesses ${read}`, read, reader, "q-feel");

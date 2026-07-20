@@ -20,6 +20,7 @@ import {
   intervalOf,
   endOf,
   isStory,
+  storyNow,
   type IntervalContext,
   type Mode,
   type Quality,
@@ -255,7 +256,15 @@ export function containsOf(soc: Society, slug: string, asOf?: number, ctx?: Inte
   if (!isStory(soc, slug)) return [];
   const end = endOf(soc, slug);
   if (!end) return [];
-  return intervalOf(soc, slug, end, ctx).filter((b) => b !== slug && b !== end);
+  // NOW FILTER ADDED (2026-07-20, forced by the charge-direction/now-pole-designation
+  // flip in society.ts): unpackPoles now lays a q-end-pole-shaped designation edge for
+  // the story's own Now too (`event ~now-pole~ now`), the same plain-forward-cone shape
+  // the pre-existing q-end-pole designation edge already has — which is why `end` was
+  // already filtered out here. `now` never needed the same filter before because nothing
+  // pointed Once->Now directly; it does now, so it needs the same treatment as `end`,
+  // same discipline as bucketsOf's isInfra (society.ts) which already excludes both.
+  const now = storyNow(slug);
+  return intervalOf(soc, slug, end, ctx).filter((b) => b !== slug && b !== end && b !== now);
 }
 
 /** enablesOf: what this beat makes possible / grounds forward, toward V=0 (the sea).

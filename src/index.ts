@@ -82,6 +82,7 @@ export {
   endActual,
   chargesOn,
   layCharge,
+  isNowPole,
   closePole,
   voltageOf,
   reopenTask,

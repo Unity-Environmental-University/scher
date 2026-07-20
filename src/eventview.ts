@@ -66,13 +66,16 @@ export function readEventView(soc: Society, slug: string): EventViewRead {
  *  a caller may legitimately want either or both: isProposition for "skin this row that IS
  *  rendering," nextAlong for "should I render an attached ghost row at all." */
 export function nextAlong(soc: Society, slug: string, asOf?: number): { slug: string; viaStory: boolean } | null {
+  // DIRECTION FLIPPED (Hallie, 2026-07-20, ruling correction): bearingsOf now returns
+  // edges whose SUBJECT is the sublime charging toward this beat — the sublime is
+  // .subject, not .object.
   const firstDirect = bearingsOf(soc, slug, asOf)[0];
-  if (firstDirect?.object) {
-    return { slug: firstDirect.object, viaStory: false };
+  if (firstDirect?.subject) {
+    return { slug: firstDirect.subject, viaStory: false };
   }
   const firstInherited = storyBearingsOf(soc, slug, asOf)[0];
-  if (firstInherited?.object) {
-    return { slug: firstInherited.object, viaStory: true };
+  if (firstInherited?.subject) {
+    return { slug: firstInherited.subject, viaStory: true };
   }
   return null;
 }

@@ -191,8 +191,10 @@ describe("bucketsOf — property 6: THE LURE LAW — sublimes climb by charge, n
     grounds(s, "tomorrow", "the-day"); // tomorrow is directly after the-day
     lay(s, "star-of-hope");
     s.layP("tomorrow~sublime~star", "oriented to a star", "tomorrow", "star-of-hope", "q-sublime-pole");
-    // a bare charge FROM tomorrow ONTO the star — appetition, THE LURE LAW's shape.
-    s.lay({ slug: "tomorrow~because~star", content: "tomorrow sails under the star", subject: "tomorrow", object: "star-of-hope" });
+    // a bare charge FROM the star ONTO tomorrow — appetition, THE LURE LAW's shape.
+    // DIRECTION FLIPPED (Hallie, 2026-07-20, ruling correction): sublimes prehend the
+    // user stories charged toward them — subject=sublime, object=story/event.
+    s.lay({ slug: "tomorrow~because~star", content: "the star charges tomorrow", subject: "star-of-hope", object: "tomorrow" });
     const b = bucketsOf(s, "the-day");
     expect(b.after.direct).toContain("tomorrow");
     expect(b.after.sublimesTree).toContain("star-of-hope");
@@ -205,8 +207,11 @@ describe("bucketsOf — property 6: THE LURE LAW — sublimes climb by charge, n
     grounds(s, "tomorrow", "the-day");
     lay(s, "star-of-hope");
     s.layP("tomorrow~sublime~star", "oriented to a star", "tomorrow", "star-of-hope", "q-sublime-pole");
-    // a q-grounding edge (quality-carrying) toward the star instead of a bare charge —
-    // this is NOT appetition under THE LURE LAW, and must not appear in sublimesTree.
+    // a q-grounding edge (quality-carrying) instead of a bare charge — this is NOT
+    // appetition under THE LURE LAW, and must not appear in sublimesTree. Kept in the
+    // subject=tomorrow/object=star shape (an ordinary event grounding TOWARD the star,
+    // never OUT of it — q-grounding OUT of a sublime is refused outright by
+    // sublime-never-closes, a different guard than the one this test exercises).
     s.layP("tomorrow~because~star-grounded", "a grounding edge, not a charge", "tomorrow", "star-of-hope", "q-grounding");
     const b = bucketsOf(s, "the-day");
     expect(b.after.direct).toContain("tomorrow");
@@ -221,7 +226,8 @@ describe("bucketsOf — property 6: THE LURE LAW — sublimes climb by charge, n
     grounds(s, "day-after-tomorrow", "tomorrow"); // indirect-after the-day
     lay(s, "star-of-hope");
     s.layP("d~sublime~star", "oriented to a star", "day-after-tomorrow", "star-of-hope", "q-sublime-pole");
-    s.lay({ slug: "dat~because~star", content: "charges the star", subject: "day-after-tomorrow", object: "star-of-hope" });
+    // DIRECTION FLIPPED (2026-07-20): subject=sublime, object=charged event.
+    s.lay({ slug: "dat~because~star", content: "the star charges day-after-tomorrow", subject: "star-of-hope", object: "day-after-tomorrow" });
     const b = bucketsOf(s, "the-day");
     expect(b.after.indirect).toContain("day-after-tomorrow");
     expect(b.after.sublimesTree).not.toContain("star-of-hope"); // not charged from a DIRECT member
@@ -235,7 +241,8 @@ describe("bucketsOf — property 6: THE LURE LAW — sublimes climb by charge, n
     grounds(s, "tomorrow", "the-day");
     lay(s, "star-of-hope");
     s.layP("tomorrow~sublime~star", "oriented to a star", "tomorrow", "star-of-hope", "q-sublime-pole");
-    s.lay({ slug: "tomorrow~because~star", content: "charges the star", subject: "tomorrow", object: "star-of-hope" });
+    // DIRECTION FLIPPED (2026-07-20): subject=sublime, object=charged event.
+    s.lay({ slug: "tomorrow~because~star", content: "the star charges tomorrow", subject: "star-of-hope", object: "tomorrow" });
     const b = bucketsOf(s, "the-day");
     const c = countsOf(s, "the-day");
     expect(c.after.sublimesTree).toBe(b.after.sublimesTree.length);

@@ -773,16 +773,21 @@ export function composerStory(soc: Society, params: ComposerStoryParams): Node {
 // never kernel-legible. See 2026-07-06-emoji-charge-quality-committee.md:52-92 (Proposal A).
 //
 // buttonStory lays a fixed beat; toggleButtonStory grounds/ungrounds a TARGET. reactionStory
-// is the third member: a press lays a q-feel prehension FROM a standpoint ONTO another's beat,
-// carrying an emoji in its content (the felt response — pathos, not establishment). It is
-// uncheckable like the toggle: press once to react, again to SUPERSEDE your own reaction
-// (append-only undo — your feel stays in ink, the read ignores it). The live state is read
-// per-(standpoint,emoji): does THIS standpoint's non-superseded q-feel of THIS emoji exist?
+// is the third member: a press lays a q-feel prehension FROM the reacted-to beat ONTO the
+// standpoint doing the reacting, carrying an emoji in its content (the felt response —
+// pathos, not establishment). DIRECTION FLIPPED (Hallie, 2026-07-20,
+// "story-flip-q-feel-direction"): the EVENT prehends the emoji — subject=target,
+// object=by — same law as the same day's End-prehends-the-capture ruling: the abiding
+// thing (the beat, an enduring society) is the subject; each q-feel row is a new member
+// occasion of that society gathering the feel as its datum. It is uncheckable like the
+// toggle: press once to react, again to SUPERSEDE your own reaction (append-only undo —
+// your feel stays in ink, the read ignores it). The live state is read per-(standpoint,
+// emoji): does THIS standpoint's non-superseded q-feel of THIS emoji exist?
 // reactionsOn(beat) aggregates everyone's; this button is one reactor's one emoji.
 export interface ReactionStoryParams {
-  /** the beat being reacted to. */
+  /** the beat being reacted to (the subject of the q-feel, post 2026-07-20 flip). */
   target: string;
-  /** the standpoint doing the reacting (the subject of the q-feel). */
+  /** the standpoint doing the reacting (the object of the q-feel, post 2026-07-20 flip). */
   by: string;
   /** the emoji this button carries (its felt content). */
   emoji: string;
@@ -816,12 +821,16 @@ export function reactionStory(soc: Society, params: ReactionStoryParams): Node {
         click: () => {
           // TODO(socratic): like toggleButtonStory, this re-reads isLive(soc) at click time — is the pattern that cached projections can stale between render and event, so every toggle/reaction needs to re-check?
           if (!isLive(soc)) {
-            // REACT: lay a q-feel from `by` onto `target`, the emoji as content.
+            // REACT: lay a q-feel FROM `target` ONTO `by`, the emoji as content.
             // RULING: emoji is the CONTENT of the charge edge (F-A 2026-07-06: "emoji rides as
             // content of q-feel, zero kernel change"). No new quality, no new address law — the
             // edge is a bare q-feel prehension; the emoji string is the spectrum qualifier, read
             // by caller convention (reactionsOn groups by emoji, chartOfVoltage folds by spectrum).
-            soc.layP(slug, emoji, by, target, "q-feel");
+            // DIRECTION FLIPPED (Hallie, 2026-07-20, "story-flip-q-feel-direction"): the EVENT
+            // prehends the emoji — subject=target (the enduring society), object=by (the
+            // reactor) — same law as End-prehends-the-capture: the abiding thing is the
+            // subject, each q-feel row a new member occasion gathering the feel as its datum.
+            soc.layP(slug, emoji, target, by, "q-feel");
           } else {
             // UN-REACT = OCCLUDE my own q-feel (2026-06-26: was a self-loop supersede). `by` is the
             // named occluder. Append-only; the read drops the occluded feel.

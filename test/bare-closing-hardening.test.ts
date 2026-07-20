@@ -120,18 +120,22 @@ describe("adversarial closings — mixed legacy/bare histories on one story", ()
 });
 
 describe("adversarial closings — direction ambiguity on ONE pole", () => {
-  it("a bare edge laid ONTO the pole and a bare edge laid OUT of the same pole are read as OPPOSITE things", () => {
+  it("RESOLVED post charge-direction-flip + now-pole-designation (2026-07-20, both sittings): a bare edge laid FROM the pole reads as ONLY a charge, never a closing, because its object is not a designated now-pole — the same-direction collision the flip introduced (charge and closing both bare-FROM-end) is disambiguated by the now-pole designation on the object, not by direction alone anymore", () => {
     const s = new Society();
     capture(s, "task");
     const p = unpackPoles(s, "task");
-    // ONTO: a charge.
-    s.lay({ slug: "presser~press~end", content: "pressing toward the End", subject: "presser", object: p.end });
-    // OUT OF: a closing (the only edge shape allowed to leave a naked pole besides the guard's exemptions).
-    const closing = closePole(s, "task");
-    expect(chargesOn(s, p.end).map((c) => c.slug)).toEqual(["presser~press~end"]);
-    expect(endActual(s, p.end)).toBe(true);
+    // FROM the End: a charge (the End prehends the capture — charge-direction ruling, 2026-07-20).
+    s.lay({ slug: "presser~press~end", content: "pressing toward the capture", subject: p.end, object: "presser" });
+    expect(chargesOn(s, p.end).map((c) => c.slug)).toContain("presser~press~end");
+    // "presser" is not a designated now-pole, so this charge does NOT also read as a
+    // closing — the story stays open:
+    expect(endActual(s, p.end)).toBe(false);
+    const closing = closePole(s, "task"); // closes via the REAL, designated Now
     expect(closingEdgesIncludes(s, p.end, closing)).toBe(true);
-    // the charge is never mistaken for a closing, nor vice versa — direction alone divides them:
+    expect(endActual(s, p.end)).toBe(true);
+    // the raw press stays a charge; the official closing (object IS the designated
+    // now-pole) is excluded from chargesOn by its own now-pole filter — no collision:
+    expect(chargesOn(s, p.end).map((c) => c.slug)).toContain("presser~press~end");
     expect(chargesOn(s, p.end).map((c) => c.slug)).not.toContain(closing);
   });
 
@@ -151,50 +155,56 @@ describe("adversarial closings — direction ambiguity on ONE pole", () => {
     expect(voltageOf(s, "task")).toBe(0);
   });
 
-  it("a bare SELF-edge on the End-pole (subject === object === end) is read as a closing (direction: OUT), never a charge — it never satisfies the ONTO test with subject !== object required elsewhere", () => {
+  it("UPDATED post now-pole-designation (2026-07-20 second sitting): a bare SELF-edge on the End-pole (subject === object === end) is read as a CHARGE, never a closing — the now-pole designation is what disambiguates them, and the End is never its own designated Now", () => {
     const s = new Society();
     capture(s, "task");
     const p = unpackPoles(s, "task");
     s.lay({ slug: "self-loop", content: "end because end", subject: p.end, object: p.end });
-    // it leaves the pole (subject === end) → closingEdgesFrom counts it:
-    expect(endActual(s, p.end)).toBe(true);
-    // chargesOn requires object === end AND subject !== null; a self-edge DOES satisfy that
-    // (subject is p.end, which is non-null) — so a self-edge is BOTH read as a charge AND a
-    // closing simultaneously. Documented here as the real, structural answer (not asserted
-    // away): direction alone can't fully disambiguate a self-loop, because "out of" and
-    // "onto" are the same edge when subject===object. This is surfaced, not hidden.
+    // it leaves the pole (subject === end), but its OBJECT (p.end itself) is not a
+    // designated now-pole — the story's real Now (storyNow) is — so closingEdgesFrom no
+    // longer counts it, and endActual correctly stays false:
+    expect(endActual(s, p.end)).toBe(false);
+    // chargesOn's own now-pole exclusion doesn't fire here either (p.end isn't a now-pole),
+    // so the self-edge reads as an ordinary charge — the old direction-only ambiguity this
+    // test used to document is resolved by the designation, not merely re-labeled:
     expect(chargesOn(s, p.end).map((c) => c.slug)).toContain("self-loop");
   });
 });
 
 describe("adversarial closings — a closing laid BEFORE the designation exists", () => {
-  it("a bare edge FROM a not-yet-designated node does NOT read as a closing until the q-end-pole designation lands — then it does, retroactively, with no rewrite", () => {
+  it("a bare edge FROM a not-yet-designated node does NOT read as a closing until BOTH the q-end-pole designation on its subject AND the q-now-pole designation on its object land — then it does, retroactively, with no rewrite", () => {
     const s = new Society();
     capture(s, "task");
     capture(s, "future-end");
     capture(s, "some-now");
-    // lay the "closing" shape FIRST, before "future-end" is ever designated an End-pole:
+    // lay the "closing" shape FIRST, before "future-end" is ever designated an End-pole
+    // (and before "some-now" is ever designated a Now-pole — needed post 2026-07-20
+    // second sitting's now-pole disambiguation, since a bare edge FROM end is only a
+    // CLOSING when its object is a designated now-pole; see chargesOn/closingEdgesFrom):
     s.lay({ slug: "early-close", content: "a bare edge out of an ordinary node", subject: "future-end", object: "some-now" });
     // undesignated: not read as a closing by anything that cares about pole-hood —
     // isStory/endActual have no opinion on "future-end" at all yet:
     expect(isStory(s, "future-end")).toBe(false);
     expect(endActual(s, "future-end")).toBe(false); // no designation yet — closingEdgesFrom's legacy-only branch sees no q-grounding either
     // NOW designate it as an End-pole after the fact (structurally legal — designation is
-    // just another lay; nothing in the log required ordering):
+    // just another lay; nothing in the log required ordering) AND designate its object a
+    // Now-pole (both are needed under the post-flip law):
     s.layP("task~end-pole~future-end", "End-pole designation, laid late", "task", "future-end", "q-end-pole");
+    s.layP("some-now~now-pole~task", "Now-pole designation, laid late", "task", "some-now", "q-now-pole");
     // the society is re-read fresh every time (nothing is cached/stored) — so the EARLIER
-    // bare edge, now retroactively out of a designated End-pole, reads as the closing:
+    // bare edge, now retroactively out of a designated End-pole onto a designated Now-pole,
+    // reads as the closing:
     expect(endActual(s, "future-end")).toBe(true);
     // reaches walks subject→object: "some-now" is what the early bare edge actually points
     // AT (future-end ~because~ some-now), so it — not "task" — is what's reachable this way:
     expect(reaches(s, "future-end", "some-now", "q-grounding")).toBe(true);
   });
 
-  it("the mirror: a bare edge ONTO a not-yet-designated node is inert (not a charge) until designation, then becomes one, retroactively", () => {
+  it("the mirror: a bare edge FROM a not-yet-designated node is inert (not a closing) until designation, then becomes one, retroactively — and, per the collision above, reads as a charge from the first lay", () => {
     const s = new Society();
     capture(s, "task");
     capture(s, "future-end");
-    s.lay({ slug: "early-press", content: "pressing on an ordinary node, not yet a pole", subject: "presser", object: "future-end" });
+    s.lay({ slug: "early-press", content: "pressing from an ordinary node, not yet a pole", subject: "future-end", object: "presser" });
     expect(chargesOn(s, "future-end").length).toBe(1); // chargesOn is a pure address read — it
     // never checked pole-hood in the first place (any bare-onto reads as address pressure);
     // designating it afterward doesn't change the charge count, only makes endActual/voltageOf
@@ -289,7 +299,7 @@ describe("NAME-FUZZ — no read depends on pole naming; structure alone carries 
       expect(endOf(s, once)).toBe(end);
       expect(endActual(s, end)).toBe(false);
 
-      // charge: bare edge onto the (hostile) End slug
+      // charge: bare edge FROM the (hostile) End slug (the End prehends the capture)
       const chargeSlug = layCharge(s, once, "some-frame");
       expect(chargesOn(s, end).map((c) => c.slug)).toContain(chargeSlug);
       expect(voltageOf(s, once)).toBeGreaterThan(0);
@@ -326,8 +336,9 @@ describe("NAME-FUZZ — no read depends on pole naming; structure alone carries 
     expect(() => s.layP("cmt~x~y", "comment", "commenter", p.end, "q-feel")).toThrow(/ADDRESS LAW/);
     // a non-grounding prehension OUT of it is still refused:
     expect(() => s.layP("dep~x~y", "dep", p.end, "🎯task", "q-blocked-by")).toThrow(/ADDRESS LAW/);
-    // the bare charge/close shapes still work regardless:
-    expect(() => s.lay({ slug: "bare-charge", content: "c", subject: "presser", object: p.end })).not.toThrow();
+    // the bare charge/close shapes still work regardless (a raw .lay() bypasses layP's
+    // guards entirely no matter which way the edge points):
+    expect(() => s.lay({ slug: "bare-charge", content: "c", subject: p.end, object: "presser" })).not.toThrow();
     expect(() => closePole(s, "🎯task", "🔥end-of-fire")).not.toThrow();
   });
 

@@ -42,12 +42,13 @@ describe("the naked-pole address law — the guard BLOCKS", () => {
       .not.toThrow();
   });
 
-  it("charge is a pure address read: bare edges onto the open End count; the designation never does", () => {
+  it("charge is a pure address read: bare edges FROM the open End count (the End prehends the capture); the designation never does", () => {
     const s = new Society();
     capture(s, "task");
     const p = unpackPoles(s, "task");
-    // a bare edge onto the open End IS a charge, whoever lays it, no quality word needed:
-    s.lay({ slug: "raw-press", content: "felt need", subject: "frame-vik", object: p.end });
+    // a bare edge FROM the open End IS a charge, whoever it's laid toward, no quality word needed
+    // (charge-direction ruling, 2026-07-20: "the End prehends the capture"):
+    s.lay({ slug: "raw-press", content: "felt need", subject: p.end, object: "frame-vik" });
     layCharge(s, "task", "frame-tam");
     const charges = chargesOn(s, p.end).map((c) => c.slug);
     expect(charges).toContain("raw-press");
@@ -69,11 +70,11 @@ describe("the naked-pole address law — the guard BLOCKS", () => {
   // this true (assertNakedPole is reachable only through layP, which requires a Quality,
   // so a genuinely bare edge never reaches the guard at all; see the guard's own comment).
   // This pins the ONTO side directly with a bare edge.
-  it("a bare edge (no quality) onto the open End-pole is a charge, never a guard trip — direction alone reads it", () => {
+  it("a bare edge (no quality) FROM the open End-pole is a charge, never a guard trip — direction alone reads it (the End prehends the capture)", () => {
     const s = new Society();
     capture(s, "task");
     const p = unpackPoles(s, "task");
-    s.lay({ slug: "end~because~now", content: "end ~because~ now", subject: "frame-someone", object: p.end });
+    s.lay({ slug: "end~because~now", content: "end ~because~ now", subject: p.end, object: "frame-someone" });
     expect(chargesOn(s, p.end).map((c) => c.slug)).toContain("end~because~now");
   });
 

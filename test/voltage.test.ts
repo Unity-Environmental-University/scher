@@ -48,7 +48,7 @@ describe("three poles: capture · charge · done · reopen (default ground)", ()
     expect(reaches(s, p.now, "buy-milk", "q-grounding")).toBe(true); // Now ~because~ Once
   });
 
-  it("a charge is FIRST NEED: a bare edge onto the open End (pure address, no quality word)", () => {
+  it("a charge is FIRST NEED: a bare edge FROM the open End (pure address, no quality word — the End prehends the capture)", () => {
     const s = new Society();
     capture(s, "buy-milk", "buy milk");
     const c0 = layCharge(s, "buy-milk", "frame-hallie"); // no prior unpack — the charge performs it
@@ -59,7 +59,7 @@ describe("three poles: capture · charge · done · reopen (default ground)", ()
     const end = endOf(s, "buy-milk")!;
     expect(chargesOn(s, end).map((c) => c.slug)).toContain(c0);
     expect(chargesOn(s, end).length).toBe(2);
-    expect(s.get(c0)!.object).toBe(end); // the charge is a property of the EDGE, onto the End
+    expect(s.get(c0)!.subject).toBe(end); // the charge is a property of the EDGE — the End prehends the capture
     expect(s.has(`${c0}~q`)).toBe(false); // bare — no quality word minted
   });
 

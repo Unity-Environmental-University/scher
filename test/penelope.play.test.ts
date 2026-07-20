@@ -82,9 +82,11 @@ describe("Penelope — the shroud is append-only 🧵🏛️", () => {
     // the End exists and is open: the promise is real, which is what makes the delay work.
     expect(endActual(s, u.end)).toBe(false);
     // the suitors press on the open End — charges, the address read, each one a demand.
+    // (charge-direction ruling, 2026-07-20: the End prehends the capture — the End is the
+    // charging edge's subject, the pressing suitor its object.)
     lay(s, "suitor-antinous"); lay(s, "suitor-eurymachus");
-    s.lay({ slug: "press-1", content: "finish it", subject: "suitor-antinous", object: u.end });
-    s.lay({ slug: "press-2", content: "choose", subject: "suitor-eurymachus", object: u.end });
+    s.lay({ slug: "press-1", content: "finish it", subject: u.end, object: "suitor-antinous" });
+    s.lay({ slug: "press-2", content: "choose", subject: u.end, object: "suitor-eurymachus" });
     expect(chargesOn(s, u.end).length).toBe(2);
     // pressure on an open End is voltage, not motion: the pole stays open until SHE closes it.
     expect(endActual(s, u.end)).toBe(false);

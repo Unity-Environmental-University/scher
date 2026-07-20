@@ -15,7 +15,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { Society, prehensionsOnto, isOccluded } from "../src/society.js";
+import { Society, prehensionsOnto, prehensionsFrom, isOccluded } from "../src/society.js";
 import { succeeds, heads, node, why, routesTo } from "../src/play.js";
 
 const V0 = "the-bodhisattva-vow-v0";
@@ -98,11 +98,14 @@ describe("The Society of Friends, Fox to today 🕊️", () => {
     ];
     for (const [body, parent] of today) {
       succeeds(s, body, parent);
-      s.layP(body + "-reads", `${body} reads the Light`, body, "the-inward-light", "q-feel"); // a reading-of
+      // DIRECTION FLIPPED (Hallie, 2026-07-20, "story-flip-q-feel-direction"): the EVENT
+      // prehends the emoji — the abiding eternal-object (the Light) is the subject, each
+      // reading body the object of its own reading-edge.
+      s.layP(body + "-reads", `${body} reads the Light`, "the-inward-light", body, "q-feel"); // a reading-of
     }
     // three live bodies today, all reading the SAME Inward Light — plural frames on one eternal-object,
     // none occluding the others. The Light is owned by no branch; it is what they all read toward. 🕊️
-    const readers = prehensionsOnto(s, "the-inward-light", "q-feel").filter((e) => !isOccluded(s, e.slug));
+    const readers = prehensionsFrom(s, "the-inward-light", "q-feel").filter((e) => !isOccluded(s, e.slug));
     expect(readers.length).toBe(3);
     expect(s.has("george-fox-inward-light-1647") || s.has("the-inward-light")).toBe(true);
     // the gift, Hallie: 375 years, every schism a fork, every reunion a merge, every branch an honored

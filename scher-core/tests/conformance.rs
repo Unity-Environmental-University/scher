@@ -645,7 +645,7 @@ fn voltage_is_grounded_and_discharge_propagates() {
     assert_eq!(voltage_of(&soc, "buy-milk", None, None), 1); // the open strike
 
     // charge: a BARE edge onto the open End, woven into the story's lineage (SOFD).
-    soc.lay(EventRow::edge("buy-milk~hea~charge-0", "charge", "frame-hallie", "buy-milk~hea"));
+    soc.lay(EventRow::edge("buy-milk~hea~charge-0", "charge", "buy-milk~hea", "frame-hallie"));
     soc.lay_p(&format!("{now}~because~buy-milk~hea~charge-0"), "witnessed", &now, "buy-milk~hea~charge-0", Q_GROUNDING).unwrap();
     assert_eq!(charges_on(&soc, "buy-milk~hea", None).len(), 1);
     assert_eq!(voltage_of(&soc, "buy-milk", None, None), 2);
@@ -699,11 +699,11 @@ fn floating_charge_and_overload_read_raw_and_loudest_first() {
         soc.lay_p(&format!("{now}~because~{t}"), "now is because events", &now, t, Q_GROUNDING).unwrap();
         // one charge each, woven:
         let c = format!("{end}~charge-0");
-        soc.lay(EventRow::edge(&c, "charge", "frame-vik", &end));
+        soc.lay(EventRow::edge(&c, "charge", &end, "frame-vik"));
         soc.lay_p(&format!("{now}~because~{c}"), "witnessed", &now, &c, Q_GROUNDING).unwrap();
     }
     // a second charge makes the orphan louder:
-    soc.lay(EventRow::edge("orphan-task~hea~charge-1", "more", "frame-tam", "orphan-task~hea"));
+    soc.lay(EventRow::edge("orphan-task~hea~charge-1", "more", "orphan-task~hea", "frame-tam"));
     // one live frame holds held-task's lineage only:
     soc.lay(EventRow::node("now-priya", "priya's Now"));
     soc.lay_p("now-priya~holds", "priya holds it", "now-priya", &story_now("held-task"), Q_GROUNDING).unwrap();
@@ -768,9 +768,11 @@ fn sublime_pole_is_designated_and_never_closes() {
     let mut soc = Society::new();
     make_sublime(&mut soc, "horizon");
     assert!(is_sublime_pole(&soc, "horizon", None));
-    // bearings + voltage from an event
+    // bearings + voltage from an event. DIRECTION FLIPPED (Hallie, 2026-07-20, ruling
+    // correction): sublimes prehend the user stories charged toward them —
+    // subject=sublime, object=story/event.
     soc.lay(EventRow::node("work", "work"));
-    soc.lay_p("work~bear", "bearing", "work", "horizon", "because").unwrap();
+    soc.lay_p("work~bear", "bearing", "horizon", "work", "because").unwrap();
     assert_eq!(bearings_of(&soc, "work", None).len(), 1);
     assert_eq!(voltage_toward_sublime(&soc, "horizon", None), 1);
 }
@@ -794,20 +796,26 @@ fn closing_a_sublime_will_not_work() {
 
 #[test]
 fn sublimes_chain_and_service_chain_walks_up_the_dag() {
+    // DIRECTION FLIPPED (Hallie, 2026-07-20, ruling correction): sublimes prehend what's
+    // charged toward them, uniformly — applied sublime-to-sublime, "a serves b" (a is IN
+    // SERVICE OF b) is laid as b prehending a: subject=b (the one served), object=a (the
+    // server), mirroring "sublime ~because~ charged-thing" with the higher sublime in
+    // the sublime-subject slot.
     let mut soc = Society::new();
     make_sublime(&mut soc, "a");
     make_sublime(&mut soc, "b");
     make_sublime(&mut soc, "c");
-    soc.lay_p("a~serves~b", "serves", "a", "b", "because").unwrap();
-    soc.lay_p("b~serves~c", "serves", "b", "c", "because").unwrap();
+    soc.lay_p("a~serves~b", "serves", "b", "a", "because").unwrap();
+    soc.lay_p("b~serves~c", "serves", "c", "b", "because").unwrap();
 
     let mut chain = service_chain_of(&soc, "a", None);
     chain.sort();
     assert_eq!(chain, vec!["b".to_string(), "c".to_string()]);
 
-    // an event bearing a inherits toward all of a, b, c
+    // an event bearing a inherits toward all of a, b, c. DIRECTION FLIPPED (2026-07-20):
+    // subject=sublime, object=event.
     soc.lay(EventRow::node("event", "event"));
-    soc.lay_p("event~bear~a", "bearing", "event", "a", "because").unwrap();
+    soc.lay_p("event~bear~a", "bearing", "a", "event", "because").unwrap();
     let mut reached = reached_sublimes_of(&soc, "event", None);
     reached.sort();
     assert_eq!(reached, vec!["a".to_string(), "b".to_string(), "c".to_string()]);
@@ -841,4 +849,57 @@ fn a_ring_of_sublimes_may_mutually_prehend() {
     // either the allowed ring or the still-refused close.
     soc.lay(EventRow::node("still-usable", "the kernel did not seize"));
     assert!(soc.has("still-usable"), "society must remain writable after these writes");
+}
+
+// CYCLE SAFETY (Hallie, 2026-07-20, ruling correction — job item 3): "sublime→sublime
+// edges may now form cycles. Every walk that traverses sublime charges (bearings, lure
+// climbing, bucketsOf) needs a visited set or equivalent termination." Mirrors
+// scher/test/sublimes-store.test.ts's identically-named property.
+#[test]
+fn two_sublimes_charging_each_other_plus_a_story_charged_toward_one_terminates() {
+    let mut soc = Society::new();
+    make_sublime(&mut soc, "sublime-x");
+    make_sublime(&mut soc, "sublime-y");
+
+    // x and y mutually prehend — a genuine 2-cycle: x~because~y AND y~because~x.
+    soc.lay_p("x~bears~y", "x serves/prehends y", "sublime-x", "sublime-y", "because")
+        .unwrap();
+    soc.lay_p("y~bears~x", "y serves/prehends x", "sublime-y", "sublime-x", "because")
+        .unwrap();
+
+    // A story is charged toward sublime-x (subject=sublime, object=story, per the
+    // 2026-07-20 direction correction).
+    soc.lay(EventRow::node("story", "a user story"));
+    soc.lay_p("story~bear~x", "story charged toward x", "sublime-x", "story", "because")
+        .unwrap();
+
+    // bearings_of(story) terminates and finds x.
+    let story_bearings = bearings_of(&soc, "story", None);
+    assert_eq!(story_bearings.len(), 1);
+    assert_eq!(story_bearings[0].subject.as_deref(), Some("sublime-x"));
+
+    // bearings_of on the sublimes themselves, walking the cycle edge, terminates too.
+    let x_bearings: Vec<&str> = bearings_of(&soc, "sublime-x", None)
+        .iter()
+        .filter_map(|b| b.subject.as_deref())
+        .collect();
+    assert_eq!(x_bearings, vec!["sublime-y"]);
+    let y_bearings: Vec<&str> = bearings_of(&soc, "sublime-y", None)
+        .iter()
+        .filter_map(|b| b.subject.as_deref())
+        .collect();
+    assert_eq!(y_bearings, vec!["sublime-x"]);
+
+    // service_chain_of MUST terminate on a true cycle (not loop forever).
+    assert_eq!(service_chain_of(&soc, "sublime-x", None), vec!["sublime-y".to_string()]);
+    assert_eq!(service_chain_of(&soc, "sublime-y", None), vec!["sublime-x".to_string()]);
+
+    // reached_sublimes_of(story) must also terminate and deduplicate despite the cycle.
+    let mut reached = reached_sublimes_of(&soc, "story", None);
+    reached.sort();
+    assert_eq!(reached, vec!["sublime-x".to_string(), "sublime-y".to_string()]);
+
+    // the society stays usable after all these cyclic walks — no seizure, no hang:
+    soc.lay(EventRow::node("still-usable-2", "proof of life after cyclic walks"));
+    assert!(soc.has("still-usable-2"));
 }

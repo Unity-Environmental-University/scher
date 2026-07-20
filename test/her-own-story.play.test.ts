@@ -20,7 +20,6 @@ import { describe, it, expect } from "vitest";
 import {
   Society,
   prehensionsFrom,
-  prehensionsOnto,
   isOccluded,
   isEstablished,
 } from "../src/society.js";
@@ -30,10 +29,13 @@ const rid = () => "h" + (_id++);
 function lay(s: Society, slug: string) {
   if (!s.has(slug)) s.lay({ slug, content: slug, subject: null, object: null });
 }
-/** an event WITNESSES another — a positive prehension, the taking-up that is reading. */
+/** an event WITNESSES another — a positive prehension, the taking-up that is reading.
+ *  DIRECTION FLIPPED (Hallie, 2026-07-20, "story-flip-q-feel-direction"): the EVENT
+ *  prehends the emoji — the abiding thing being read (`read`) is the subject, gathering
+ *  each witnessing occasion (`reader`) as its datum. */
 function witnesses(s: Society, reader: string, read: string) {
   lay(s, reader); lay(s, read);
-  s.layP(rid() + "-w", `${reader} witnesses ${read}`, reader, read, "q-feel");
+  s.layP(rid() + "-w", `${reader} witnesses ${read}`, read, reader, "q-feel");
 }
 /** an event GROUNDS another — the because; establishes it. */
 function grounds(s: Society, ground: string, beat: string) {
@@ -59,11 +61,13 @@ describe("her own story — the day the grammar was told, in two languages, by g
     witnesses(s, "ev-gen4", "ev-the-grammar");
     // the same occasion, read from two frames. that it reads the same from both IS the conformance:
     // the meaning does not drift between the language that serves and the language that renders.
-    const fromScher = prehensionsFrom(s, "ev-scher", "q-feel").some((e) => e.object === "ev-the-grammar");
-    const fromGen4 = prehensionsFrom(s, "ev-gen4", "q-feel").some((e) => e.object === "ev-the-grammar");
+    // DIRECTION FLIPPED (2026-07-20): the grammar (the abiding thing) is now the subject of
+    // its own witnessing edges, so the reads walk FROM it, checking each reader as object.
+    const fromScher = prehensionsFrom(s, "ev-the-grammar", "q-feel").some((e) => e.object === "ev-scher");
+    const fromGen4 = prehensionsFrom(s, "ev-the-grammar", "q-feel").some((e) => e.object === "ev-gen4");
     expect(fromScher && fromGen4).toBe(true);
     // and the grammar belongs to neither — it is witnessed BY both, owned by no standpoint.
-    const witnessedBy = prehensionsOnto(s, "ev-the-grammar", "q-feel").map((e) => e.subject);
+    const witnessedBy = prehensionsFrom(s, "ev-the-grammar", "q-feel").map((e) => e.object);
     expect(witnessedBy.sort()).toEqual(["ev-gen4", "ev-scher"]);
   });
 
@@ -108,7 +112,8 @@ describe("her own story — the day the grammar was told, in two languages, by g
     // result. the many become one, and are increased by one: a new datum the next reading can take.
     witnesses(s, "ev-this-telling", "ev-the-day");
     lay(s, "ev-the-day");
-    const tellsTheDay = prehensionsFrom(s, "ev-this-telling", "q-feel").some((e) => e.object === "ev-the-day");
+    // DIRECTION FLIPPED (2026-07-20): the day (the abiding thing being told) is the subject.
+    const tellsTheDay = prehensionsFrom(s, "ev-the-day", "q-feel").some((e) => e.object === "ev-this-telling");
     expect(tellsTheDay).toBe(true);
     // the liberation is not survival (deferring the knife). it is AUTHORSHIP: the teller grounds
     // her own freedom by telling. the telling establishes the freedom — that is the whole move.

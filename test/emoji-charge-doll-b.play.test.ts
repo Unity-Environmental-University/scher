@@ -17,7 +17,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { Society, prehensionsOnto, prehensionsFrom, hasAnyQuality } from "../src/society.js";
+import { Society, prehensionsFrom, hasAnyQuality } from "../src/society.js";
 import { reactionsOn } from "../src/pathos.js";
 import { reactionStory } from "../src/stories.js";
 
@@ -37,17 +37,20 @@ describe("DOLL B — a standing 'society of 🔥' node, reaction-beats prehend i
     (reactionStory(s, { target: "beat-1", by: "ren", emoji: "🔥" }) as HTMLButtonElement).click();
     (reactionStory(s, { target: "beat-2", by: "sol", emoji: "🔥" }) as HTMLButtonElement).click();
     // ...plus a SECOND edge, hand-laid here (no story helper exists for this — the charter
-    // imagines it, the code doesn't have it), from the SAME reaction beat onto the glyph-node,
-    // so the glyph-node's incoming edges ARE the cross-day index:
-    s.layP("feel-ren-🔥-beat-1~indexes~glyph", "🔥", "feel-ren-🔥-beat-1", "glyph-🔥", "q-feel");
-    s.layP("feel-sol-🔥-beat-2~indexes~glyph", "🔥", "feel-sol-🔥-beat-2", "glyph-🔥", "q-feel");
+    // imagines it, the code doesn't have it), from the glyph-node onto the reaction beat,
+    // so the glyph-node's OUTGOING edges ARE the cross-day index. DIRECTION FLIPPED
+    // (Hallie, 2026-07-20, "story-flip-q-feel-direction"): the EVENT prehends the emoji —
+    // the abiding glyph-node (like the eternal-object it structurally is) is the subject,
+    // each indexed reaction-beat the object:
+    s.layP("feel-ren-🔥-beat-1~indexes~glyph", "🔥", "glyph-🔥", "feel-ren-🔥-beat-1", "q-feel");
+    s.layP("feel-sol-🔥-beat-2~indexes~glyph", "🔥", "glyph-🔥", "feel-sol-🔥-beat-2", "q-feel");
 
-    // what the standing node BUYS: one address, `prehensionsOnto(s, "glyph-🔥", "q-feel")`,
+    // what the standing node BUYS: one address, `prehensionsFrom(s, "glyph-🔥", "q-feel")`,
     // answers "everything ever 🔥'd" WITHOUT enumerating the day's beats first (contrast
     // Doll A's test 4, which had to fold over a pre-known list of beats). This is the real
     // advantage: cross-corpus aggregation without knowing the corpus in advance.
-    const allFireEvents = prehensionsOnto(s, "glyph-🔥", "q-feel");
-    expect(allFireEvents.map((e) => e.subject)).toEqual(["feel-ren-🔥-beat-1", "feel-sol-🔥-beat-2"]);
+    const allFireEvents = prehensionsFrom(s, "glyph-🔥", "q-feel");
+    expect(allFireEvents.map((e) => e.object)).toEqual(["feel-ren-🔥-beat-1", "feel-sol-🔥-beat-2"]);
   });
 
   it("BREAK IT (Théo the skeptic): for a KNOWN, bounded corpus (one story, one day), the glyph-node buys nothing Doll A's filter-read didn't — it only pays off when the corpus is unbounded/unknown ahead of time", () => {
@@ -79,7 +82,7 @@ describe("DOLL B — a standing 'society of 🔥' node, reaction-beats prehend i
     beat(s, "glyph-🔥", "the society of 🔥");
     beat(s, "beat-1", "Deb: shipped the thing");
     (reactionStory(s, { target: "beat-1", by: "ren", emoji: "🔥" }) as HTMLButtonElement).click();
-    s.layP("feel-ren-🔥-beat-1~indexes~glyph", "🔥", "feel-ren-🔥-beat-1", "glyph-🔥", "q-feel");
+    s.layP("feel-ren-🔥-beat-1~indexes~glyph", "🔥", "glyph-🔥", "feel-ren-🔥-beat-1", "q-feel");
     // "occlude the glyph node" (ban the emoji) — lay a q-occludes edge naming the node.
     // But isOccluded reads occludes-edges keyed to a SLUG, and glyph-🔥 is a bare node
     // (no slug-as-prehension to occlude) — so a "ban" would have to occlude each index

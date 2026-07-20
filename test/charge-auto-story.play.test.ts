@@ -59,10 +59,11 @@ describe("DOLL 1 — auto-story: every unattached charge mints its own resolving
     // the story's own frame (SOFD default ground, voltageOf's own default parameter).
     expect(voltageOf(s, "bug-export-safari")).toBe(2);
 
-    // the charge is a real BARE prehension onto the End (the address law's payoff — no
-    // quality word to look up): Beans is its subject, findable via chargesOn(end).
+    // the charge is a real BARE prehension FROM the End (the address law's payoff, charge-
+    // direction ruling 2026-07-20: the End prehends the capture) — no quality word to look
+    // up: Beans is its object, findable via chargesOn(end).
     const charges = chargesOn(s, end!);
-    expect(charges.map((c) => c.subject)).toEqual(["beans"]);
+    expect(charges.map((c) => c.object)).toEqual(["beans"]);
     expect(charges[0].slug).toBe(chargeSlug);
   });
 
@@ -82,7 +83,7 @@ describe("DOLL 1 — auto-story: every unattached charge mints its own resolving
 
     const end = endOf(s, "bug-export-safari")!;
     const charges = chargesOn(s, end);
-    expect(charges.map((c) => c.subject).sort()).toEqual(["beans", "marge"]);
+    expect(charges.map((c) => c.object).sort()).toEqual(["beans", "marge"]);
   });
 
   it("closing the circuit (Marge marks it done) drops voltage to zero in the story's own frame — every charge stays readable forever", () => {
@@ -107,7 +108,7 @@ describe("DOLL 1 — auto-story: every unattached charge mints its own resolving
     // but the charge itself never un-happens — Beans's original report is still readable,
     // forever, on the closed story (append-only: nothing ever un-happens):
     const chargesAfterClose = chargesOn(s, end);
-    expect(chargesAfterClose.map((c) => c.subject)).toEqual(["beans"]);
+    expect(chargesAfterClose.map((c) => c.object)).toEqual(["beans"]);
   });
 
   // ── THE PATHOLOGY, PLAYED HONESTLY: 20 bug reports = 20 half-formed stories ─────────

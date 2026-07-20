@@ -87,6 +87,19 @@ export type KernelQuality =
   // open. It is INERT — never lures, never actualize. Its structure is "star for navigation,
   // not a destination to land" (Hallie).
   | "q-sublime-pole"
+  // q-now-pole designates a story's own Now as a structural pole (Hallie, 2026-07-20
+  // second sitting, "story-designate-now-poles" — mirrors scher-core's Q_NOW_POLE,
+  // landed there first). NEEDED BY THE CHARGE-DIRECTION FLIP (2026-07-20 first sitting,
+  // "the End prehends the capture"): once a charge is laid subject=End, object=charged-
+  // event, a charge and a closing (`end ~because~ now`, ALSO subject=End under the bare-
+  // closing ruling) share the exact same edge SHAPE — both are bare edges FROM the End.
+  // Direction alone no longer disambiguates them, because there is only one direction
+  // left. What still disambiguates: the OBJECT. A closing's object is the story's own
+  // Now; a charge's object is whatever the charge is about. Structurally reading "is the
+  // object a Now" (never by slug spelling — opaque-slugs law) requires the Now to be a
+  // DESIGNATED pole, same pattern as q-end-pole/q-sublime-pole. See isNowPole/
+  // chargesOn/closingEdgesFrom for the reads this designation feeds.
+  | "q-now-pole"
   | "q-exclusion"
   | "q-utterance"
   | "q-feel"
@@ -409,6 +422,18 @@ export function isSublimePole(soc: Society, node: string | null, asOf?: number):
   return soc.all().some(
     (b) => b.object === node && b.subject !== null &&
       prehendsAs(soc, b.slug, "q-sublime-pole", asOf) && !isOccluded(soc, b.slug, asOf),
+  );
+}
+
+/** isNowPole: is `node` the object of an un-occluded q-now-pole designation — structural
+ *  Now-hood (Hallie, 2026-07-20 second sitting, "story-designate-now-poles"; mirrors
+ *  scher-core's is_now_pole). Needed post charge-direction-flip: a closing's object is
+ *  a designated now-pole, a charge's is not — see the KernelQuality doc-comment on
+ *  q-now-pole for why this disambiguation exists at all. */
+export function isNowPole(soc: Society, node: string | null, asOf?: number): boolean {
+  if (!node) return false;
+  return soc.edgesOntoObject(node).some(
+    (b) => b.subject !== null && prehendsAs(soc, b.slug, "q-now-pole", asOf) && !isOccluded(soc, b.slug, asOf),
   );
 }
 
@@ -927,7 +952,17 @@ export function storyNow(story: string): string {
  *  confirmed Now belongs in the unpack, 2026-07-06 second sitting; the Now-grounds-in-Once
  *  relationship is the convener's proposal, STANDING UNLESS SHE AMENDS IT). With the
  *  closing's `end ~because~ now`, the closed circuit is a literal because-path
- *  End → Now-lineage → Once. */
+ *  End → Now-lineage → Once.
+ *
+ *  NOW-POLE DESIGNATION (2026-07-20, "story-designate-now-poles" — needed by the same
+ *  day's charge-direction flip, "the End prehends the capture"): the Now this unpack
+ *  lays is ALSO designated a q-now-pole, mirroring the q-end-pole/q-sublime-pole
+ *  pattern. Once a closing is `end ~because~ now` with subject=end (bare-closing) and a
+ *  charge is ALSO subject=end (charge-direction), the two bare-edge shapes collide on
+ *  direction alone; the designation is what chargesOn/closingEdgesFrom read to tell them
+ *  apart by OBJECT instead (a closing's object is a designated now-pole; a charge's
+ *  isn't). Mirrors scher-core's Q_NOW_POLE (landed there first; this ports the read AND
+ *  adds the write, since scher-core has no unpack_poles of its own to write from). */
 // BARE-CLOSING TRACE (2026-07-15): unpackPoles' idempotency reads the q-end-pole
 // DESIGNATION (below), never the closing — a closed End is still designated, so a bare
 // closing changes nothing here. Untouched by construction; traced, not touched.
@@ -942,6 +977,7 @@ export function unpackPoles(soc: Society, event: string, end = `${event}~hea`): 
   soc.layP(pole, `End-pole designation (frame: ${event})`, event, end, "q-end-pole");
   soc.lay({ slug: now, content: `the Now of ${event}'s own frame`, subject: null, object: null });
   soc.layP(`${now}~because~${event}`, `now is because events (frame: ${event})`, now, event, "q-grounding");
+  soc.layP(`${now}~now-pole~${event}`, `Now-pole designation (frame: ${event})`, event, now, "q-now-pole");
   return { once: event, end, pole, now };
 }
 
@@ -954,12 +990,19 @@ export function unpackPoles(soc: Society, event: string, end = `${event}~hea`): 
  *  quality-marker is read, per the address law, edge-direction alone carries the meaning.
  *  This is the one place that structural fact gets turned into a read — every caller that
  *  needs to know "is this End closed" or "walk through a closing" goes through here now,
- *  so the bare/legacy union lives in ONE place, not re-derived at each call site. */
+ *  so the bare/legacy union lives in ONE place, not re-derived at each call site.
+ *
+ *  NOW-POLE NARROWING (2026-07-20 second sitting, mirrors scher-core's closing_edges_from):
+ *  once charges are ALSO bare edges FROM `end` (charge-direction ruling, same day), a bare
+ *  edge out of `end` is no longer unambiguously a closing on direction alone — it must
+ *  ALSO land on a designated now-pole (isNowPole) to count as one. A bare charge (object a
+ *  charged event, not a Now) no longer satisfies this and correctly falls out. */
 function closingEdgesFrom(soc: Society, end: string, asOf?: number): EventRow[] {
   const quality = prehensionsFrom(soc, end, "q-grounding", asOf);
   if (!isDesignatedEndPole(soc, end, asOf)) return quality.filter((p) => !isOccluded(soc, p.slug, asOf));
-  const bare = soc.all().filter(
-    (b) => b.subject === end && b.object !== null && visibleAt(b, asOf) && !hasAnyQuality(soc, b.slug, asOf),
+  const bare = soc.edgesFromSubject(end).filter(
+    (b) => b.object !== null && visibleAt(b, asOf) && !hasAnyQuality(soc, b.slug, asOf) &&
+      isNowPole(soc, b.object, asOf),
   );
   return [...quality, ...bare].filter((p) => !isOccluded(soc, p.slug, asOf));
 }
@@ -975,30 +1018,42 @@ export function endActual(soc: Society, end: string, asOf?: number): boolean {
 }
 
 /** chargesOn: the charges on a differential — a PURE ADDRESS READ (the naked-pole law's
- *  payoff): the un-occluded BARE prehensions onto the End. No charge quality exists; the
- *  charge is a property of the EDGE, never of node-contents (Hallie, 2026-07-06). The
- *  designation edge (quality-carrying) and ~q machinery classify out structurally. */
+ *  payoff): the un-occluded BARE prehensions whose SUBJECT is the End (Hallie's ruling,
+ *  2026-07-20 first sitting: "the End prehends the capture" — the End is the charging
+ *  edge's subject, the charged event its object). No charge quality exists; the charge
+ *  is a property of the EDGE, never of node-contents (Hallie, 2026-07-06). The
+ *  designation edge (quality-carrying) and ~q machinery classify out structurally.
+ *
+ *  NOW-POLE SPLIT (2026-07-20 second sitting): a bare edge FROM `end` is ALSO the shape
+ *  a closing takes (closingEdgesFrom) now that Nows are designated poles (q-now-pole).
+ *  The two bare-edge laws share a subject and disagree only on the object: a closing's
+ *  object is a designated now-pole, a charge's is not. So a charge additionally excludes
+ *  any bare edge whose object IS a now-pole. Conformance twin: mirrors scher-core/src/
+ *  lib.rs's charges_on exactly, including its `!is_now_pole(...)` clause. */
 export function chargesOn(soc: Society, end: string, asOf?: number): EventRow[] {
-  // Adjacency-indexed (was a full soc.all() scan — ported fix, Lever A residual, 2026-07-16,
-  // mirrors scher-core/src/lib.rs's use of edges_onto_object for the same b.object === end filter).
-  return soc.edgesOntoObject(end).filter(
-    (b) => b.subject !== null && visibleAt(b, asOf) &&
-      !hasAnyQuality(soc, b.slug, asOf) && !isOccluded(soc, b.slug, asOf),
+  // Adjacency-indexed (mirrors scher-core/src/lib.rs's use of edges_from_subject for the
+  // same b.subject === end filter, post charge-direction flip 2026-07-20).
+  return soc.edgesFromSubject(end).filter(
+    (b) => b.object !== null && visibleAt(b, asOf) &&
+      !hasAnyQuality(soc, b.slug, asOf) && !isOccluded(soc, b.slug, asOf) &&
+      !isNowPole(soc, b.object, asOf),
   );
 }
 
-/** layCharge: mark voltage against `story` — a BARE edge onto the story's open End-pole
- *  (the address law: bare-edges-onto-an-open-End ARE the charges; nothing to mint). FIRST
- *  NEED: a charge requires the differential, so an un-unpacked event unpacks here. Never a
- *  duplicate task: re-noticing is additional charge across the existing differential.
- *  Also weaves the story's own lineage — `storyNow ~because~ charge` (SOFD: the charge is
- *  an event in the story's course, witnessed by the story's own frame) — which is exactly
- *  what makes the charge count for the default ground's voltage reading. */
+/** layCharge: mark voltage against `story` — a BARE edge whose SUBJECT is the story's open
+ *  End-pole and whose OBJECT is the charged event (the address law: bare-edges FROM the
+ *  End ARE the charges; nothing to mint). Charge-direction flip, ruled 2026-07-20: "the End
+ *  prehends the capture" — the End is the prehending subject, not the object being reached.
+ *  FIRST NEED: a charge requires the differential, so an un-unpacked event unpacks here.
+ *  Never a duplicate task: re-noticing is additional charge across the existing
+ *  differential. Also weaves the story's own lineage — `storyNow ~because~ charge` (SOFD:
+ *  the charge is an event in the story's course, witnessed by the story's own frame) —
+ *  which is exactly what makes the charge count for the default ground's voltage reading. */
 export function layCharge(soc: Society, story: string, by: string, content = "charge"): string {
   const u = unpackPoles(soc, story); // lazy unpack on first need (idempotent)
-  const n = soc.all().filter((b) => b.object === u.end && b.subject !== null && !hasAnyQuality(soc, b.slug)).length;
+  const n = soc.all().filter((b) => b.subject === u.end && b.object !== null && !hasAnyQuality(soc, b.slug)).length;
   const slug = `${u.end}~charge-${n}`;
-  soc.lay({ slug, content, subject: by, object: u.end });
+  soc.lay({ slug, content, subject: u.end, object: by });
   soc.layP(`${u.now}~because~${slug}`, `the story's frame witnesses its charge`, u.now, slug, "q-grounding");
   return slug;
 }
@@ -1201,23 +1256,30 @@ export interface Buckets {
  *  happened but nothing can prehend the end. THIS is how it works. Events have a LURE
  *  (not in code but in concept) but prehension by the future is appetition, prehension
  *  by now is past"). A sublime's grip on an event is APPETITION — a CHARGE (a bare,
- *  un-quality-carrying prehension) landing on the sublime-pole node — never grounding:
- *  the anti-q-lure guard structurally refuses a sublime ever closing (checkSublime-
- *  NeverCloses), and q-grounding is reserved for actual closings/membership, not for
- *  reaching toward a star that is never reached. So "which sublimes does this event
- *  sail under" is read the SAME WAY chargesOn reads "who charges this End" — bare
- *  edges, un-occluded — just walked from the charger's side (edgesFromSubject) instead
- *  of the charged-node's side (edgesOntoObject), filtered to sublime-pole targets.
- *  Mirrors bearingsOf's semantics (sublimes.ts) but reads the truly bare edge shape
- *  chargesOn/the address law define, not bearingsOf's own "because" quality-string
- *  convention (a different, pre-existing sublime-orientation idiom this bucket read
- *  does not disturb). */
+ *  un-quality-carrying prehension) — never grounding: the anti-q-lure guard
+ *  structurally refuses a sublime ever closing (checkSublimeNeverCloses), and
+ *  q-grounding is reserved for actual closings/membership, not for reaching toward a
+ *  star that is never reached.
+ *
+ *  DIRECTION CORRECTED (Hallie, 2026-07-20, ruling correction overriding the earlier
+ *  crew exemption): "sublimes prehend the user stories charged toward them —
+ *  subject=sublime, object=story/event, uniformly. The earlier exemption was
+ *  circular (it read pre-ruling code as normative)." So "which sublimes does this
+ *  event sail under" reads the charged-node's side (edgesOntoObject(node)) — the
+ *  SUBJECT of each such edge is the sublime, mirroring chargesOn's shape but from
+ *  the opposite pole (an End-pole charge has the End as subject; a sublime charge
+ *  has the SUBLIME as subject too — both "the abiding pole prehends the capture,"
+ *  just read from node's object-side here since we're asking about node, not the
+ *  sublime). Mirrors bearingsOf's semantics (sublimes.ts, same-day flip) but reads
+ *  the truly bare edge shape chargesOn/the address law define, not bearingsOf's own
+ *  "because" quality-string convention (a different, pre-existing sublime-
+ *  orientation idiom this bucket read does not disturb). */
 function sublimesChargedFrom(soc: Society, node: string, asOf?: number): string[] {
-  return soc.edgesFromSubject(node)
-    .filter((b) => b.object !== null && visibleAt(b, asOf) &&
+  return soc.edgesOntoObject(node)
+    .filter((b) => b.subject !== null && visibleAt(b, asOf) &&
       !hasAnyQuality(soc, b.slug, asOf) && !isOccluded(soc, b.slug, asOf) &&
-      isSublimePole(soc, b.object, asOf))
-    .map((b) => b.object!);
+      isSublimePole(soc, b.subject, asOf))
+    .map((b) => b.subject!);
 }
 
 /** intervalSet: the INTERIOR's domain — bounded by BOTH poles, wider than membersOf on

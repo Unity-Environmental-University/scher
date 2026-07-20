@@ -85,8 +85,11 @@ export function routesTo(s: Society, start: string, target: string, seen = new S
     .some((e) => e.object != null && routesTo(s, e.object, target, seen));
 }
 
-/** every member that q-feels onto `event` (a reading-of, a splinter-of, a witness) — live only. */
+/** every member that q-feels onto `event` (a reading-of, a splinter-of, a witness) — live only.
+ *  Q-FEEL DIRECTION FLIP (Hallie, 2026-07-20, "story-flip-q-feel-direction"): the EVENT
+ *  prehends the emoji — q-feel edges are now subject=event, object=reactor. Reads FROM
+ *  `event` now; the reactor moves from .subject to .object. */
 export function feltOnto(s: Society, event: string): string[] {
   // TODO(socratic): heirsOf, feltOnto, and the occlusion-filtered map differ only in quale — is this the same read wanting to converge into one `liveOnto(s, event, quale)`?
-  return prehensionsOnto(s, event, "q-feel").filter((e) => !isOccluded(s, e.slug)).map((e) => e.subject!);
+  return prehensionsFrom(s, event, "q-feel").filter((e) => !isOccluded(s, e.slug)).map((e) => e.object!);
 }

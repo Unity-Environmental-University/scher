@@ -67,6 +67,16 @@ pub const Q_END_POLE: &str = "q-end-pole";
 /// never-closing pole that ORGANIZES pursuit without luring. Sublimes are inert — they
 /// never close, never beckon, never actualize. `lay_p` REFUSES attempts to close them.
 pub const Q_SUBLIME_POLE: &str = "q-sublime-pole";
+/// The structural now-pole designation (story-designate-now-poles ruling, Hallie,
+/// 2026-07-20 second sitting): Nows become designated poles like End-poles and
+/// sublime-poles already are, mirroring the Q_END_POLE / Q_SUBLIME_POLE pattern exactly.
+/// This designation is what disambiguates a closing (bare edge FROM a designated End
+/// ONTO a designated now-pole) from a charge (bare edge FROM the same End onto anything
+/// that is NOT a now-pole) now that both are bare edges outgoing from the End under the
+/// end-prehends-the-capture ruling (2026-07-20, first sitting). Existing canon Nows get
+/// this designation laid in a migration pass — not this file's job; these reads just
+/// need to handle the designation once it lands.
+pub const Q_NOW_POLE: &str = "q-now-pole";
 /// MARK THE EXCEPTION, NOT THE RULE (Hallie's ruling, 2026-07-13, q-grounding-death design).
 /// `Q_GROUNDING` ("q-grounding") is a dead, redundant relation-LABEL under the one-relation
 /// ruling — but bare `"because"` vs a CLOSING is a live structural distinction the
@@ -887,12 +897,29 @@ pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
     // murder). Same edges, same steps: fwd walks subject→object, bwd the reverse.
     // TODO(socratic): fwd=true walks forward (subject→object), fwd=false walks backward (object→subject) — but does "forward-reachable from once" mean subject→object or object→subject, and which direction is the story's "natural" flow?
     // ANSWERED(walk 2026-07-02): fwd steps subject→object, bwd the reverse; the interval is the fwd(once) ∩ bwd(end) intersection, so the read is order-free set reachability between the poles — the poles ARE the story, the interior is read, never stored. — see event-is-the-bounding-sphere.md (R3)
+    //
+    // END-SUBJECT MEMBERSHIP (gen4-policy day-fabric fix, 2026-07-20): the end-prehends-the-
+    // capture ruling made membership/charge edges run subject=End, object=event — physically
+    // OUT of the End. But the pole law's meaning is unchanged: that event is still BETWEEN
+    // once and end, i.e. reachable walking backward FROM end. So when the edge's subject is
+    // a designated End-pole, this walk treats it as the pole law intends — as reaching INTO
+    // the interval from the End — by adding it to both adjacency maps in the sense that
+    // keeps `end` able to walk backward through it (bwd_adj[s] gets o, matching a normal
+    // object→subject edge) alongside its literal forward sense (fwd_adj[s] gets o, unchanged
+    // — an End can still forward-reach through its own bare edges same as any subject can).
+    // This is the one place this structural fact is read; kept slug-opaque throughout.
     let mut fwd_adj: std::collections::HashMap<&str, Vec<&str>> = std::collections::HashMap::new();
     let mut bwd_adj: std::collections::HashMap<&str, Vec<&str>> = std::collections::HashMap::new();
     for e in &edges {
         let (s, o) = (e.subject.as_deref().unwrap(), e.object.as_deref().unwrap());
         fwd_adj.entry(s).or_default().push(o);
         bwd_adj.entry(o).or_default().push(s);
+        if is_designated_end_pole(soc, s, None) {
+            // the End reaching an event is still "the event reaching backward into the
+            // End's interval" — mirror the edge into bwd_adj under its OWN subject so a
+            // backward walk starting AT end can step to o directly.
+            bwd_adj.entry(s).or_default().push(o);
+        }
     }
 
     fn reach(adj: &std::collections::HashMap<&str, Vec<&str>>, from: &str) -> std::collections::HashSet<String> {
@@ -941,6 +968,21 @@ fn is_designated_end_pole(soc: &Society, node: &str, as_of: Option<u64>) -> bool
     })
 }
 
+/// is_now_pole: is `node` the object of an un-occluded Q_NOW_POLE designation — structural
+/// Now-hood (story-designate-now-poles ruling, Hallie, 2026-07-20 second sitting). Mirrors
+/// is_designated_end_pole/is_sublime_pole exactly: designation lives on an edge, never
+/// parsed from the node's slug (opaque-slug law). This is the disambiguator
+/// closing_edges_from and charges_on now both depend on to tell a closing from a charge —
+/// both are bare edges FROM a designated End; only the OBJECT's now-pole-hood tells them
+/// apart.
+fn is_now_pole(soc: &Society, node: &str, as_of: Option<u64>) -> bool {
+    soc.edges_onto_object(node).any(|b| {
+        b.subject.is_some()
+            && prehends_as(soc, &b.slug, Q_NOW_POLE, as_of)
+            && !is_occluded(soc, &b.slug, as_of)
+    })
+}
+
 /// closing_edges_from: the edges that CLOSE this End-pole — un-occluded, as of a moment.
 /// BARE-CLOSING RULING, MECHANIZED (Hallie, 2026-07-15: "yes its edge direction"; "schedule
 /// it and feel free to act on it" — landed in the TS twin 2026-07-15, ported here
@@ -953,6 +995,14 @@ fn is_designated_end_pole(soc: &Society, node: &str, as_of: Option<u64>) -> bool
 /// or "walk through a closing" goes through here, so the bare/legacy union lives in ONE
 /// place, not re-derived at each call site. Mirrors `closingEdgesFrom` in society.ts
 /// (the bare scan is adjacency-indexed here, same rows the twin's full scan yields).
+///
+/// NOW-POLE SPLIT (Hallie, 2026-07-20 second sitting, story-designate-now-poles): since
+/// the end-prehends-the-capture ruling (same day, first sitting) made charges ALSO bare
+/// edges FROM a designated End, a bare edge leaving `end` is no longer unambiguously a
+/// closing — it could be either. Nows are now designated poles (Q_NOW_POLE, mirroring
+/// Q_END_POLE/Q_SUBLIME_POLE), so a BARE closing is narrowed to: a bare edge FROM `end`
+/// whose OBJECT IS a designated now-pole (is_now_pole). Legacy Q_GROUNDING closings are
+/// unaffected — that union member was never ambiguous, it carries its own quality marker.
 fn closing_edges_from<'a>(soc: &'a Society, end: &str, as_of: Option<u64>) -> Vec<&'a EventRow> {
     let quality = prehensions_from(soc, end, Q_GROUNDING, as_of);
     if !is_designated_end_pole(soc, end, as_of) {
@@ -962,7 +1012,10 @@ fn closing_edges_from<'a>(soc: &'a Society, end: &str, as_of: Option<u64>) -> Ve
             .collect();
     }
     let bare = soc.edges_from_subject(end).filter(|b| {
-        b.object.is_some() && visible_at(b, as_of) && !has_any_quality(soc, &b.slug, as_of)
+        b.object.is_some()
+            && visible_at(b, as_of)
+            && !has_any_quality(soc, &b.slug, as_of)
+            && is_now_pole(soc, b.object.as_deref().unwrap(), as_of)
     });
     quality
         .into_iter()
@@ -1006,17 +1059,26 @@ pub fn is_sublime_pole(soc: &Society, node: &str, as_of: Option<u64>) -> bool {
 }
 
 /// charges_on: the charges on a differential — a PURE ADDRESS READ (the naked-pole law's
-/// payoff): the un-occluded BARE prehensions onto the End. No charge quality exists; the
-/// charge is a property of the EDGE, never node-contents (Hallie, 2026-07-06). Mirrors
-/// `chargesOn` in society.ts.
+/// payoff): the un-occluded BARE prehensions the End itself makes onto the charged event.
+/// No charge quality exists; the charge is a property of the EDGE, never node-contents
+/// (Hallie, 2026-07-06). RULING (2026-07-20 first sitting): the End prehends the capture —
+/// charge edges are subject=End-pole, object=charged event.
+///
+/// NOW-POLE SPLIT (Hallie, 2026-07-20 second sitting, story-designate-now-poles): a bare
+/// edge FROM `end` is ALSO the shape a closing takes (closing_edges_from) now that Nows
+/// are designated poles (Q_NOW_POLE). The two bare-edge laws share a subject and disagree
+/// only on the object: a closing's object is a designated now-pole, a charge's is not.
+/// So a charge is a bare edge with subject==end AND whose object is NOT a now-pole.
+/// Mirrors `chargesOn` in society.ts.
 pub fn charges_on<'a>(soc: &'a Society, end: &str, as_of: Option<u64>) -> Vec<&'a EventRow> {
     soc.all()
         .filter(|b| {
-            b.object.as_deref() == Some(end)
-                && b.subject.is_some()
+            b.subject.as_deref() == Some(end)
+                && b.object.is_some()
                 && visible_at(b, as_of)
                 && !has_any_quality(soc, &b.slug, as_of)
                 && !is_occluded(soc, &b.slug, as_of)
+                && !is_now_pole(soc, b.object.as_deref().unwrap(), as_of)
         })
         .collect()
 }
@@ -1187,32 +1249,42 @@ pub fn distance_to_hea(soc: &Society, frame_once: &str, end: Option<&str>) -> He
 // events via because-edges (bearings). The reads here measure voltage-toward and
 // trace inherited bearings through story membership.
 
-/// bearings_of: all because-edges FROM this event TO any sublime-pole, as of a moment.
-/// These are the bearings (orientations) the event sails under. A bare because-edge
-/// (`event ~because~ sublime`) is pure orientation, not establishment. Occluded bearings
-/// are filtered out. Mirrors `bearingsOf` in society.ts.
+/// bearings_of: all because-edges FROM any sublime-pole TO this event, as of a moment —
+/// the bearings (orientations) the event sails under. DIRECTION FLIPPED (Hallie,
+/// 2026-07-20, ruling correction: "sublimes prehend the user stories charged toward
+/// them — subject=sublime, object=story/event, uniformly"; the earlier exemption was
+/// circular, reading pre-ruling code as normative). A bare because-edge
+/// (`sublime ~because~ event`) is pure orientation, not establishment. Occluded bearings
+/// are filtered out. Reads edges ONTO `event` now, filtered to a sublime SUBJECT — the
+/// same read serves both an ordinary event and a sublime-as-event (sublime chaining
+/// below). Mirrors `bearingsOf` in society.ts.
 pub fn bearings_of<'a>(soc: &'a Society, event: &str, as_of: Option<u64>) -> Vec<&'a EventRow> {
-    prehensions_from(soc, event, "because", as_of)
+    prehensions_onto(soc, event, "because", as_of)
         .into_iter()
-        .filter(|p| !is_occluded(soc, &p.slug, as_of) && is_sublime_pole(soc, p.object.as_deref().unwrap_or(""), as_of))
+        .filter(|p| !is_occluded(soc, &p.slug, as_of) && is_sublime_pole(soc, p.subject.as_deref().unwrap_or(""), as_of))
         .collect()
 }
 
-/// voltage_toward_sublime: count of non-occluded bare prehensions onto this sublime,
-/// as of a moment. This is the sublime's "charge" — attraction without actualization.
+/// voltage_toward_sublime: count of non-occluded bare prehensions FROM this sublime, as
+/// of a moment. This is the sublime's "charge" — attraction without actualization.
 /// Unlike charge on an End-pole (which discharges when the pole closes), a sublime's
-/// voltage accumulates forever, never exhausted. Mirrors `voltageTowardSublime` in society.ts.
+/// voltage accumulates forever, never exhausted. DIRECTION FLIPPED (Hallie, 2026-07-20,
+/// ruling correction): sublimes prehend the user stories charged toward them —
+/// subject=sublime, object=story/event, uniformly. Reads FROM the sublime now. Mirrors
+/// `voltageTowardSublime` in society.ts.
 pub fn voltage_toward_sublime(soc: &Society, sublime: &str, as_of: Option<u64>) -> usize {
-    prehensions_onto(soc, sublime, "because", as_of)
+    prehensions_from(soc, sublime, "because", as_of)
         .into_iter()
         .filter(|p| !is_occluded(soc, &p.slug, as_of))
         .count()
 }
 
 /// service_chain_of: the sublimes this sublime serves, transitively — every sublime-pole
-/// reachable UP the because-DAG from this one (the why-behind-the-why). Excludes the
-/// sublime itself. Cycle-safe (seen-set); occlusion-aware via bearings_of. Mirrors
-/// `serviceChainOf` in society.ts. (Hallie's chaining extension, 2026-07-06.)
+/// reachable UP the because-graph from this one (the why-behind-the-why). Excludes the
+/// sublime itself. Cycle-safe (seen-set — REQUIRED now that sublime→sublime cycles are
+/// LAWFUL, 2026-07-20 companion ruling 2, not merely theoretical); occlusion-aware via
+/// bearings_of. Mirrors `serviceChainOf` in society.ts. (Hallie's chaining extension,
+/// 2026-07-06; direction flipped 2026-07-20.)
 pub fn service_chain_of(soc: &Society, sublime: &str, as_of: Option<u64>) -> Vec<String> {
     let mut seen = std::collections::HashSet::new();
     seen.insert(sublime.to_string());
@@ -1220,7 +1292,7 @@ pub fn service_chain_of(soc: &Society, sublime: &str, as_of: Option<u64>) -> Vec
     let mut stack = vec![sublime.to_string()];
     while let Some(n) = stack.pop() {
         for b in bearings_of(soc, &n, as_of) {
-            let Some(next) = b.object.as_deref() else { continue };
+            let Some(next) = b.subject.as_deref() else { continue };
             if seen.insert(next.to_string()) {
                 out.push(next.to_string());
                 stack.push(next.to_string());
@@ -1231,12 +1303,12 @@ pub fn service_chain_of(soc: &Society, sublime: &str, as_of: Option<u64>) -> Vec
 }
 
 /// reached_sublimes_of: every sublime-pole an event ultimately sails under — its DIRECT
-/// bearings PLUS everything those bearings transitively serve up the DAG (the full
+/// bearings PLUS everything those bearings transitively serve up the graph (the full
 /// why-behind-the-why). Deduplicated; cycle-safe. Mirrors `reachedSublimesOf` in society.ts.
 pub fn reached_sublimes_of(soc: &Society, event: &str, as_of: Option<u64>) -> Vec<String> {
     let direct: Vec<String> = bearings_of(soc, event, as_of)
         .into_iter()
-        .filter_map(|b| b.object.clone())
+        .filter_map(|b| b.subject.clone())
         .collect();
     let mut all: std::collections::HashSet<String> = direct.iter().cloned().collect();
     for s in &direct {

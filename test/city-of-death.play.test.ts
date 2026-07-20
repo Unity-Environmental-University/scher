@@ -21,14 +21,18 @@ import { Society, prehensionsFrom, prehensionsOnto, isOccluded } from "../src/so
 
 let _id = 0; const rid = () => "c" + (_id++);
 function lay(s: Society, slug: string) { if (!s.has(slug)) s.lay({ slug, content: slug, subject: null, object: null }); }
-/** a fragment is a TIME-SCATTERED SELF of Scaroth: it q-feels (is a reading/instance of) the one being. */
+/** a fragment is a TIME-SCATTERED SELF of Scaroth: the enduring being q-feels (gathers as a
+ *  reading/instance of itself) each fragment. DIRECTION FLIPPED (Hallie, 2026-07-20,
+ *  "story-flip-q-feel-direction"): the EVENT prehends the emoji — the abiding society
+ *  (the being, SCAROTH) is the subject, each fragment the object of its own splinter-edge,
+ *  matching this file's own "heal" shape below (scaroth-reunited ~q-feel~ era). */
 function fragmentOf(s: Society, fragment: string, being: string) {
   lay(s, fragment); lay(s, being);
-  s.layP(rid() + "-frag", `${fragment} is a splinter of ${being}`, fragment, being, "q-feel");
+  s.layP(rid() + "-frag", `${being} splinters into ${fragment}`, being, fragment, "q-feel");
 }
 /** every (live) fragment of a being — the scattered society of one self. */
 function fragmentsOf(s: Society, being: string): string[] {
-  return prehensionsOnto(s, being, "q-feel").filter((e) => !isOccluded(s, e.slug)).map((e) => e.subject!);
+  return prehensionsFrom(s, being, "q-feel").filter((e) => !isOccluded(s, e.slug)).map((e) => e.object!);
 }
 /** a fragment aims at the shared End (all twelve carry the same End-pole designation). */
 function aims(s: Society, fragment: string, aim: string) { lay(s, fragment); lay(s, aim); s.layP(rid() + "-aim", `${fragment} pulls toward ${aim}`, fragment, aim, "q-end-pole"); }
@@ -105,7 +109,9 @@ describe("City of Death — Scaroth splintered across time 🛸🎨", () => {
     // frame (the X-ray) can prehend. The truth was there all along, occluded by the paint, awaiting a
     // frame that could read it. (Provenance across time — the gag IS the grammar.)
     lay(s, "the-felt-tip-message"); lay(s, "mona-lisa-a");
-    s.layP("msg-under-paint", "THIS IS A FAKE, under the paint", "the-felt-tip-message", "mona-lisa-a", "q-feel");
+    // DIRECTION FLIPPED (2026-07-20, "story-flip-q-feel-direction"): the abiding painting
+    // is the subject, gathering the message as its datum for whichever future frame reads it.
+    s.layP("msg-under-paint", "THIS IS A FAKE, under the paint", "mona-lisa-a", "the-felt-tip-message", "q-feel");
     // occluded by the paint (the present frame can't see it)...
     s.layP("paint-occludes", "the paint hides the message", "leonardos-paint", "msg-under-paint", "q-occludes");
     lay(s, "leonardos-paint");

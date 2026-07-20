@@ -144,9 +144,10 @@ describe("biographyOf", () => {
     const endEdge = `${story}~end-pole~hea`;
     soc.layP(endEdge, "", story, hea, "q-end-pole");
 
-    // Lay a charge on the End-pole (bare edge onto hea)
-    const charge = `someone~charge~hea`;
-    soc.lay({ slug: charge, content: "voltage", subject: "someone", object: hea });
+    // Lay a charge on the End-pole (bare edge FROM hea — the End prehends the capture,
+    // charge-direction ruling, 2026-07-20)
+    const charge = `hea~charge~someone`;
+    soc.lay({ slug: charge, content: "voltage", subject: hea, object: "someone" });
 
     layAuthorship(soc, "frame-frank", story);
 

@@ -32,12 +32,15 @@ function lay(s: Society, slug: string) { if (!s.has(slug)) s.lay({ slug, content
 const POIROT = "frame-poirot";
 
 /** Poirot lays a READING of a target (a suspect, or the eternal-object "the killer"): a beat that
- *  q-feels the target and designates a verdict/aim as its End-pole (q-end-pole). A reading is a node; meaning is in the edges. */
+ *  the target q-feels (gathers as its datum) and designates a verdict/aim as its End-pole
+ *  (q-end-pole). A reading is a node; meaning is in the edges. DIRECTION FLIPPED (Hallie,
+ *  2026-07-20, "story-flip-q-feel-direction"): the EVENT prehends the emoji — the abiding
+ *  target is the subject, the reading-occasion the object. */
 function reads(s: Society, target: string, verdict: string): string {
   lay(s, POIROT); lay(s, target); lay(s, verdict);
   const R = rid(); lay(s, R);
   s.layP(R + "-by", "by Poirot",   R, POIROT,  "q-utterance");
-  s.layP(R + "-of", "a reading of", R, target,  "q-feel");
+  s.layP(R + "-of", "a reading of", target, R,  "q-feel");
   s.layP(R + "-as", "reads as",     R, verdict, "q-end-pole");
   return R;
 }
@@ -50,9 +53,9 @@ function reReads(s: Society, target: string, newVerdict: string, prior: string):
 const verdictOf = (s: Society, R: string) => prehensionsFrom(s, R, "q-end-pole").find((e) => !isOccluded(s, e.slug))?.object;
 /** Poirot's LIVE reading of a target = his reading that no live reading succeeds (HEAD of his belief). */
 function liveReadingOf(s: Society, target: string): string | undefined {
-  const mine = prehensionsOnto(s, target, "q-feel")
+  const mine = prehensionsFrom(s, target, "q-feel")
     .filter((e) => !isOccluded(s, e.slug))
-    .map((e) => e.subject!)
+    .map((e) => e.object!)
     .filter((R) => prehensionsFrom(s, R, "q-utterance")[0]?.object === POIROT);
   return mine.find((R) => !prehensionsOnto(s, R, "q-grounding")
     .some((succ) => !isOccluded(s, succ.slug) && mine.includes(succ.subject!)));

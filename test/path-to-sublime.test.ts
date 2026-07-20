@@ -49,8 +49,10 @@ describe("pathToSublime: spine from now toward a sublime", () => {
     // Designate sublime-b as a different sublime-pole
     s.layP("sublime-b~pole", "sublime-b as pole", "sublime-b", "sublime-b", "q-sublime-pole");
 
-    // Create a bearing FROM now TO sublime-a (but not to sublime-b)
-    s.layP("now~bear~a", "now bears sublime-a", "now", "sublime-a", "because");
+    // Create a bearing FROM sublime-a TO now (but not to sublime-b). DIRECTION FLIPPED
+    // (Hallie, 2026-07-20, ruling correction): sublimes prehend the user stories charged
+    // toward them — subject=sublime, object=story/event.
+    s.layP("now~bear~a", "sublime-a bears now", "sublime-a", "now", "because");
 
     const path = pathToSublime(s, "now", "sublime-b");
     expect(path.reachable).toBe(false);
@@ -65,8 +67,9 @@ describe("pathToSublime: spine from now toward a sublime", () => {
     // Designate horizon as a sublime-pole
     s.layP("horizon~pole", "horizon as pole", "horizon", "horizon", "q-sublime-pole");
 
-    // now bears horizon directly
-    s.layP("now~bear~horizon", "oriented to horizon", "now", "horizon", "because");
+    // horizon bears now directly. DIRECTION FLIPPED (2026-07-20): subject=sublime,
+    // object=event.
+    s.layP("now~bear~horizon", "oriented to horizon", "horizon", "now", "because");
 
     const path = pathToSublime(s, "now", "horizon");
     expect(path.reachable).toBe(true);
@@ -88,11 +91,12 @@ describe("pathToSublime: spine from now toward a sublime", () => {
     s.layP("a~pole", "sublime-a as pole", "sublime-a", "sublime-a", "q-sublime-pole");
     s.layP("b~pole", "sublime-b as pole", "sublime-b", "sublime-b", "q-sublime-pole");
 
-    // now bears sublime-a
-    s.layP("now~bear~a", "oriented to a", "now", "sublime-a", "because");
+    // sublime-a bears now. DIRECTION FLIPPED (2026-07-20): subject=sublime, object=event.
+    s.layP("now~bear~a", "oriented to a", "sublime-a", "now", "because");
 
-    // sublime-a bears sublime-b (chaining)
-    s.layP("a~bear~b", "a in service of b", "sublime-a", "sublime-b", "because");
+    // sublime-b bears sublime-a (chaining: a is in service of b, laid as b prehending a —
+    // see sublimes-store.test.ts's "serves" convention flip).
+    s.layP("a~bear~b", "a in service of b", "sublime-b", "sublime-a", "because");
 
     const path = pathToSublime(s, "now", "sublime-b");
     expect(path.reachable).toBe(true);
@@ -123,8 +127,8 @@ describe("pathToSublime: spine from now toward a sublime", () => {
     s.lay({ slug: "now~task-2", subject: "task-1", object: "task-2" });
     s.lay({ slug: "task-2~end", subject: "task-2", object: endNow });
 
-    // now bears sublime
-    s.layP("now~bear~sublime", "oriented to sublime", "now", "sublime", "because");
+    // sublime bears now. DIRECTION FLIPPED (2026-07-20): subject=sublime, object=event.
+    s.layP("now~bear~sublime", "oriented to sublime", "sublime", "now", "because");
 
     const path = pathToSublime(s, "now", "sublime");
     expect(path.reachable).toBe(true);
@@ -148,8 +152,9 @@ describe("pathToSublime: spine from now toward a sublime", () => {
     // Designate sublime as a sublime-pole
     s.layP("sublime~pole", "sublime as pole", "sublime", "sublime", "q-sublime-pole");
 
-    // now bears sublime (but with no grounding, the bearing itself is unestablished)
-    s.layP("now~bear~sublime", "oriented to sublime", "now", "sublime", "because");
+    // sublime bears now (but with no grounding, the bearing itself is unestablished).
+    // DIRECTION FLIPPED (2026-07-20): subject=sublime, object=event.
+    s.layP("now~bear~sublime", "oriented to sublime", "sublime", "now", "because");
 
     const path = pathToSublime(s, "now", "sublime");
     expect(path.reachable).toBe(true);
@@ -165,8 +170,8 @@ describe("pathToSublime: spine from now toward a sublime", () => {
     // Designate sublime as a sublime-pole
     s.layP("sublime~pole", "sublime as pole", "sublime", "sublime", "q-sublime-pole");
 
-    // now bears sublime, but there's no grounding edge
-    s.layP("now~bear~sublime", "oriented to sublime", "now", "sublime", "because");
+    // sublime bears now, but there's no grounding edge. DIRECTION FLIPPED (2026-07-20).
+    s.layP("now~bear~sublime", "oriented to sublime", "sublime", "now", "because");
 
     const path = pathToSublime(s, "now", "sublime");
     expect(path.reachable).toBe(true);
@@ -182,8 +187,9 @@ describe("pathToSublime: spine from now toward a sublime", () => {
     // Designate sublime as a sublime-pole
     s.layP("sublime~pole", "sublime as pole", "sublime", "sublime", "q-sublime-pole");
 
-    // Trying to lay a because-edge to sublime should work (it's a bearing)
-    s.layP("now~bear~sublime", "oriented to sublime", "now", "sublime", "because");
+    // Trying to lay a because-edge from sublime to now should work (it's a bearing).
+    // DIRECTION FLIPPED (2026-07-20): subject=sublime, object=event.
+    s.layP("now~bear~sublime", "oriented to sublime", "sublime", "now", "because");
 
     // But trying to close it should throw (the guard)
     expect(() => {
@@ -199,11 +205,13 @@ describe("pathToSublime: spine from now toward a sublime", () => {
     // ONTOLOGY CHANGE (Hallie, 2026-07-10): a ring among sublime-poles is no longer refused —
     // sublimes are "mirages on the surface of the sublime's event horizon," and reflections on
     // a horizon can mutually prehend (a ring is a constellation, not an in-time causal paradox).
-    // So this test no longer asserts the ring-closing lay THROWS. Instead — and this is the load-
-    // bearing property now that rings are legal — it proves the READ side (pathToSublime) stays
-    // CYCLE-SAFE: it terminates (no infinite loop over the ring) and reports a finite, reachable
-    // spine. The read already carried a seen-set for cycle-safety; this pins that it still holds
-    // when a real ring exists rather than being unreachable-by-guard.
+    // CONFIRMED as the whole law by the 2026-07-20 ruling correction's companion ruling 2:
+    // "cycles are LAWFUL within the sublime layer." So this test no longer asserts the
+    // ring-closing lay THROWS. Instead — and this is the load-bearing property now that rings
+    // are legal — it proves the READ side (pathToSublime) stays CYCLE-SAFE: it terminates (no
+    // infinite loop over the ring) and reports a finite, reachable spine. The read already
+    // carried a seen-set for cycle-safety; this pins that it still holds when a real ring
+    // exists rather than being unreachable-by-guard.
     const s = new Society();
     node(s, "now");
     node(s, "sublime-a");
@@ -213,11 +221,14 @@ describe("pathToSublime: spine from now toward a sublime", () => {
     s.layP("a~pole", "a as pole", "sublime-a", "sublime-a", "q-sublime-pole");
     s.layP("b~pole", "b as pole", "sublime-b", "sublime-b", "q-sublime-pole");
 
-    // Build a real ring: now → a → b → a (the closing edge b → a is now ACCEPTED, not thrown).
-    s.layP("now~bear~a", "oriented to a", "now", "sublime-a", "because");
-    s.layP("a~bear~b", "a in service of b", "sublime-a", "sublime-b", "because");
+    // Build a real ring: now → a → b → a (the closing edge b → a is now ACCEPTED, not
+    // thrown). DIRECTION FLIPPED (2026-07-20): sublime-a bears now (subject=a, object=now);
+    // sublime-b bears sublime-a (a serves b, laid as b prehending a); sublime-a bears
+    // sublime-b (the ring-closing edge, b serves a laid as a prehending b).
+    s.layP("now~bear~a", "oriented to a", "sublime-a", "now", "because");
+    s.layP("a~bear~b", "a in service of b", "sublime-b", "sublime-a", "because");
     expect(() => {
-      s.layP("b~bear~a", "b in service of a (ring — now legal)", "sublime-b", "sublime-a", "because");
+      s.layP("b~bear~a", "b in service of a (ring — now legal)", "sublime-a", "sublime-b", "because");
     }).not.toThrow();
     expect(s.has("b~bear~a")).toBe(true);
 

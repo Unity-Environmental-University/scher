@@ -142,16 +142,18 @@ describe("reactionStory + reactionsOn — a typed prehension by a standpoint", (
     return new Society([{ slug: "post", content: "a post", subject: null, object: null }]);
   }
 
-  it("press lays a q-feel from the standpoint onto the target, read by reactionsOn", () => {
+  it("press lays a q-feel from the target onto the standpoint, read by reactionsOn", () => {
     const soc = withBeat();
     const btn = reactionStory(soc, { target: "post", by: "ann", emoji: "🔥" }) as HTMLButtonElement;
     expect(reactionsOn(soc, "post")).toEqual([]);
 
     btn.click();                                   // ann reacts 🔥
     expect(reactionsOn(soc, "post")).toEqual([{ key: "🔥", count: 1, by: ["ann"] }]);
-    // the q-feel is the typed prehension: subject=ann, object=post, content=emoji.
+    // the q-feel is the typed prehension: subject=post, object=ann, content=emoji.
+    // DIRECTION FLIPPED (Hallie, 2026-07-20, "story-flip-q-feel-direction"): the EVENT
+    // prehends the emoji — the abiding beat is the subject, the reactor the object.
     const feel = soc.get("feel-ann-🔥-post");
-    expect(feel).toMatchObject({ subject: "ann", object: "post", content: "🔥" });
+    expect(feel).toMatchObject({ subject: "post", object: "ann", content: "🔥" });
   });
 
   it("press-again supersedes my own reaction (append-only un-react)", () => {

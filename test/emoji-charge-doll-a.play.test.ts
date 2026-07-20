@@ -26,7 +26,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { Society, prehensionsOnto, isOccluded } from "../src/society.js";
+import { Society, prehensionsFrom, isOccluded } from "../src/society.js";
 import { reactionsOn, pathosOf } from "../src/pathos.js";
 import { reactionStory } from "../src/stories.js";
 
@@ -58,18 +58,21 @@ describe("DOLL A — emoji via the existing q-feel reaction shape", () => {
     // person, three times" question. FENCED FINDING for the committee minutes: pre-dates
     // this doll, orthogonal to "emoji as charge," worth a ticket of its own.
     expect(reactionsOn(s, "beat-1")).toEqual([]); // <- the honest, broken result today
-    const feels = prehensionsOnto(s, "beat-1", "q-feel").filter((p) => p.subject === "ren" && p.content === "🔥");
+    // DIRECTION FLIPPED (2026-07-20, "story-flip-q-feel-direction"): the beat is now the
+    // subject of its own q-feel edges, the reactor the object.
+    const feels = prehensionsFrom(s, "beat-1", "q-feel").filter((p) => p.object === "ren" && p.content === "🔥");
     expect(feels.length).toBe(1); // the one edge from click 1 — occluded, never revived
   });
 
   it("a genuinely DIFFERENT reaction event (different reactSlug) from the same person on the same beat DOES accumulate as a second edge — the guard collapses same-button-repeat, not same-person-same-emoji as a concept", () => {
     const s = new Society();
     beat(s, "beat-1", "Deb: shipped the thing");
-    // two independently-slugged q-feel lays, both content 🔥, both by ren, onto beat-1 —
+    // two independently-slugged q-feel lays, both content 🔥, both by ren, from beat-1 —
     // this is what the charter's "multiple edges to the same" would require if the UI
     // ever allowed it (it currently doesn't: reactionStory's slug template forecloses it).
-    s.layP("feel-ren-🔥-beat-1-a", "🔥", "ren", "beat-1", "q-feel");
-    s.layP("feel-ren-🔥-beat-1-b", "🔥", "ren", "beat-1", "q-feel");
+    // DIRECTION FLIPPED (2026-07-20): subject=beat-1, object=ren.
+    s.layP("feel-ren-🔥-beat-1-a", "🔥", "beat-1", "ren", "q-feel");
+    s.layP("feel-ren-🔥-beat-1-b", "🔥", "beat-1", "ren", "q-feel");
     // pathosOf (raw, unfiltered) counts both edges but only records "ren" once per hit —
     // by[] is push-per-edge, so it appears TWICE, honestly reflecting two edges:
     expect(pathosOf(s, "beat-1")).toEqual([{ key: "🔥", count: 2, by: ["ren", "ren"] }]);
@@ -110,10 +113,12 @@ describe("DOLL A — emoji via the existing q-feel reaction shape", () => {
     // greppable ON THE STRUCTURAL EDGE (never by parsing a slug — this reads .content,
     // the honest field, not the slug string; the opaque-slugs law is about slugs, not
     // about the content field q-feel is defined to carry).
+    // DIRECTION FLIPPED (2026-07-20): the q-feel edge's subject is now the reacted-to
+    // beat, so the filter walks prehensionsFrom(subject) instead of prehensionsOnto(object).
     const societyOfFireEdges = s.all().filter(
-      (b) => b.subject !== null && b.content === "🔥" && prehensionsOnto(s, b.object!, "q-feel").some((p) => p.slug === b.slug),
+      (b) => b.subject !== null && b.content === "🔥" && prehensionsFrom(s, b.subject!, "q-feel").some((p) => p.slug === b.slug),
     );
-    expect(societyOfFireEdges.map((e) => e.object)).toEqual(["b1"]);
+    expect(societyOfFireEdges.map((e) => e.subject)).toEqual(["b1"]);
   });
 
   it.todo("cross-story emoji tally established through a lineage/ground the way voltageOf reads charge relative to a frame — no current read folds reactionsOn across established-to frames");

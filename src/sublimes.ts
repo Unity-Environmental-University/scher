@@ -13,13 +13,19 @@ import { type Society, type EventRow, prehensionsFrom, prehensionsOnto, isOcclud
 // events via because-edges (bearings). The reads here measure voltage-toward and
 // trace inherited bearings through story membership.
 
-/** bearingsOf: all because-edges FROM this event TO any sublime-pole, as of a moment.
- *  These are the bearings (orientations) the event sails under. A bare because-edge
- *  (`event ~because~ sublime`) is pure orientation, not establishment. Occluded bearings
- *  are filtered out. */
+/** bearingsOf: all because-edges FROM any sublime-pole TO this event, as of a moment —
+ *  the bearings (orientations) the event sails under. DIRECTION FLIPPED (Hallie,
+ *  2026-07-20, ruling correction: "sublimes prehend the user stories charged toward
+ *  them — subject=sublime, object=story/event, uniformly"; the earlier exemption was
+ *  circular, reading pre-ruling code as normative). A bare because-edge
+ *  (`sublime ~because~ event`) is pure orientation, not establishment. Occluded bearings
+ *  are filtered out. Reads FROM the event now (edges ONTO it whose subject is a sublime),
+ *  since bearingsOf is called both with an ordinary event AND with a sublime-as-subject
+ *  (see the SUBLIME CHAINING section below — the same read serves both directions of
+ *  the sublime-to-sublime DAG because a sublime can itself be `event` here). */
 export function bearingsOf(soc: Society, event: string, asOf?: number): EventRow[] {
-  return prehensionsFrom(soc, event, "because", asOf).filter(
-    (p) => !isOccluded(soc, p.slug, asOf) && isSublimePole(soc, p.object, asOf),
+  return prehensionsOnto(soc, event, "because", asOf).filter(
+    (p) => !isOccluded(soc, p.slug, asOf) && isSublimePole(soc, p.subject, asOf),
   );
 }
 
@@ -29,10 +35,11 @@ export function bearingsOf(soc: Society, event: string, asOf?: number): EventRow
  *  `beat` iff `beat` falls in intervalOf(s, endOf(s)) — the causal diamond between the
  *  story and its End. For every content beat that is a story and contains `beat` this
  *  way, climb to that story's Once (the story itself) and return its bearings — the
- *  because-edges from the story to sublime-poles. If `beat` is in multiple stories'
- *  intervals, union the inherited bearings, deduplicated by sublime-pole (a beat should
- *  not double-count a star it reaches via two containing stories). Empty if the beat is
- *  not in any story's interval. */
+ *  because-edges FROM sublime-poles TO the story (DIRECTION FLIPPED, 2026-07-20: see
+ *  bearingsOf's own doc). If `beat` is in multiple stories' intervals, union the
+ *  inherited bearings, deduplicated by sublime-pole (a beat should not double-count a
+ *  star it reaches via two containing stories). Empty if the beat is not in any story's
+ *  interval. */
 export function storyBearingsOf(soc: Society, beat: string, asOf?: number): EventRow[] {
   const seen = new Set<string>();
   const out: EventRow[] = [];
@@ -44,8 +51,8 @@ export function storyBearingsOf(soc: Society, beat: string, asOf?: number): Even
     const interior = intervalOf(soc, story, end);
     if (!interior.includes(beat)) continue;
     for (const bearing of bearingsOf(soc, story, asOf)) {
-      if (bearing.object && !seen.has(bearing.object)) {
-        seen.add(bearing.object);
+      if (bearing.subject && !seen.has(bearing.subject)) {
+        seen.add(bearing.subject);
         out.push(bearing);
       }
     }
@@ -53,24 +60,34 @@ export function storyBearingsOf(soc: Society, beat: string, asOf?: number): Even
   return out;
 }
 
-/** voltageTowardSublime: count of non-occluded bare prehensions onto this sublime,
- *  as of a moment. This is the sublime's "charge" — attraction without actualization.
- *  Unlike charge on an End-pole (which discharges when the pole closes), a sublime's
- *  voltage accumulates forever, never exhausted. */
+/** voltageTowardSublime: count of non-occluded bare prehensions FROM this sublime, as of
+ *  a moment. This is the sublime's "charge" — attraction without actualization. Unlike
+ *  charge on an End-pole (which discharges when the pole closes), a sublime's voltage
+ *  accumulates forever, never exhausted. DIRECTION FLIPPED (Hallie, 2026-07-20, ruling
+ *  correction): sublimes prehend the user stories charged toward them —
+ *  subject=sublime, object=story/event, uniformly. Reads FROM the sublime now. */
 export function voltageTowardSublime(soc: Society, sublime: string, asOf?: number): number {
-  return prehensionsOnto(soc, sublime, "because", asOf).filter((p) => !isOccluded(soc, p.slug, asOf)).length;
+  return prehensionsFrom(soc, sublime, "because", asOf).filter((p) => !isOccluded(soc, p.slug, asOf)).length;
 }
 
-// ── SUBLIME CHAINING (Hallie's extension, 2026-07-06): sublimes serve sublimes ───
-// A sublime-pole may be the SUBJECT of a bearing edge, not only the object:
-// sublime-A ~because~ sublime-B means A sails under B — A is IN SERVICE OF B. Sublimes
-// form a DAG of stars (the-plan-reads-itself → nothing-unheard → people-are-not-grey-goo),
-// kept acyclic by assertSublimeAcyclic. bearingsOf already works on a sublime as subject
-// (it returns the sublimes IT serves — free, no new read). The reads here climb UP the DAG.
+// ── SUBLIME CHAINING (Hallie's extension, 2026-07-06; direction flipped 2026-07-20):
+// sublimes serve sublimes. A sublime-pole may be the OBJECT of a bearing edge whose
+// SUBJECT is another sublime: sublime-B ~because~ sublime-A means A sails under B — A
+// is IN SERVICE OF B, laid as B prehending A (mirrors "sublime prehends the story it's
+// charged toward," applied sublime-to-sublime). Sublimes form a graph of stars
+// (the-plan-reads-itself → nothing-unheard → people-are-not-grey-goo). TWO COMPANION
+// RULINGS (2026-07-20): (1) sublimes may prehend other sublimes; (2) CYCLES ARE LAWFUL
+// within the sublime layer — assertSublimeAcyclic/checkSublimeAcyclic were already
+// relaxed to always-allow on 2026-07-10 (see society.ts), so this is confirmed, not new
+// code. bearingsOf already works on a sublime as `event` (it returns the sublimes THAT
+// SERVE it — i.e. whose bearing edge lands on it — free, no new read). The reads here
+// climb UP the graph and MUST be cycle-safe now that cycles are lawful, not just
+// theoretically possible (serviceChainOf's seen-set already terminates correctly).
 
 /** serviceChainOf: the sublimes this sublime serves, transitively — every sublime-pole
- *  reachable UP the because-DAG from this one (the why-behind-the-why). Excludes the
- *  sublime itself. Cycle-safe (reuses a seen-set); occlusion-aware via bearingsOf. */
+ *  reachable UP the because-graph from this one (the why-behind-the-why). Excludes the
+ *  sublime itself. Cycle-safe (reuses a seen-set — REQUIRED now that sublime→sublime
+ *  cycles are lawful, not merely theoretical); occlusion-aware via bearingsOf. */
 export function serviceChainOf(soc: Society, sublime: string, asOf?: number): string[] {
   const seen = new Set<string>([sublime]);
   const out: string[] = [];
@@ -78,7 +95,7 @@ export function serviceChainOf(soc: Society, sublime: string, asOf?: number): st
   while (stack.length) {
     const n = stack.pop()!;
     for (const b of bearingsOf(soc, n, asOf)) {
-      const next = b.object!;
+      const next = b.subject!;
       if (!seen.has(next)) {
         seen.add(next);
         out.push(next);
@@ -90,11 +107,11 @@ export function serviceChainOf(soc: Society, sublime: string, asOf?: number): st
 }
 
 /** reachedSublimesOf: every sublime-pole an event ultimately sails under — its DIRECT
- *  bearings PLUS everything those bearings transitively serve up the DAG (the full
+ *  bearings PLUS everything those bearings transitively serve up the graph (the full
  *  why-behind-the-why for this event). An event bearing A inherits bearing toward
  *  everything A serves. Deduplicated; cycle-safe. */
 export function reachedSublimesOf(soc: Society, event: string, asOf?: number): string[] {
-  const direct = bearingsOf(soc, event, asOf).map((b) => b.object!);
+  const direct = bearingsOf(soc, event, asOf).map((b) => b.subject!);
   const all = new Set<string>(direct);
   for (const s of direct) {
     for (const up of serviceChainOf(soc, s, asOf)) all.add(up);
@@ -207,10 +224,12 @@ export function pathToSublime(soc: Society, fromNow: string, sublime: string, as
       break;
     }
 
-    // Walk because-edges (bearings) from current
+    // Walk because-edges (bearings) from current. DIRECTION FLIPPED (2026-07-20): bearingsOf
+    // now returns edges whose SUBJECT is the sublime charging toward `current` — climbing
+    // toward the sublime target means following `.subject`, not `.object`.
     const bearings = bearingsOf(soc, current, asOf);
     for (const bearing of bearings) {
-      const next = bearing.object!;
+      const next = bearing.subject!;
       if (!forwardParents.has(next)) {
         forwardParents.set(next, current);
         forwardQueue.push(next);

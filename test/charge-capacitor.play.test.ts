@@ -80,7 +80,7 @@ describe("DOLL 2 — capacitor: unattached charges press on a standing routing s
     // event (society.ts:730-731: `existing` short-circuits inside unpackPoles).
     expect(voltageOf(s, "team-formed")).toBe(4); // 1 (open) + 3 charges
     const end = endOf(s, "team-formed")!;
-    const chargers = chargesOn(s, end).map((c) => c.subject);
+    const chargers = chargesOn(s, end).map((c) => c.object);
     expect(chargers.sort()).toEqual(["tam", "vik", "vik"]);
   });
 
@@ -118,8 +118,8 @@ describe("DOLL 2 — capacitor: unattached charges press on a standing routing s
     // silently relinked onto the new stories. Nothing was surgery; everything is addition.
     const capacitorCharges = chargesOn(s, cap.end);
     expect(capacitorCharges.map((c) => c.slug).sort()).toEqual([c1, c2].sort());
-    expect(capacitorCharges.find((c) => c.slug === c1)?.subject).toBe("vik");
-    expect(capacitorCharges.find((c) => c.slug === c2)?.subject).toBe("tam");
+    expect(capacitorCharges.find((c) => c.slug === c1)?.object).toBe("vik");
+    expect(capacitorCharges.find((c) => c.slug === c2)?.object).toBe("tam");
     expect(isOccluded(s, c1)).toBe(false); // never occluded — the routing doesn't erase the report
     expect(isOccluded(s, c2)).toBe(false);
 

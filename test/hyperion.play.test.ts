@@ -48,11 +48,14 @@ const grounds = (s: Society, later: string, earlier: string) => {
   lay(s, later); lay(s, earlier);
   s.layP(`${later}~because~${earlier}`, "grounds in", later, earlier, "q-grounding");
 };
-/** a pilgrim tells: a reading-beat, theirs (laid_by), of the road. */
+/** a pilgrim tells: a reading-beat, theirs (laid_by), of the road. DIRECTION FLIPPED
+ *  (Hallie, 2026-07-20, "story-flip-q-feel-direction"): the EVENT prehends the emoji —
+ *  the abiding thing (the road, read again and again) is the subject; each telling is
+ *  the object of its own reading-edge. */
 const tells = (s: Society, pilgrim: string, tale: string, of: string) => {
   lay(s, of);
   if (!s.has(tale)) s.lay({ slug: tale, content: tale, subject: null, object: null, laid_by: pilgrim });
-  s.layP(`${tale}~of~${of}`, "a reading of", tale, of, "q-feel");
+  s.layP(`${tale}~of~${of}`, "a reading of", of, tale, "q-feel");
 };
 
 describe("Hyperion — the Shrike walks into an append-only canon 🌵⏳", () => {
@@ -61,10 +64,10 @@ describe("Hyperion — the Shrike walks into an append-only canon 🌵⏳", () =
     lay(s, "the-road-to-the-tombs");
     const pilgrims = ["hoyt", "kassad", "silenus", "weintraub", "lamia", "consul"];
     for (const p of pilgrims) tells(s, `frame-${p}`, `tale-of-${p}`, "the-road-to-the-tombs");
-    const readings = prehensionsOnto(s, "the-road-to-the-tombs", "q-feel");
+    const readings = prehensionsFrom(s, "the-road-to-the-tombs", "q-feel");
     expect(readings.length).toBe(6);
     // each telling belongs to its teller; the road stores no verdict of its own
-    const tellers = new Set(readings.map((r) => s.get(r.subject!)?.laid_by));
+    const tellers = new Set(readings.map((r) => s.get(r.object!)?.laid_by));
     expect(tellers.size).toBe(6);
   });
 

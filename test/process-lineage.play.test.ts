@@ -79,9 +79,12 @@ describe("the grammar reads its own ancestry 🜔→🌊", () => {
     // running this test IS an actual occasion: it prehends the canon (the data) and perishes into a
     // result (pass). The 'many' (all these beats) 'become one' (this assertion) 'and are increased by
     // one' (the new datum: this test passed). Whitehead's category of the ultimate, executed.
-    s.layP(rid() + "-pre", "this test prehends the canon", "ev-this-test", "this-canon", "q-feel");
+    // DIRECTION FLIPPED (Hallie, 2026-07-20, "story-flip-q-feel-direction"): the EVENT
+    // prehends the emoji — the abiding canon (this-canon) is the subject, gathering this
+    // test's occasion as its datum, not the other way round.
+    s.layP(rid() + "-pre", "this test prehends the canon", "this-canon", "ev-this-test", "q-feel");
     lay(s, "this-canon");
-    const prehendsTheCanon = prehensionsFrom(s, "ev-this-test", "q-feel").some((e) => e.object === "this-canon");
+    const prehendsTheCanon = prehensionsFrom(s, "this-canon", "q-feel").some((e) => e.object === "ev-this-test");
     expect(prehendsTheCanon).toBe(true); // the many become one...
     // ...and are increased by one: after this runs, there is a new datum (the result) that the NEXT
     // reading can prehend. The grammar is not described BY the test; the test is an instance OF it.

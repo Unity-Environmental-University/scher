@@ -111,8 +111,9 @@ describe("DOLL 3 — hybrid: clear-goal charges attach direct, goal-less charges
     );
 
     // the ORIGINAL charge (Vik's) is untouched — append-only, same discipline as DOLL 2's
-    // sprint-end discharge, just smaller and earlier. Charges are bare edges onto the End
-    // (address law) — chargesOn(end) reads them, no quality word to look up:
+    // sprint-end discharge, just smaller and earlier. Charges are bare edges FROM the End
+    // (address law, charge-direction ruling 2026-07-20: the End prehends the capture) —
+    // chargesOn(end) reads them, no quality word to look up:
     expect(isOccluded(s, c1)).toBe(false);
     const capCharges = chargesOn(s, cap.end);
     expect(capCharges.map((c) => c.slug).sort()).toEqual([c1, c2].sort());

@@ -19,10 +19,15 @@
 //   a reading R of event E by frame F toward aim A is THREE real edges + one node:
 //     R  (a beat — the reading itself, an event)
 //     R --q-utterance--> F   (authored BY this frame/standpoint)
-//     R --q-feel-------> E   (this reading is OF this event)   [q-feel: the felt prehension of it]
+//     E --q-feel-------> R   (the event gathers this reading as its datum)   [q-feel: the felt prehension of it]
 //     R --q-end-pole-------> A   (this reading aims the event toward A — the why)
-//   a re-reading R2 by F: R2 --q-utterance--> F, R2 --q-feel--> E, R2 --q-end-pole--> A2,
+//   a re-reading R2 by F: R2 --q-utterance--> F, E --q-feel--> R2, R2 --q-end-pole--> A2,
 //     and  R2 --q-grounding--> R1   (R2 succeeds R1 — meaning's HEAD advances; R1 an ancestor)
+//
+// DIRECTION FLIPPED (Hallie, 2026-07-20, "story-flip-q-feel-direction"): the EVENT
+// prehends the emoji — q-feel's subject is the abiding thing (E, the event being read
+// again and again), never the individual reading-occasion (R). Same law as the same
+// day's End-prehends-the-capture ruling.
 //
 // Run: cd scher && npx vitest run re-reading.play
 // ─────────────────────────────────────────────────────────────────────────────
@@ -44,7 +49,7 @@ function reading(s: Society, frame: string, event: string, aim: string): string 
   const R = rid();
   lay(s, R);
   s.layP(R + "-by",   "authored by",   R, frame, "q-utterance"); // R --q-utterance--> F
-  s.layP(R + "-of",   "a reading of",  R, event, "q-feel");      // R --q-feel--> E
+  s.layP(R + "-of",   "a reading of",  event, R, "q-feel");      // E --q-feel--> R
   s.layP(R + "-aims", "aims toward",   R, aim,   "q-end-pole");      // R --q-end-pole--> A
   return R;
 }
@@ -64,9 +69,9 @@ function authorOf(s: Society, R: string): string | undefined {
 function aimOf(s: Society, R: string): string | undefined {
   return prehensionsFrom(s, R, "q-end-pole").find((e) => !isOccluded(s, e.slug))?.object ?? undefined;
 }
-/** every reading OF an event (any frame): the beats that q-feel onto E. */
+/** every reading OF an event (any frame): the beats E q-feels FROM itself. */
 function readingsOf(s: Society, event: string): string[] {
-  return prehensionsOnto(s, event, "q-feel").filter((e) => !isOccluded(s, e.slug)).map((e) => e.subject!);
+  return prehensionsFrom(s, event, "q-feel").filter((e) => !isOccluded(s, e.slug)).map((e) => e.object!);
 }
 /** the LIVE readings of E by frame F: readings of E authored by F, that NO live reading succeeds. */
 function liveReadingsBy(s: Society, frame: string, event: string): string[] {

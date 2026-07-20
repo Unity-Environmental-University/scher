@@ -123,9 +123,11 @@ const groundTea = buttonStory(soc, {
   const starRain = buttonStory(soc, {
     label: "🌧️ react (lay pathos)",
     press: (s) => {
-      // TODO(socratic): counting beats by slug prefix is exactly the string-matching on slugs that scher/CLAUDE.md forbids — shouldn't charge be read structurally (q-feel prehensions onto b-rain), and doesn't the doc string below teach every reader the smuggle?
+      // TODO(socratic): counting beats by slug prefix is exactly the string-matching on slugs that scher/CLAUDE.md forbids — shouldn't charge be read structurally (q-feel prehensions from b-rain), and doesn't the doc string below teach every reader the smuggle?
       const n = s.all().filter((b) => b.slug.startsWith("feel-rain-")).length;
-      s.layP(`feel-rain-${n}`, "🌧️", "actor-you", "b-rain", "q-feel");
+      // Q-FEEL DIRECTION FLIP (Hallie, 2026-07-20, "story-flip-q-feel-direction"): the
+      // EVENT prehends the emoji — subject=b-rain, object=actor-you.
+      s.layP(`feel-rain-${n}`, "🌧️", "b-rain", "actor-you", "q-feel");
     },
   });
   root.appendChild(entry(
@@ -135,13 +137,14 @@ const groundTea = buttonStory(soc, {
     [rainCard, starRain],
     `// pathos is the same primitive — a different quality.
 // each press lays a fresh q-feel beat → charge accrues.
+// the EVENT prehends the emoji (subject=beat, object=reactor).
 const starRain = buttonStory(soc, {
   label: "🌧️ react (lay pathos)",
   press: (s) => {
     const n = s.all()
       .filter(b => b.slug.startsWith("feel-rain-")).length;
     s.layP(\`feel-rain-\${n}\`, "🌧️",
-           "actor-you", "b-rain", "q-feel");
+           "b-rain", "actor-you", "q-feel");
   },
 });`,
   ));

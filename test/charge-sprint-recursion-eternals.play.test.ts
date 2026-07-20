@@ -36,7 +36,8 @@
 // and feel free to act on it"): closePole now closes with a BARE edge, not a q-grounding-
 // quality one (see society.ts's closePole/closingEdgesFrom docs). FACE ONE's raw read
 // below switched from prehensionsFrom(..., "q-grounding") — which structurally cannot see
-// a bare edge, same as chargesOn's bare-onto model — to a direct edge check by slug; the
+// a bare edge, same shape chargesOn reads bare-FROM-end (charge-direction ruling,
+// 2026-07-20: the End prehends the capture) — to a direct edge check by slug; the
 // CLAIM (same edge, two faces) is unchanged, only the mechanism-level assertion is.
 //
 // SCENE B — ETERNALS AND INGRESSION: a recurring shape (a weekly-review checklist,
@@ -68,7 +69,7 @@
 import { describe, it, expect } from "vitest";
 import {
   Society, layCharge, voltageOf, isStory, endOf, endActual, unpackPoles, closePole,
-  intervalOf, prehensionsFrom, prehensionsOnto, isOccluded,
+  intervalOf, prehensionsFrom, prehensionsOnto, isOccluded, isNowPole,
 } from "../src/society.js";
 
 function node(s: Society, slug: string, content = slug) {
@@ -172,8 +173,15 @@ describe("DOLL 4 SCENE A — sprint as recursion of stories within story", () =>
     // duplication. `discharge`'s subject IS sprint.end (closePole lays it there), so a
     // raw scan for edges FROM the End still finds this SAME edge — read directly (not via
     // prehensionsFrom(..., "q-grounding"), which is quality-filtered and structurally
-    // cannot see a bare edge; see the file header's 2026-07-15 update):
-    const outgoingFromEnd = s.all().filter((b) => b.subject === sprint.end && b.object !== null);
+    // cannot see a bare edge; see the file header's 2026-07-15 update).
+    // UPDATED (2026-07-20, charge-direction + now-pole-designation): layCharge's own
+    // bare charge (Vik's need, laid earlier) is ALSO now subject=sprint.end, so a raw
+    // unfiltered scan for "edges FROM the End" finds BOTH the charge and the closing —
+    // they only separate by now-pole designation on the OBJECT (chargesOn/closingEdgesFrom
+    // read exactly that split). Narrowed the raw scan here to isolate the closing shape
+    // the SAME way closingEdgesFrom does (object is a designated now-pole):
+    const outgoingFromEnd = s.all().filter((b) =>
+      b.subject === sprint.end && b.object !== null && isNowPole(s, b.object));
     expect(outgoingFromEnd.map((e) => e.slug)).toEqual([discharge]); // the sprint's OWN closing edge (subject=end), bare
     expect(s.has(`${discharge}~q`)).toBe(false); // bare — no quality word minted, same as a charge
     const groundedBecauseDischarge = prehensionsOnto(s, discharge, "q-grounding");

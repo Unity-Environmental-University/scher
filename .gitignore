@@ -5,4 +5,7 @@ dollhouse/lib/
 
 # Rust core build dir
 scher-core/target/
+scher-core-wasm/target/
+# wasm-pack output (rebuild with: cd scher-core-wasm && wasm-pack build --target web --release)
+scher-core-wasm/pkg/
 src/*.js

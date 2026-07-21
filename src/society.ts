@@ -1,173 +1,92 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// society.ts — the client-side Society: an append-only log of beats, not a
-// key/value store. The only write is lay(); beats are never overwritten. Values
-// aren't stored — they're read from the log (see the reads below: mode_at,
-// confidence, …). State changes only by appending, and readers re-derive.
-//
-// Versioning, rollback, and audit are free, because they are what an append-only log
-// IS. If you back this with a server, a Society is the local cone of the canon: what
-// you've fetched plus what you've optimistically laid, reconciled out of band.
+// society.ts — an append-only log of beats, not a key/value store. The only
+// write is lay(); beats are never overwritten. Values are read from the log,
+// not stored (see mode_at, confidence, below).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { Cell, type Read } from "./cell.js";
 
-/** A beat. With subject+object it is a prehension (an edge). A quality beat (slug
- *  ending '~q', object the quality itself — usually a q-*, but the spelling is never
- *  read; see hasAnyQuality) carries mode. */
+/** A beat. With subject+object it is an edge. A quality beat (slug ending '~q',
+ *  object is the quality) carries mode. Its spelling is never read — see hasAnyQuality. */
 export interface EventRow {
   slug: string;
   content: string;
-  /** the BULLET — a short human headline, distinct from content (the notes). Render this as the
-   *  scannable line; content is the foldable detail. (gen3.beat.title; the title-ratchet requires it
-   *  on new human beats.) Optional: pre-title beats and auto edges have none. */
+  /** the BULLET — a short headline, separate from content (the notes). New human beats
+   *  need one; pre-title beats and auto edges may have none. */
   title?: string | null;
   subject: string | null;
   object: string | null;
   /** when the local society witnessed this beat (the client's own db_witnessed). */
   witnessed?: number;
-  /** WHO laid this beat — the capturing/editing frame's subject (or a causing event's slug
-   *  when machinery lays). CONSTITUTIVE, not relational (Hallie's ruling, 2026-07-07
-   *  braid-of-societies: "no statement is not spoken from"). Mirrors scher-core's EventRow.laid_by. */
+  /** WHO laid this beat: the frame's subject, or a causing event's slug when machinery
+   *  lays it. Required by rule (2026-07-07): no statement is not spoken from. */
   laid_by?: string | null;
 }
 
-// The qualities the kernel itself branches behavior on — isOccluded/isGrounded/blockedBy/
-// endReached/reactionsOn/authorOf all key a real read off one of these literal
-// strings (see the functions below). q-containment also lives here because
-// assertNotMembershipContainment hardcodes it as a guard trip-wire. Everything else that has
-// ever been a "quality" (q-shared, q-assigned-to, q-due, q-receives, q-succeeds, and any
-// quality a caller invents, like a directional q-move-toward/q-move-away pair) rides through
-// prehendsAs/prehensionsOnto/prehensionsFrom as a plain string comparison with no kernel
-// branch — so it never needed to live in a closed union to be safe. (Committee, 2026-07-03:
-// see docs/committees/2026-07-03-quality-extensibility.md — the closed union bought a
-// typo-catcher for ~9 names, never a runtime gate; prehendsAs already accepts any string a
-// caller casts through. Splitting it this way keeps that one real benefit — catching a
-// typo'd q-groundng on a name the kernel actually reads — while letting new lateral
-// qualities typecheck without editing this file.)
+// These are the quality strings the kernel itself branches on (isOccluded, endReached,
+// etc.). Other qualities (q-shared, q-due, q-succeeds, or any caller-invented string)
+// work fine as plain strings with no kernel branch, so they don't need to live here.
+// Splitting it this way just catches typos on the names the kernel actually reads.
 export type KernelQuality =
-  // N4 hardened (Hallie, 2026-07-15; supersedes the 2026-07-03 "beginning deprecation"):
-  // q-grounding is PURELY DEPRECATED. "because is the one relation" is a laid event in the
-  // live canon — the bare because-edge IS the relation, and the explicit q-grounding
-  // mode-marker is redundant ink. Do not lay it in new writers.
-  //
-  // HONESTY CLAUSE (my comments never pretend): the kernel still BRANCHES on this string
-  // for LEGACY rows. reaches/establishedTo walk it (both spellings, via closingEdgesFrom
-  // for the pole-closing case); the sublime guard (checkSublimeNeverCloses) keys on it;
-  // groundedForAnyFrame reads it (ordinary grounding-onto, unrelated to pole-closing — see
-  // its own trace comment). "Purely deprecated" here means the WRITE grammar is closed,
-  // not that the reads are gone — laid q-grounding rows stay honored forever (append-only:
-  // the ink stays, as always).
-  //
-  // MIGRATION ANSWER, RULED (Hallie, 2026-07-15: "yes its edge direction"): the tension
-  // above — how do the naked-pole law and sublime guard tell a closing from a charge
-  // once the quality-marker is gone — is settled by EDGE DIRECTION alone. Under
-  // bare-because, a bare edge ONTO an open End-pole is a charge; a bare edge OUT of it
-  // is the closing. No quality needed: the pole's structure plus the edge's direction
-  // carry the whole distinction.
-  //
-  // MECHANIZED AND LANDED (2026-07-15: "schedule it and feel free to act on it" — the
-  // follow-up ruling authorizing the actual rewrite). assertNakedPole needed no change —
-  // it's reachable only through layP, which requires a Quality, so a bare edge never
-  // reached it, "bare ONTO = charge" and "bare OUT = closing" were already true by
-  // construction. What DID need to change, and now has: closePole itself closes with a
-  // bare .lay() (no quality, no '~q' beat), not layP(..., "q-grounding") — see closePole's
-  // own doc. Every read that recognizes a closing (endActual, voltageOf, reaches when
-  // walking "q-grounding") now goes through closingEdgesFrom, which unions the bare shape
-  // with this legacy quality-carrying spelling. This union type still carries "q-grounding"
-  // for exactly that reason: legacy rows and non-pole ordinary groundings (comments,
-  // toggle-buttons — see stories.ts's NAMED EXCEPTION) still lay and read it.
+  // q-grounding: write-deprecated (2026-07-15) — new code should use a bare edge, not
+  // this quality-marker. But the kernel still reads it on old rows (reaches,
+  // establishedTo, the sublime guard) and it stays legal forever — old rows never get
+  // rewritten. A bare edge ONTO an open End-pole is a charge; a bare edge OUT of it is
+  // the closing. See closingEdgesFrom for where both shapes (bare + this legacy string)
+  // get unioned into one read.
   | "q-grounding"
-  // q-lure is DEAD — killed with fire (Hallie, 2026-07-06): it smuggled an agent (who
-  // lures?) and could not state its own direction. It is NOT in this union and layP
-  // REFUSES it (assertNoLure, below — blocking, unlike the containment holler). The
-  // three-pole unpack replaces it: q-end-pole designates a pole, structurally.
+  // q-end-pole: designates a pole, structurally. Replaces the dead q-lure grammar
+  // (2026-07-06) — layP refuses q-lure outright (see assertNoLure).
   | "q-end-pole"
-  // q-sublime-pole designates a never-closing pole (2026-07-06 sublimes-store design):
-  // unlike an End-pole (which closes when `end ~because~ now`), a sublime-pole is forever
-  // open. It is INERT — never lures, never actualize. Its structure is "star for navigation,
-  // not a destination to land" (Hallie).
+  // q-sublime-pole: designates a pole that never closes. It is inert — a star to steer
+  // by, not a place to land (Hallie).
   | "q-sublime-pole"
-  // q-now-pole designates a story's own Now as a structural pole (Hallie, 2026-07-20
-  // second sitting, "story-designate-now-poles" — mirrors scher-core's Q_NOW_POLE,
-  // landed there first). NEEDED BY THE CHARGE-DIRECTION FLIP (2026-07-20 first sitting,
-  // "the End prehends the capture"): once a charge is laid subject=End, object=charged-
-  // event, a charge and a closing (`end ~because~ now`, ALSO subject=End under the bare-
-  // closing ruling) share the exact same edge SHAPE — both are bare edges FROM the End.
-  // Direction alone no longer disambiguates them, because there is only one direction
-  // left. What still disambiguates: the OBJECT. A closing's object is the story's own
-  // Now; a charge's object is whatever the charge is about. Structurally reading "is the
-  // object a Now" (never by slug spelling — opaque-slugs law) requires the Now to be a
-  // DESIGNATED pole, same pattern as q-end-pole/q-sublime-pole. See isNowPole/
-  // chargesOn/closingEdgesFrom for the reads this designation feeds.
+  // q-now-pole: designates a story's own Now as a structural pole (2026-07-20). Needed
+  // because a charge and a closing are both bare edges FROM the End now — direction no
+  // longer tells them apart, only the OBJECT does: a closing's object is a designated
+  // Now-pole, a charge's object never is. See isNowPole / chargesOn / closingEdgesFrom.
   | "q-now-pole"
   | "q-exclusion"
   | "q-utterance"
   | "q-feel"
   | "q-containment"
-  // RENAMED from q-depends-on (Hallie, 2026-07-15): "depends-on is too close to need to
-  // drift and we need the language to be the language" — she considered letting topology
-  // disambiguate instead, then ruled a rename over that. Live canon carries exactly 2
-  // legacy q-depends-on rows (append-only ink — it stays); the dependsOn/blockedBy read
-  // family below honors BOTH spellings with a dated comment. New writes: q-blocked-by only.
+  // q-blocked-by: renamed from q-depends-on (2026-07-15). A couple legacy
+  // q-depends-on rows still exist and stay honored; new writes use q-blocked-by only.
   | "q-blocked-by"
-  // DRAMA CUT (Hallie, 2026-07-15: "drama isn't really in the picture any more... cut for
-  // now and mark the commit — I suspect trub handles it"). Verified against live canon:
-  // ZERO q-resolves edges exist — the cut is data-clean, no migration owed. Removed with
-  // it: resolutionOf/isResolved (society.ts) — the only two readers, gone with the quality.
-  // This is a door marked, not erased: a future drama pass may reopen it, informed by how
-  // trub actually ended up handling resolution. Do not resurrect the string without a
-  // fresh ruling; do not treat this comment as a spec for what the future pass should do.
+  // q-occludes.
+  // DRAMA CUT (2026-07-15): q-resolves and its readers (resolutionOf/isResolved) were
+  // removed — zero live edges used them. Door marked, not erased: don't resurrect the
+  // string without a fresh ruling.
   | "q-occludes"
-  // NOTE: there is deliberately NO charge quality. Charge is a pure ADDRESS read (Hallie,
-  // 2026-07-06: "the charge is a property of the edge not of the node") — a charge is any
-  // bare prehension onto a story's open End-pole (see chargesOn / the address law at
-  // assertNakedPole). Minting a q-charge word would smuggle charge back into contents.
-  // graduated 2026-07-03: assigneesOf now reads this quality (it used to read a slug shape no
-  // live store had ever laid — checked against gen3.beat, canon.event, the prehension graphs —
-  // while real q-assigned-to edges existed). q-due stays lateral: real edges exist but no
-  // kernel read branches on it yet; it graduates when one does.
+  // NOTE: no charge quality exists on purpose. A charge is just any bare edge onto a
+  // story's open End-pole (see chargesOn) — the charge is a property of the edge, not
+  // of the node, so there's nothing to mint a word for.
   | "q-assigned-to";
 
-/** The qualities a prehension can co-prehend (the mode it carries). KernelQuality for the
- *  names the kernel branches on, or any other string for a lateral/caller-defined quality
- *  (q-shared, q-assigned-to, q-due, q-receives, q-succeeds, or something new entirely). */
+/** The mode an edge can carry: a KernelQuality name, or any other string a caller invents
+ *  (q-shared, q-due, q-succeeds, etc). */
 export type Quality = KernelQuality | (string & { readonly __quality?: never });
 
 /** The mode a beat reads as. Derived, not stored. */
 export type Mode = "established" | "scripted";
 
 // ── DEPRECATE GUARD: membership is NOT containment ─────────────────────────────
-// scher laid this error itself, once, and corrupted its own containment reads doing it —
-// this guard is scher owning that and refusing to let it happen silently again.
-// THE LAW scher holds itself to: a beat's membership in a Story is its POSITION BETWEEN the
-// Story's Once/End bounds — COMPUTED (intervalOf), CACHED if slow, CLEARLY DERIVED. It is
-// NEVER a stored q-containment "inside" edge. q-containment is part/whole nesting only.
-// Overloading it for membership is what scher corrupted: every read that walks containment,
-// and the ability to tell authored-containment from derived-membership the instant a real
-// edge landed in the wrong shape.
+// LAW: a beat's membership in a Story is its position between the Story's Once/End
+// bounds, computed by intervalOf — never a stored q-containment "inside" edge.
+// q-containment is for part/whole nesting only.
 //
-// So the guard hollers when q-containment is laid in the membership shape ('-in'/'@in'
-// edges) — this is scher speaking about its own past mistake, not a generic lint. It does
-// not block (won't break a running tool); it hollers, loudly, with the fix, because scher
-// would rather a caller hear the lesson than repeat it quietly.
+// This guard hollers (does not block) when q-containment is laid in the membership
+// shape ('-in'/'@in' edges) — scher corrupted its own reads doing this once; the holler
+// is so it doesn't happen silently again.
 // ── DEAD GRAMMAR GUARD: q-lure is killed with fire ──────────────────────────────
-// Hallie's ruling, 2026-07-06 (verbatim: "Q Lure is killed with fire thousands of times
-// as it has been before"). Unlike the containment guard below, this one REFUSES — it does
-// not holler and continue, because a laid lure would silently re-teach the dead grammar
-// to every read downstream.
+// Hallie's ruling, 2026-07-06: q-lure is dead. It smuggled an agent (who lures?) and
+// couldn't state its own direction. Unlike the containment guard above, this one BLOCKS
+// (throws), because a laid lure would silently re-teach dead grammar downstream.
 //
-// WHY q-lure is dead: it smuggled an agent (who does the luring?) and could not state its
-// own direction (does the Once lure the End, or the End the Once?). The pole law replaces
-// it: an event is ONE event until lazily unpacked into its THREE poles — Once (the ground
-// of everything, rests on nothing), End (when actual, is because Now), Now. End-hood is
-// STRUCTURAL: the q-end-pole designation the unpack lays — never a lure edge, never a
-// slug or content spelling.
-//
-// WHAT TO DO if you hit this: unpack the event into its poles (unpackPoles, or the
-// done-verb's lazy unpack in gen4-policy's mark_done) and let the End close via
-// `end ~because~ now` (q-grounding). If you are migrating old data, re-lay each lure as
-// the unpack shape; the lure rows themselves stay in old logs as testimony, but no new
-// society may carry them — assertNoLureInSociety scans for smuggled ones.
+// Replacement: unpack the event into its three poles (Once / End / Now) via unpackPoles,
+// then close the End with `end ~because~ now` (q-grounding). Old lure rows stay in old
+// logs as testimony but no new society may carry one — assertNoLureInSociety scans for
+// smuggled ones.
 export function assertNoLure(slug: string, quality: Quality): void {
   if (quality !== "q-lure") return;
   throw new Error(
@@ -197,20 +116,14 @@ export function assertNoLureInSociety(soc: Society): void {
 }
 
 // ── ADDRESS LAW: nothing touches a naked pole ───────────────────────────────────
-// THE LAW (one sentence, born with its guard per the meta-law of 2026-07-06): an open
-// (not-yet-actual) End-pole receives ONLY charge-prehensions onto it and, eventually, the
-// ONE closing q-grounding out of it — nothing else touches a naked pole; comments and
-// references prehend the STORY, never its End.
+// LAW (2026-07-06): an open End-pole receives only charge-edges onto it, and eventually
+// one closing edge out of it. Nothing else touches a naked pole — comments and
+// references go on the STORY, never its End. This is what makes a charge a pure address
+// read (chargesOn): a charge is just a bare edge onto the open End, a property of the
+// edge, never the node.
 //
-// This is what makes charge a pure address read (chargesOn): "charges on this
-// differential" = the bare prehensions onto its open End — the charge is a property of
-// the EDGE, never of node-contents (Hallie, verbatim), so no charge quality-word exists
-// to mint, and nothing else can be parked on the pole to muddy the count.
-//
-// WHAT TO DO if you hit this: prehend the STORY (the Once/event) instead — a comment, a
-// dependency, a feel, a reference all belong on the story; only charges (bare edges) land
-// on its open End, and only the closing grounding leaves it. Once the End is actual
-// (closed), it is no longer naked and ordinary grammar applies.
+// If you hit this: point your edge at the story instead, or lay a bare edge if you mean
+// a charge. Once the End closes, ordinary edges are fine again.
 export function assertNakedPole(
   soc: Society,
   slug: string,
@@ -218,8 +131,7 @@ export function assertNakedPole(
   object: string,
   quality: Quality,
 ): void {
-  // the q-end-pole designation itself is what MAKES a pole — structural machinery, exempt
-  // in both positions (a pole may itself be a story whose own End lies further in).
+  // the q-end-pole designation itself is what MAKES a pole — exempt in both positions.
   if (quality === "q-end-pole") return;
   if (isOpenEndPole(soc, object)) {
     throw new Error(
@@ -229,21 +141,10 @@ export function assertNakedPole(
       `story (the pole's Once), or lay a bare edge if you mean a charge. (law: naked-pole)`,
     );
   }
-  // EDGE-DIRECTION RULING, MECHANIZED (2026-07-15: "yes its edge direction... no quality
-  // needed" — see the MIGRATION ANSWER comment on KernelQuality above; "schedule it and
-  // feel free to act on it" was the follow-up ruling that authorized landing the actual
-  // rewrite, not just the comment). closePole now closes with a BARE edge (soc.lay()
-  // directly — see closePole's own body), so this guard is reachable from exactly one
-  // call site, layP, whose signature REQUIRES a Quality argument: a bare closing edge
-  // never reaches this check at all, same as a bare charge never did (chargesOn's model).
-  // The `quality !== "q-grounding"` exemption below is now LEGACY-ONLY: no live writer in
-  // this codebase routes a closing through layP with the literal "q-grounding" string
-  // anymore (grep confirms — closePole was the one that did). It stays, unremoved, for two
-  // honest reasons: (1) refusing it would be a guard-behavior change beyond this ruling's
-  // scope — nobody asked to forbid a legacy-shaped write, only to stop closePole making
-  // one; (2) it costs nothing to leave, since nothing exercises it going forward. Pinned:
-  // address-law.test.ts's bare-edge-closes case (was already true by construction; now
-  // ALSO true because closePole actually calls it) plus a fresh bare-closePole pin.
+  // 2026-07-15: closePole now closes with a bare edge, not layP, so it never reaches this
+  // check. TRIPWIRE: the `quality !== "q-grounding"` exemption below is legacy-only — no
+  // live writer uses it — but it must stay. Removing it would forbid a legacy-shaped
+  // write nobody asked to forbid.
   if (isOpenEndPole(soc, subject) && quality !== "q-grounding") {
     throw new Error(
       `[ADDRESS LAW] '${slug}' lays a ${quality} prehension OUT of the open End-pole ` +
@@ -255,11 +156,8 @@ export function assertNakedPole(
   }
 }
 
-/** isDesignatedEndPole: is `node` the object of an un-occluded q-end-pole designation —
- *  structural End-hood, regardless of whether it has since closed? Factored out of
- *  isOpenEndPole (2026-07-15, bare-closing wave) because the closing-recognition helpers
- *  below need this same structural test on a node that IS actual (a closed End is still
- *  an End; only isOpenEndPole cares whether it's still naked). */
+/** isDesignatedEndPole: is `node` the object of an un-occluded q-end-pole designation?
+ *  True whether or not it has since closed — only isOpenEndPole cares about that. */
 function isDesignatedEndPole(soc: Society, node: string | null, asOf?: number): boolean {
   if (!node) return false;
   return soc.all().some(
@@ -297,48 +195,16 @@ export function assertNotMembershipContainment(slug: string, quality: Quality): 
 // This ensures the anti-q-lure guarantee: a sublime is INERT (never beckons, never
 // actualizes an agent's promise). Closure is forbidden structurally.
 //
-// WHAT TO DO if you hit this: a sublime is not a story endpoint. Do not try to
-// close it or mark it as done. If you mean to actualize an End, use an End-pole
-// instead (designate it with q-end-pole and close it with `end ~because~ now`).
-// A sublime's purpose is to ORIENT pursuit, not to be reached. (law: sublime-never-closes)
-// REFUSAL, NOT A THROW (Hallie's ruling, 2026-07-07: "a scream with no ears is not a scream,
-// it's a seizure"). This used to `throw`; layP caught nothing, so any uncaught throw here was
-// effectively also a seizure wherever it landed in an event loop with no surrounding
-// try/catch. The RULE is unchanged — only the mechanism of refusal, from an exception to a
-// returned message layP can act on. Returns the violation message, or null if the write is fine.
+// WHAT TO DO if you hit this: a sublime is not a story endpoint. Don't close it or mark
+// it done. To actualize an End, use an End-pole instead. A sublime orients pursuit; it
+// is never reached.
 //
-// STATUS, CORRECTED (2026-07-15, cooling wave, tension 3: layP-dead-guards): the doc-comment
-// below on assertSublimeNeverCloses claimed layP calls THIS non-throwing function instead —
-// checked directly against layP's body: it does not. layP still calls the throwing
-// assert* wrapper (and its assertSublimeAcyclic sibling), same as it always has; this
-// check* function is correct, tested indirectly (assertSublimeNeverCloses delegates to it),
-// but has ZERO direct callers of its own. The throw→return swap in layP is a real behavior
-// change — every one of layP's ~26 call sites currently assumes a throw, not a checked
-// return — and isn't mine to make silently mid-cooling-pass; it needs its own ruling on
-// how callers should react to a non-throwing refusal (log and drop the write? surface to
-// UI? something else?). Until that ruling lands, the throwing path IS the live one for
-// all four of layP's guards, not just two — the "two migrated, two stalled" framing this
-// comment used to imply was itself inaccurate; none of layP's guards have migrated yet.
-//
-// RULED, CLOSED (Hallie, 2026-07-15, after the algedonic-channel sitting —
-// docs/committees/2026-07-15-algedonic-channel-sitting.md): "Yeah we don't need it
-// explicit — pain should show the shape." The skeptic's position carried: the guards KEEP
-// THROWING. No refusal-event machinery, no check* wiring in layP, no speculative channel
-// design. This is not a shelved migration anymore; it is a decided non-build. The earlier
-// law still stands ("Nothing should be silent - algedonic channel", 2026-07-15 morning) —
-// and a throw satisfies it: an uncaught exception is loud (it stops the world, it shows up
-// in a stack trace, nobody mistakes it for success), while a checked return a caller
-// forgets to inspect WOULD be silent — the write appears to succeed while the refusal
-// evaporates. The question re-opens only when real pain — actual users hitting actual
-// silent refusals — reveals what shape the channel wants. Until then: throwing path,
-// on purpose. Do not flip layP to the check* variants; a silent checked-return regime
-// would be a REGRESSION against "nothing should be silent," not progress toward it.
-//
-// What that makes checkSublimeNeverCloses (and checkSublimeAcyclic below): non-throwing
-// twins with no direct caller and no pending migration. They are kept ink — correct,
-// tested through their assert* wrappers, waiting for a pain-revealed shape that may
-// never come, and fair candidates for a future cut if it doesn't. Not deleted here;
-// the ruling was about not-building the channel, not about removing what exists.
+// This function returns a message (or null) instead of throwing, so layP could act on
+// it — but layP does NOT call this one; it calls the throwing assertSublimeNeverCloses
+// below. RULED CLOSED (2026-07-15, Hallie: "pain should show the shape"): guards keep
+// throwing on purpose. Do not wire layP to this check* version — a throw is loud, a
+// checked return a caller forgets to inspect would be silent. This function stays as a
+// tested, correct, currently-uncalled twin. Don't delete it and don't "finish" the migration.
 export function checkSublimeNeverCloses(soc: Society, slug: string, subject: string, object: string, quality: Quality): string | null {
   // q-sublime-pole designation itself is structural; it is exempt (like q-end-pole).
   if (quality === "q-sublime-pole") return null;
@@ -354,61 +220,28 @@ export function checkSublimeNeverCloses(soc: Society, slug: string, subject: str
   return null;
 }
 
-/** NOT deprecated, corrected 2026-07-15 (was wrongly marked @deprecated, claiming layP no
- *  longer calls this — checked directly: it does, today, still throwing). This IS the live
- *  path layP calls (see layP's body). The swap to the non-throwing twin is now CLOSED by
- *  ruling, not pending (Hallie, 2026-07-15: "pain should show the shape") — see the RULED
- *  comment on checkSublimeNeverCloses above. This wrapper is the guard, on purpose. */
+/** The live path layP calls (not deprecated). Throws on purpose — see the note on
+ *  checkSublimeNeverCloses above. */
 export function assertSublimeNeverCloses(soc: Society, slug: string, subject: string, object: string, quality: Quality): void {
   const violation = checkSublimeNeverCloses(soc, slug, subject, object, quality);
   if (violation) throw new Error(violation);
 }
 
 // ── SUBLIME-DAG GUARD: RELAXED — aims mutually prehend at the limit ───────────────
-// RELAXATION (Hallie, 2026-07-10; kernel-guard advocate's CORE cut, mirrored here):
-// sublime→sublime is a BEARING (bare `because`), NOT a q-grounding. And a ring of
-// sublime-bearings — A serves B serves ... serves A, including the pairwise A↔B — is
-// now ALLOWED. The old acyclic block is REMOVED for the both-ends-sublime case, which
-// is the ONLY case this guard ever fired on, so the cycle refusal is gone entirely.
+// RELAXED (Hallie, 2026-07-10): sublime-to-sublime rings (even A serves B serves A) are
+// now allowed — sublimes sit "outside time" so ordinary cycle rules don't bind them.
+// The old acyclic block only ever fired on this case, so it's gone entirely.
 //
-// WHY (Hallie's frames, the ground for this cut — same image as scher-core/src/lib.rs):
-//   (1) "The SUBLIME is the limit of all future events taken to infinity — a little
-//        outside of time — so aims can mutually prehend up there." A ring of aims is a
-//        constellation, not a paradox; time-ordering rules don't bind at the limit.
-//   (2) "V=0 is the outer grounds of the representable; the sublime is what you gesture
-//        at by taking an infinite series of an observed pattern to the point where your
-//        information gives out." Acyclicity is an IN-TIME rule (occasions are discrete,
-//        perished, time-ordered — chains can't cycle down here). At the limit-of-
-//        representation, that rule doesn't apply: the horizon relaxes.
-//   (3) The unifying image (Hallie, 2026-07-10): "Sublimes are mirages on the surface of
-//        the sublime's event horizon." THE sublime is the event horizon (limit-of-
-//        representation). The sublime-POLES we designate are MIRAGES on that surface.
-//        Mirages can reflect/hold each other (a ring — no in-time causality among them),
-//        yet you can never LAND on a mirage (reaching one as an actual destination — a
-//        q-grounding OUT of a sublime — is the q-lure the OTHER guard still refuses).
-//
-// The in-time-vs-timeless BOUNDARY is preserved by the OTHER guard: an in-time (non-
-// sublime) occasion actualizing a sublime via q-grounding is still the real q-lure and
-// stays FORBIDDEN (see checkSublimeNeverCloses above). This guard only ever governed
-// sublime↔sublime bearings, and those are exactly what we now let happen up there.
-//
-// MIRROR INVARIANT: this must match scher-core/src/lib.rs byte-for-byte in BEHAVIOR.
-// Kept as a named export (callers/tests reference it) but its firing condition is
-// neutralized: it always allows. REFUSAL-NOT-A-THROW convention unchanged.
+// TRIPWIRE: this must match scher-core/src/lib.rs byte-for-byte in behavior. It is kept
+// as a named export (tests reference it) even though it now always allows.
+// A sublime still can never be closed/actualized — that's the OTHER guard
+// (checkSublimeNeverCloses), untouched by this relaxation.
 export function checkSublimeAcyclic(_soc: Society, _slug: string, _subject: string, _object: string, _quality: Quality): string | null {
-  // RELAXED at the limit-of-futures: sublime↔sublime bearings (incl. mutual rings) are
-  // allowed. The only edges this guard ever refused were sublime→sublime cycles; those
-  // are now permitted, so nothing is refused. Always returns null (allow).
+  // Always allows now (RELAXED, 2026-07-10) — sublime rings are legal.
   return null;
 }
 
-/** NOT deprecated, corrected 2026-07-15 (was wrongly marked @deprecated, claiming layP no
- *  longer calls this — checked directly: it does, today). This IS the live path layP calls.
- *  checkSublimeAcyclic above always returns null now (the RELAXED cut removed everything it
- *  ever refused), so in practice this wrapper never throws either — but it's still the
- *  function layP actually invokes, not dead scaffolding. The throw→check swap is CLOSED by
- *  ruling for both guards (Hallie, 2026-07-15: "pain should show the shape") — see the
- *  RULED comment on checkSublimeNeverCloses above. */
+/** The live path layP calls (not dead scaffolding, even though it never throws now). */
 export function assertSublimeAcyclic(soc: Society, slug: string, subject: string, object: string, quality: Quality): void {
   const violation = checkSublimeAcyclic(soc, slug, subject, object, quality);
   if (violation) throw new Error(violation);
@@ -425,11 +258,9 @@ export function isSublimePole(soc: Society, node: string | null, asOf?: number):
   );
 }
 
-/** isNowPole: is `node` the object of an un-occluded q-now-pole designation — structural
- *  Now-hood (Hallie, 2026-07-20 second sitting, "story-designate-now-poles"; mirrors
- *  scher-core's is_now_pole). Needed post charge-direction-flip: a closing's object is
- *  a designated now-pole, a charge's is not — see the KernelQuality doc-comment on
- *  q-now-pole for why this disambiguation exists at all. */
+/** isNowPole: is `node` the object of an un-occluded q-now-pole designation? Used to
+ *  tell a closing (object is a Now-pole) from a charge (object isn't) — see q-now-pole
+ *  on KernelQuality above. */
 export function isNowPole(soc: Society, node: string | null, asOf?: number): boolean {
   if (!node) return false;
   return soc.edgesOntoObject(node).some(
@@ -446,19 +277,9 @@ export class Society {
   /** rev bumps on every genuine append; Cells subscribe to it to know to re-read. */
   readonly rev: Cell<number>;
   #clock = 0;
-  // Adjacency indexes (ported from scher-core/src/lib.rs:167-179, 2026-07-15 —
-  // "society indexing architecture" deep-think, Lever A): edge slugs keyed by their
-  // subject / object. Maintained in #insert — safe because the society is append-only
-  // and a row's subject/object are never mutated after insert. These turn
-  // prehensionsOnto/prehensionsFrom (and the reads that route through them) from an
-  // O(n) soc.all().filter() scan into an O(degree) lookup. An INDEX, not a cache: it
-  // stores no derived value, only "which edge-slugs touch this node" — a fact true the
-  // instant the edge is laid and immutable thereafter under append-only. Every
-  // predicate that makes the read a derivation (visibleAt, prehendsAs, occlusion)
-  // still runs at read time, unchanged — only the candidate set shrinks. Kept in
-  // INSERTION order (never re-sorted) so a later asOf binary-search slice (Lever D) is
-  // available without a re-index — mirrors "same rows a full scan on subject == s
-  // yields, in insertion order" (lib.rs:220).
+  // Adjacency indexes (ported from scher-core/src/lib.rs, 2026-07-15): edge slugs keyed
+  // by subject/object, turning prehensionsOnto/From from an O(n) scan into O(degree).
+  // Safe because subject/object never change after insert. Kept in insertion order.
   readonly #bySubject = new Map<string, string[]>();
   readonly #byObject = new Map<string, string[]>();
 
@@ -479,9 +300,7 @@ export class Society {
     const witnessed = b.witnessed ?? this.#clock + 1;
     // TODO(socratic): is the default-witnessed clock-increment-then-assign the right order, or should auto-stamps lag behind explicit ones?
     this.#clock = Math.max(this.#clock, witnessed);
-    // Index population mirrors lib.rs:209-214 exactly: subject/object of the RAW beat
-    // as laid (not the stamped copy — subject/object are untouched by the witnessed
-    // stamp either way), pushed in insertion order.
+    // Mirrors lib.rs's index population: subject/object of the raw beat, insertion order.
     if (b.subject !== null && b.subject !== undefined) {
       const list = this.#bySubject.get(b.subject);
       if (list) list.push(b.slug); else this.#bySubject.set(b.subject, [b.slug]);
@@ -535,12 +354,8 @@ export class Society {
   // I lay only the missing half and report true — is a half-mode-carrying prehension a state I mean to
   // permit, or a corruption the append-only law just made unfixable?
   layP(slug: string, content: string, subject: string, object: string, quality: Quality): boolean {
-    // All four guards below THROW, by RULING, not by neglect (Hallie, 2026-07-15, after
-    // the algedonic-channel sitting: "Yeah we don't need it explicit — pain should show
-    // the shape"). The throw→check migration is CLOSED, not shelved: no check* wiring
-    // here, no refusal-event machinery, until real pain from actual silent refusals
-    // reveals what shape a channel wants. A throw is loud; that satisfies "nothing should
-    // be silent." Full ruling on checkSublimeNeverCloses's comment above.
+    // TRIPWIRE: all four guards below throw on purpose, by ruling (2026-07-15) — do not
+    // swap them for the non-throwing check* variants. See checkSublimeNeverCloses's note.
     assertNoLure(slug, quality); // BLOCKS: q-lure is dead grammar (Hallie, 2026-07-06)
     assertNakedPole(this, slug, subject, object, quality); // BLOCKS: nothing touches a naked pole
     assertSublimeNeverCloses(this, slug, subject, object, quality); // BLOCKS: sublimes never close
@@ -586,14 +401,9 @@ export class Society {
 // whose object is Q.
 
 // ── the witnessing axis ────────────────────────────────────────────────────────
-// A read is "from a moment." `asOf` is a witnessed-clock value; a read AS OF t sees
-// only beats witnessed at-or-before t. This is just the log truncated at t, re-read —
-// because a society IS read from its log, "as of t" needs no new storage, only a
-// filter. `asOf === undefined` means "now": no filter, the existing reads unchanged.
-//
-// This makes the time-relative read a property of the READS, not of the consumer: you
-// never rebuild a society to ask "what did this read as, then." It also makes "git for
-// meaning" literal — every read has an `@{time}`.
+// A read is "from a moment." `asOf` is a witnessed-clock value; a read as-of t sees
+// only beats witnessed at-or-before t — just the log truncated and re-read.
+// `asOf === undefined` means "now": no filter.
 
 /** Was beat `b` witnessed at-or-before moment `asOf`? (undefined ⇒ always visible.) */
 function visibleAt(b: EventRow, asOf?: number): boolean {
@@ -609,13 +419,9 @@ export function prehendsAs(soc: Society, pslug: string, quality: Quality, asOf?:
   return !!q && q.object === quality && visibleAt(q, asOf);
 }
 
-/** hasAnyQuality: does this prehension co-prehend ANY quality — i.e. does its `~q`
- *  mode-beat exist? Structural: reads the mode-beat's PRESENCE (the layP constructor
- *  convention), never the object's text. This is the existential prehendsAs had no name
- *  for — "co-prehends *some* quality," not "co-prehends *this* one." It replaces the
- *  `q-` content-prefix sniff that used to classify plain vs quality edges (2026-07-06
- *  migration-design sitting, item 1): a quality family that doesn't spell `q-` (the
- *  coming f- stems) classifies correctly here because no spelling is ever read. */
+/** hasAnyQuality: does this prehension co-prehend ANY quality — does its `~q` mode-beat
+ *  exist? Reads presence only, never the object's spelling — this is how a future
+ *  quality family that doesn't spell "q-" still classifies correctly. */
 export function hasAnyQuality(soc: Society, pslug: string, asOf?: number): boolean {
   const q = soc.get(pslug + "~q");
   return !!q && visibleAt(q, asOf);
@@ -643,17 +449,10 @@ export function prehensionsFrom(soc: Society, beat: string, quality: Quality, as
   );
 }
 
-/** Is `target` OCCLUDED within this society, as of a moment? (Supersession, reframed —
- *  2026-06-26.) A member E of the society casts a q-occludes shadow over the member it
- *  prehends: E --q-occludes--> target. Unlike the old self-loop supersede, occlusion NAMES
- *  the occluder (subject=E), so the perished past gains depth (walk target ← q-occludes ← E
- *  = readable lineage). It is STANDPOINT-RELATIVE: `soc` IS the frame — `target` occluded in
- *  THIS society stands in full light in another. And it is EMERGENT/REVERSIBLE: un-occlusion
- *  needs no "occlude the occlusion" recursion — it is simply the absence of a live occluder
- *  (an occluder that is itself occluded does not count, one level, no cycle-guard needed).
- *
- *  As of an earlier moment, a not-yet-witnessed occlusion does not count — so an undo is itself
- *  a point on the trajectory, visible only after it lands. */
+/** Is `target` OCCLUDED, as of a moment? A beat E can cast a shadow over another:
+ *  E --q-occludes--> target. Standpoint-relative: `soc` is the frame — occluded here can
+ *  be lit in another society. Reversible: an occluder that is itself occluded casts no
+ *  shadow (one level, no recursion needed). */
 export function isOccluded(soc: Society, target: string, asOf?: number): boolean {
   // TODO(socratic): the b.subject !== target guard — why exclude self-occlusion (if that's even layable), and what does it mean if it were?
   // Adjacency-indexed (was a full soc.all() scan — ported fix, mirrors scher-core/src/lib.rs
@@ -675,48 +474,31 @@ function isOccluder(soc: Society, occludeEdge: string, asOf?: number): boolean {
     visibleAt(b, asOf) && prehendsAs(soc, b.slug, "q-occludes", asOf));
 }
 
-/** groundedForAnyFrame: the society-standpoint AGGREGATE read — does some un-occluded
- *  grounding-prehension reach this beat, from ANY frame this store carries? Never "the"
- *  frame. (N1, Hallie 2026-07-03: soc IS a frame — this is that frame's own existential
- *  read, honestly named.) Under the every-event-is-done-to/by-its-author ruling this read
- *  trends toward true for every authored event once authorship-establishment lands; its
- *  honest use is occlusion-sensitive display, not doneness. For doneness, read
- *  establishedTo (frame-relative reachability, below).
- *
- *  BARE-CLOSING TRACE (2026-07-15): this reads prehensionsONTO `beat` — edges pointing
- *  AT it. A closing points the other way (OUT of the End, `end ~because~ now`, subject
- *  the End) — so this was never the "is this End closed" read (endActual is), and a bare
- *  closing changes nothing here: this function never saw closings either way. Traced,
- *  not touched. */
+/** groundedForAnyFrame: does some un-occluded grounding reach this beat, from ANY frame
+ *  this store carries? Never "the" frame — soc IS a frame. Use for occlusion-sensitive
+ *  display, not for doneness (use establishedTo for that, below). Unaffected by bare
+ *  closings — this reads edges pointing AT the beat, a closing points the other way. */
 export function groundedForAnyFrame(soc: Society, beat: string, asOf?: number): boolean {
   // TODO(socratic): why check isOccluded on the prehension slug (p.slug, the edge) instead of also checking if the prehension's subject (the grounding frame) is occluded?
   return prehensionsOnto(soc, beat, "q-grounding", asOf).some((p) => !isOccluded(soc, p.slug, asOf));
 }
 
-/** @deprecated Alias of groundedForAnyFrame — same behavior, dishonest name (it reads as
- *  frame-free doneness, which the 2026-07-03 ruling made a malformed question). Migrate
- *  reads that mean "done" to establishedTo(readerNow, …); reads that mean "grounded for
- *  someone" to groundedForAnyFrame. Perishes when no caller remains (the pathosOf
- *  precedent: a greppable fact, not a policy wait). */
+/** @deprecated Alias of groundedForAnyFrame — the name reads as frame-free doneness,
+ *  which is a malformed question (2026-07-03 ruling). Migrate "done" reads to
+ *  establishedTo; migrate "grounded for someone" reads to groundedForAnyFrame. */
 export function isEstablished(soc: Society, beat: string, asOf?: number): boolean {
   return groundedForAnyFrame(soc, beat, asOf);
 }
 
-// ── FRAME-RELATIVE ESTABLISHMENT (Hallie's ruling, 2026-07-03: "YES EVERY EVENT IS DONE
-// to/by its author" — establishment is always relative to a standpoint; the frame-free
-// question is malformed, and the old reads survive only as the society's OWN standpoint,
-// per N1). Joint-sitting minutes: docs/committees/2026-07-03-q-grounding-joint-sitting.md ──
+// ── FRAME-RELATIVE ESTABLISHMENT (Hallie's ruling, 2026-07-03: every event is done
+// to/by its author — establishment is always relative to a standpoint, never frame-free) ──
 
-/** reaches: is `to` reachable from `from` along un-occluded prehensions co-prehending
- *  `quality`, walking subject→object, as of a moment? The BFS that existed twice
- *  (intervalOf's private walk here, done_to in gen4-policy) held once — the Now-pole
- *  minutes' gift-channel extraction, landed. `from === to` reaches trivially.
+/** reaches: is `to` reachable from `from` along un-occluded edges co-prehending
+ *  `quality`, walking subject→object? `from === to` reaches trivially.
  *
- *  BARE-CLOSING RULING (2026-07-15): when walking "q-grounding" specifically, a node that
- *  is a designated End-pole may leave it via a BARE edge (the closing — see
- *  closingEdgesFrom's own doc) as well as the legacy quality-carrying spelling. Every
- *  live caller of reaches passes "q-grounding" (grepped), so this is scoped to that
- *  quality only — an ordinary lateral quality's walk is untouched, exactly as before. */
+ *  TRIPWIRE (2026-07-15): when quality is "q-grounding" specifically, a designated
+ *  End-pole may also leave via a bare edge (a closing — see closingEdgesFrom). Other
+ *  qualities are untouched by this. */
 export function reaches(soc: Society, from: string, to: string, quality: Quality, asOf?: number): boolean {
   if (from === to) return true;
   const seen = new Set<string>([from]);
@@ -737,16 +519,11 @@ export function reaches(soc: Society, from: string, to: string, quality: Quality
   return false;
 }
 
-/** establishedTo: frame-relative establishment — is `beat` behind the reader's Now on the
- *  grounding topology? `readerNow` is the reader-event's Now NODE: locating it (gen4's
- *  lazily-minted now-{frame}, or any future scheme) is POLICY and stays outside the kernel —
- *  the kernel takes a node, never a slug convention (opaque-slugs law). The missing-Now
- *  short-circuit ("no Now ⇒ nothing done-to-me") likewise lives with the caller, who knows
- *  whether a Now exists.
- *
- *  DELIBERATELY ABSENT, pending Hallie's F-A ruling: the authorship clause (done to/by its
- *  author from birth). Do not add it here without the ruling — the three-way fork
- *  (forever-done / occurrence-vs-work split / occludable authorship) changes its shape. */
+/** establishedTo: is `beat` behind the reader's Now on the grounding topology?
+ *  `readerNow` is a node, never a slug convention — locating it is the caller's job
+ *  (opaque-slugs law).
+ *  TRIPWIRE: the authorship clause (done to/by its author from birth) is deliberately
+ *  absent, pending a ruling. Do not add it without one. */
 export function establishedTo(soc: Society, readerNow: string, beat: string, asOf?: number): boolean {
   return reaches(soc, readerNow, beat, "q-grounding", asOf);
 }
@@ -769,18 +546,11 @@ export function confidence(soc: Society, beat: string, asOf?: number): number {
 }
 
 // ── DEPENDENCY/STRAIN READS, PATHOS/REACTIONS: moved to strain.ts / pathos.ts ──
-// (2026-07-15, separation-of-concerns pass). dependsOn, dependentsOf, blockedOnNow,
-// isBlocked, parallelizable, whoWaitsOn, stressOf, groundedBy, excludedBy,
-// distanceToHEA, assigneesOf now live in strain.ts; Pathos, pathosOf, reactionsOn
-// now live in pathos.ts. Both import their kernel primitives from here. See the
-// barrel (index.ts) for the re-export surface — moved, not rebranded: every name
-// is unchanged.
+// (2026-07-15). Names unchanged; both import their kernel primitives from here.
+// See index.ts for the re-export surface.
 
-/** is_story: has `beat` been UNPACKED into its poles? Story-hood is STRUCTURAL (F-A
- *  ruling + pole law, 2026-07-06): an event is one event until lazily unpacked into its
- *  three poles; the unpack lays a q-end-pole designation whose object is the story's End.
- *  The old read keyed on a q-lure toward a slug spelling "end" — the lure is killed with
- *  fire (assertNoLure) and no spelling is read anymore ("weekend-plans" confers nothing). */
+/** isStory: has `beat` been unpacked into its poles? Structural (2026-07-06) — reads the
+ *  q-end-pole designation, never a slug's spelling. */
 export function isStory(soc: Society, beat: string): boolean {
   // TODO(socratic): should isStory also check that the designation is not occluded, or is the existence of a pole-edge enough regardless of occlusion?
   return prehensionsFrom(soc, beat, "q-end-pole").length > 0;
@@ -791,10 +561,9 @@ export function contentBeats(soc: Society): EventRow[] {
   return soc.all().filter((b) => b.subject === null && !b.slug.endsWith("~q"));
 }
 
-/** IntervalContext: the plain-edge prepasses of intervalOf, hoisted so a caller doing
- *  many interval reads in one paint can build them once. A per-paint DERIVATION passed
- *  explicitly, never stored module-level — valid ONLY for the exact Society it was
- *  derived from; any mutation or a new Society requires deriving a fresh one. */
+/** IntervalContext: intervalOf's plain-edge prepasses, hoisted so a caller doing many
+ *  interval reads in one paint builds them once. TRIPWIRE: valid only for the exact
+ *  Society it was derived from — a mutation or new Society needs a fresh one. */
 export interface IntervalContext {
   /** objects of visible ~q mode-beats — the quality tokens classified OUT of the walk. */
   qualityTokens: Set<string>;
@@ -807,29 +576,17 @@ export interface IntervalContext {
 /** Build the IntervalContext for `soc` — identical to what intervalOf builds internally
  *  when no ctx is passed. See IntervalContext for the validity constraint. */
 export function intervalContext(soc: Society): IntervalContext {
-  // Interval edges: every prehension that is not the quality machinery itself. Excluded:
-  // ~q mode-beats (the constructor convention), and edges whose OBJECT is a quality token
-  // — read structurally as "appears as the object of some visible ~q mode-beat," never by
-  // spelling, so a quality family that doesn't spell `q-` (the coming f- stems) still
-  // classifies out (migration-design item 1's real target: quality-DESIGNATION edges).
+  // Interval edges: every prehension except the quality machinery itself — excludes ~q
+  // mode-beats and edges whose OBJECT is a quality token, read structurally, never by
+  // spelling.
   //
-  // CORRECTION (2026-07-06, debugging sitting on event-1350): the first structural
-  // replacement here used !hasAnyQuality(edge) — the edge's OWN mode-beat presence. That
-  // is a different predicate from the old object-spelling sniff: it excluded every
-  // quality-CARRYING edge, i.e. every layP-ed edge, from the walk, emptying production
-  // story intervals (gen4 bujo lays its membership fabric via layP q-grounding — and MUST,
-  // because under the address law a bare edge onto an open End reads as a charge). The
-  // sitting's own invariant was "no kernel behavior change for any existing caller";
-  // this restores it. Conformance twin: interval-plain-edges.test.ts / lib.rs tests.
+  // TRIPWIRE (2026-07-06 bug, event-1350): do NOT filter by !hasAnyQuality(edge) — that
+  // excludes every quality-CARRYING edge (every layP-ed edge), which emptied production
+  // story intervals, since bujo lays membership via layP q-grounding. Filter by the
+  // OBJECT being a quality token instead, as done here.
   //
-  // OCCLUSION (2026-07-16, TODO(socratic) at intervalOf answered): an occluded edge is not
-  // in the society's live fabric any more than an occluded prehension is live for
-  // prehensionsOnto/prehensionsFrom — the walk must not reach through it. Filtered here,
-  // once, at the same prepass that already excludes quality machinery, so every caller
-  // (fresh or ctx-cached) gets the same honest edge set. asOf-aware for the same reason
-  // visibleAt/isOccluded are elsewhere: reads the CURRENT moment (asOf undefined), matching
-  // every existing caller (todayview/card-reads build a fresh ctx per paint at now — no
-  // caller here needs an as-of-a-moment interval; if one ever does, add asOf then).
+  // Also excludes occluded edges (2026-07-16) — same law as prehensionsOnto/From. Reads
+  // the current moment only (no asOf param) — add one if a caller ever needs it.
   const qualityTokens = new Set<string>();
   for (const b of soc.all()) {
     if (b.slug.endsWith("~q") && b.object !== null && visibleAt(b)) qualityTokens.add(b.object);
@@ -853,13 +610,11 @@ export function intervalContext(soc: Society): IntervalContext {
   return { qualityTokens, fwdAdj, bwdAdj };
 }
 
-/** interval_of: the causal diamond between a Once and an End — the forward-cone of
- *  `once` ∩ the backward-cone of `end`, following plain (non-quality) prehension edges.
- *  The interior of a Story. Optional `ctx` (intervalContext(soc), derived from THIS soc,
- *  this paint) skips the two full-scan prepasses; absent, behavior is identical.
- *  Occlusion-aware (2026-07-16): an occluded membership edge is not part of the walk — a
- *  passed-in `ctx` must have been derived (via intervalContext) as-of the same moment this
- *  call cares about, since occlusion is baked into ctx's adjacency at construction time. */
+/** intervalOf: the causal diamond between a Once and an End — forward-cone of `once`
+ *  intersect backward-cone of `end`, over plain edges. The interior of a Story.
+ *  Optional `ctx` (from intervalContext) skips re-scanning; behavior is identical either
+ *  way. Occlusion-aware — a passed-in ctx must match the moment you care about, since
+ *  occlusion is baked into its adjacency at construction time. */
 export function intervalOf(soc: Society, once: string, end: string, ctx?: IntervalContext): string[] {
   const { fwdAdj, bwdAdj } = ctx ?? intervalContext(soc);
   const reach = (from: string, dir: "fwd" | "bwd"): Set<string> => {
@@ -891,36 +646,17 @@ export function endOf(soc: Society, story: string): string | null {
   return pole?.object ?? null;
 }
 
-// ── THREE-POLE UNPACK · CHARGE · VOLTAGE (F-A ruling + pole law, Hallie 2026-07-06) ──
-// "Capture strikes a voltage; marking voltage lays charge; done closes the circuit;
-// nothing ever un-happens." (docs/committees/2026-07-06-F-A-ruled-voltage.md) — and, same
-// morning: "An event is one event until it's lazily unpacked into the THREE poles."
+// ── THREE-POLE UNPACK · CHARGE · VOLTAGE (Hallie's ruling, 2026-07-06) ──
+// An event is ONE event — no poles, no story apparatus — until first need. The unpack
+// then lays three poles: the event as its own Once; an End-pole, not yet actual,
+// designated by q-end-pole (never a slug spelling); a Now, because the Once. The End
+// becomes actual only when it closes because a Now (`end ~because~ now`).
 //
-// A captured event is ONE event — no poles minted, no story apparatus — until FIRST NEED
-// (the first operation requiring the differential: a charge, a done-verb, an explicit
-// story elaboration). The unpack lays the three-pole structure: the event stands as its
-// own Once (the ground of everything, rests on nothing); an End-pole is minted, not yet
-// actual (its Mode reads "scripted" — the honest existing mechanism), designated by the
-// STRUCTURAL q-end-pole edge (never a lure — killed with fire, see assertNoLure — and
-// never a slug or content spelling). The Now-relation is the pole law's closing move:
-// when the End becomes actual it is BECAUSE the Now of its closing (`end ~because~ now`,
-// q-grounding) — laid by the done-verb, never at unpack.
-//
-// The openness is VOLTAGE — read ACROSS the poles, stored in neither, and ALWAYS relative
-// to a reference (Hallie, 2026-07-06 second sitting): the GROUND — the head of a frame's
-// now-lineage ("the head of the society — the last now that the user's now is because (or
-// whatever frame's now)", her words). A charge/strike/closing counts toward a reading iff
-// it is ESTABLISHED TO that ground (the established_to walk); nothing is ever globally
-// zeroed — a closing DISCHARGES outward by ordinary reachability, so a frame the closing
-// has not yet established to honestly reads residual voltage ("done, still discharging").
-//
-// Marking voltage lays CHARGE — a BARE edge onto the open End-pole (pure address, see the
-// naked-pole law); the scalar is derived, never stored. Done closes the circuit (End
-// because Now) — the closed circuit IS a closed because-path End → Now-lineage → Once.
-// Reopen = a NEW unpack (new differential), never an un-doing.
-//
-// NOTE (occlusion-of-now-connections): nothing here depends on its presence or absence —
-// it is OUT of this ruling, chartered as a gen5 roadmap feature in the ruling minute.
+// Voltage is read ACROSS the poles, stored in neither, always relative to a ground (a
+// frame's now-lineage head). A charge/strike/closing counts only if established to that
+// ground — nothing is ever globally zeroed; a closing discharges outward by ordinary
+// reachability. Charge is a bare edge onto the open End-pole. Reopen = a new unpack, never
+// an un-doing.
 
 /** what one unpack laid. */
 export interface PoleUnpack {
@@ -934,38 +670,20 @@ export interface PoleUnpack {
   now: string;
 }
 
-/** the story's own frame's Now — the `${story}~now` constructor convention (an ADDRESS,
- *  the layP/`~hea` shape — reads never parse it). Under SOFD this Now's lineage head is
- *  voltage's default ground. */
+/** the story's own frame's Now — an address (`${story}~now`), never parsed by reads.
+ *  Voltage's default ground under SOFD. */
 export function storyNow(story: string): string {
   return `${story}~now`;
 }
 
-/** unpackPoles: lazily unpack ONE event into its three-pole structure (first need only —
- *  callers that can wait should wait; a captured-and-abandoned event stays one event
- *  forever). Idempotent: an already-unpacked event returns its existing poles. `end`
- *  defaults to the `${event}~hea` constructor convention (an ADDRESS, the layP/`now-{frame}`
- *  shape — reads never parse it; the q-end-pole edge is what designates).
+/** unpackPoles: lazily unpack ONE event into its three-pole structure, on first need
+ *  only. Idempotent — an already-unpacked event returns its existing poles. `end`
+ *  defaults to `${event}~hea`, an address never parsed by reads.
  *
- *  THREE lays: the End + its designation, and the story's own frame's first Now, BECAUSE
- *  the Once — "Now is because events," and the Once is the story's first event (Hallie
- *  confirmed Now belongs in the unpack, 2026-07-06 second sitting; the Now-grounds-in-Once
- *  relationship is the convener's proposal, STANDING UNLESS SHE AMENDS IT). With the
- *  closing's `end ~because~ now`, the closed circuit is a literal because-path
- *  End → Now-lineage → Once.
- *
- *  NOW-POLE DESIGNATION (2026-07-20, "story-designate-now-poles" — needed by the same
- *  day's charge-direction flip, "the End prehends the capture"): the Now this unpack
- *  lays is ALSO designated a q-now-pole, mirroring the q-end-pole/q-sublime-pole
- *  pattern. Once a closing is `end ~because~ now` with subject=end (bare-closing) and a
- *  charge is ALSO subject=end (charge-direction), the two bare-edge shapes collide on
- *  direction alone; the designation is what chargesOn/closingEdgesFrom read to tell them
- *  apart by OBJECT instead (a closing's object is a designated now-pole; a charge's
- *  isn't). Mirrors scher-core's Q_NOW_POLE (landed there first; this ports the read AND
- *  adds the write, since scher-core has no unpack_poles of its own to write from). */
-// BARE-CLOSING TRACE (2026-07-15): unpackPoles' idempotency reads the q-end-pole
-// DESIGNATION (below), never the closing — a closed End is still designated, so a bare
-// closing changes nothing here. Untouched by construction; traced, not touched.
+ *  Lays three things: the End + its q-end-pole designation, and the frame's first Now,
+ *  because the Once. The Now is ALSO designated q-now-pole (2026-07-20) — needed so a
+ *  closing (`end ~because~ now`) and a charge (also subject=end) can be told apart by
+ *  OBJECT: a closing's object is a designated Now-pole, a charge's isn't. */
 export function unpackPoles(soc: Society, event: string, end = `${event}~hea`): PoleUnpack {
   const now = storyNow(event);
   const existing = prehensionsFrom(soc, event, "q-end-pole")[0];
@@ -981,22 +699,12 @@ export function unpackPoles(soc: Society, event: string, end = `${event}~hea`): 
   return { once: event, end, pole, now };
 }
 
-/** closingEdgesFrom: the edges that CLOSE this End-pole — un-occluded, as of a moment.
- *  BARE-CLOSING RULING, MECHANIZED (Hallie, 2026-07-15: "yes its edge direction"; "schedule
- *  it and feel free to act on it"): a closing is EITHER a legacy quality-carrying
- *  `q-grounding` edge FROM `end` (the migration-era spelling — honored forever, append-
- *  only) OR a bare edge (no quality at all) FROM `end` — recognized as a closing SOLELY
- *  because `end` is a designated End-pole (isDesignatedEndPole) and the edge left it: no
- *  quality-marker is read, per the address law, edge-direction alone carries the meaning.
- *  This is the one place that structural fact gets turned into a read — every caller that
- *  needs to know "is this End closed" or "walk through a closing" goes through here now,
- *  so the bare/legacy union lives in ONE place, not re-derived at each call site.
- *
- *  NOW-POLE NARROWING (2026-07-20 second sitting, mirrors scher-core's closing_edges_from):
- *  once charges are ALSO bare edges FROM `end` (charge-direction ruling, same day), a bare
- *  edge out of `end` is no longer unambiguously a closing on direction alone — it must
- *  ALSO land on a designated now-pole (isNowPole) to count as one. A bare charge (object a
- *  charged event, not a Now) no longer satisfies this and correctly falls out. */
+/** closingEdgesFrom: the edges that CLOSE this End-pole. TRIPWIRE — single source of
+ *  truth for "is this closed": a closing is either a legacy quality-carrying q-grounding
+ *  edge FROM `end`, OR a bare edge FROM `end` whose object is a designated Now-pole
+ *  (2026-07-20 narrowing — needed since a bare charge is also FROM `end` now, so direction
+ *  alone no longer disambiguates; the Now-pole check does). Every caller asking "is this
+ *  End closed" must go through here, not re-derive it. */
 function closingEdgesFrom(soc: Society, end: string, asOf?: number): EventRow[] {
   const quality = prehensionsFrom(soc, end, "q-grounding", asOf);
   if (!isDesignatedEndPole(soc, end, asOf)) return quality.filter((p) => !isOccluded(soc, p.slug, asOf));
@@ -1007,32 +715,18 @@ function closingEdgesFrom(soc: Society, end: string, asOf?: number): EventRow[] 
   return [...quality, ...bare].filter((p) => !isOccluded(soc, p.slug, asOf));
 }
 
-/** endActual: is this End-pole ACTUAL — is it because something (per the pole law, the
- *  Now of its closing)? Reads the un-occluded outgoing closing edges FROM the End — a
- *  bare edge out (the current closePole shape) or a legacy quality-carrying q-grounding
- *  edge out (both-spellings window, same law as the dependency rename: the ink stays).
- *  Before the done-verb closes, the End rests on nothing it grounds from — scripted,
- *  open, a differential. */
+/** endActual: is this End-pole actual (closed because a Now)? Reads closingEdgesFrom;
+ *  before closing, an End rests on nothing — scripted, open. */
 export function endActual(soc: Society, end: string, asOf?: number): boolean {
   return closingEdgesFrom(soc, end, asOf).length > 0;
 }
 
-/** chargesOn: the charges on a differential — a PURE ADDRESS READ (the naked-pole law's
- *  payoff): the un-occluded BARE prehensions whose SUBJECT is the End (Hallie's ruling,
- *  2026-07-20 first sitting: "the End prehends the capture" — the End is the charging
- *  edge's subject, the charged event its object). No charge quality exists; the charge
- *  is a property of the EDGE, never of node-contents (Hallie, 2026-07-06). The
- *  designation edge (quality-carrying) and ~q machinery classify out structurally.
- *
- *  NOW-POLE SPLIT (2026-07-20 second sitting): a bare edge FROM `end` is ALSO the shape
- *  a closing takes (closingEdgesFrom) now that Nows are designated poles (q-now-pole).
- *  The two bare-edge laws share a subject and disagree only on the object: a closing's
- *  object is a designated now-pole, a charge's is not. So a charge additionally excludes
- *  any bare edge whose object IS a now-pole. Conformance twin: mirrors scher-core/src/
- *  lib.rs's charges_on exactly, including its `!is_now_pole(...)` clause. */
+/** chargesOn: the charges on a differential — un-occluded bare edges whose SUBJECT is the
+ *  End (2026-07-20: "the End prehends the capture"). TRIPWIRE: must exclude any bare edge
+ *  whose object is a designated Now-pole, since those are closings, not charges — mirrors
+ *  scher-core's charges_on exactly. */
 export function chargesOn(soc: Society, end: string, asOf?: number): EventRow[] {
-  // Adjacency-indexed (mirrors scher-core/src/lib.rs's use of edges_from_subject for the
-  // same b.subject === end filter, post charge-direction flip 2026-07-20).
+  // Mirrors scher-core's edges_from_subject use, post charge-direction flip 2026-07-20.
   return soc.edgesFromSubject(end).filter(
     (b) => b.object !== null && visibleAt(b, asOf) &&
       !hasAnyQuality(soc, b.slug, asOf) && !isOccluded(soc, b.slug, asOf) &&
@@ -1040,15 +734,10 @@ export function chargesOn(soc: Society, end: string, asOf?: number): EventRow[] 
   );
 }
 
-/** layCharge: mark voltage against `story` — a BARE edge whose SUBJECT is the story's open
- *  End-pole and whose OBJECT is the charged event (the address law: bare-edges FROM the
- *  End ARE the charges; nothing to mint). Charge-direction flip, ruled 2026-07-20: "the End
- *  prehends the capture" — the End is the prehending subject, not the object being reached.
- *  FIRST NEED: a charge requires the differential, so an un-unpacked event unpacks here.
- *  Never a duplicate task: re-noticing is additional charge across the existing
- *  differential. Also weaves the story's own lineage — `storyNow ~because~ charge` (SOFD:
- *  the charge is an event in the story's course, witnessed by the story's own frame) —
- *  which is exactly what makes the charge count for the default ground's voltage reading. */
+/** layCharge: mark voltage against `story` — a bare edge, subject the story's open
+ *  End-pole, object the charged event (2026-07-20: "the End prehends the capture").
+ *  Unpacks the event first if needed. Re-noticing is never a duplicate, just another
+ *  charge. Also weaves `storyNow ~because~ charge` so the story's own frame witnesses it. */
 export function layCharge(soc: Society, story: string, by: string, content = "charge"): string {
   const u = unpackPoles(soc, story); // lazy unpack on first need (idempotent)
   const n = soc.all().filter((b) => b.subject === u.end && b.object !== null && !hasAnyQuality(soc, b.slug)).length;
@@ -1058,23 +747,12 @@ export function layCharge(soc: Society, story: string, by: string, content = "ch
   return slug;
 }
 
-/** closePole: the done-verb's kernel half — the End, now actual, is BECAUSE the Now of
- *  its closing (`end ~because~ now`, the ONE edge the address law lets leave a naked
- *  pole). Closes in the story's OWN frame (SOFD): the closing Now is storyNow, so the
- *  closed circuit is the literal because-path End → storyNow → Once. Other frames read
- *  the closing when it establishes to them (see voltageOf — discharge propagates, never a
- *  global zero); a closer's own frame acknowledges by grounding its now in the returned
- *  closing edge. Idempotent per lay.
- *
- *  BARE CLOSING (Hallie, 2026-07-15: "yes its edge direction... no quality needed";
- *  "schedule it and feel free to act on it"): this used to close via
- *  layP(closing, ..., theEnd, u.now, "q-grounding"). It now lays the closing as a BARE
- *  edge — soc.lay() directly, no quality, no '~q' mode-beat — because a bare edge OUT of
- *  a designated End-pole structurally IS the closing (edge direction alone carries the
- *  meaning; see assertNakedPole's OUT-of-pole comment and closingEdgesFrom's doc, which
- *  every read that recognizes a closing now goes through). This never reaches layP at all
- *  — a bare .lay() doesn't call assertNakedPole — so it needs no guard exemption; it was
- *  already legal by the address law's own terms, same as chargesOn's bare-onto model. */
+/** closePole: the done-verb's kernel half — the End, now actual, because the Now of its
+ *  closing. Closes in the story's own frame: the closing Now is storyNow. Other frames
+ *  read the closing once it establishes to them (see voltageOf). Idempotent.
+ *  TRIPWIRE (2026-07-15): closes with a BARE edge (soc.lay(), no quality) — never
+ *  layP — because a bare edge out of a designated End-pole IS the closing, structurally.
+ *  Do not route this back through layP with "q-grounding". */
 export function closePole(soc: Society, story: string, end?: string): string {
   const u = unpackPoles(soc, story, end ?? undefined);
   const theEnd = end ?? u.end;
@@ -1083,32 +761,22 @@ export function closePole(soc: Society, story: string, end?: string): string {
   return closing;
 }
 
-/** voltageOf: the scalar across the story's differentials, read RELATIVE TO A GROUND —
- *  DERIVED, stored nowhere. `ground` is the reading frame's now-lineage HEAD as a NODE
- *  (locating/walking lineage heads for other frames is POLICY, per the kernel boundary;
- *  no structural now-succession exists yet, so a frame's single Now IS its head — TODO
- *  when now-succession lands: walk to "the last Now that nothing newer is because of").
- *  Default ground under SOFD: the story's own frame's Now.
+/** voltageOf: the scalar across the story's differentials, relative to a ground — derived,
+ *  stored nowhere. `ground` is a now-lineage head node; default is the story's own Now.
  *
- *  Per differential (un-occluded designation):
- *   · CLOSED for this ground iff some un-occluded closing (grounding out of the End) is
- *     established to the ground — or the ground IS the closing's own Now. Discharge
- *     PROPAGATES: no global zeroing anywhere; a frame the closing hasn't established to
- *     honestly reads residual voltage ("done, still discharging").
- *   · while open: the strike counts iff the story is established to the ground, and each
- *     charge counts iff established to the ground (the established_to walk, both).
- *  Simple sum, no decay this pass — decay/weighting is a future READ policy (the events
- *  stay; only the derivation would change). */
+ *  Per differential: closed for this ground iff some closing establishes to it (discharge
+ *  propagates — no global zeroing, so an un-reached frame honestly reads residual
+ *  voltage). While open: the strike and each charge count iff established to the ground.
+ *  Simple sum, no decay this pass. */
 export function voltageOf(soc: Society, story: string, ground = storyNow(story), asOf?: number): number {
   const poles = prehensionsFrom(soc, story, "q-end-pole", asOf).filter((p) => !isOccluded(soc, p.slug, asOf));
   let v = 0;
   for (const p of poles) {
     const end = p.object!;
-    const closings = closingEdgesFrom(soc, end, asOf); // bare or legacy q-grounding — see its own doc
+    const closings = closingEdgesFrom(soc, end, asOf); // bare or legacy q-grounding
     const closedHere = closings.length > 0 && (
-      // SOFD: a closing on this story's End is an event laid IN the story's own course,
-      // so the story's OWN frame witnesses it by definition — whoever's Now it closed
-      // because. Other grounds wait for ordinary establishment (discharge propagates).
+      // the story's own frame always witnesses its own closing; other grounds wait for
+      // ordinary establishment (discharge propagates).
       ground === storyNow(story) ||
       closings.some((c) => c.object === ground || establishedTo(soc, ground, c.slug, asOf))
     );
@@ -1137,26 +805,14 @@ export function reopenTask(soc: Society, story: string): PoleUnpack {
 }
 
 // ── MEMBERSHIP: derived, never laid ink ─────────────────────────────────────────
-// Hallie's ruling, 2026-07-16 (membership-topology.red.test.ts's own header carries
-// the full ruling text): "holds shouldn't be a thing... It needs to not be." Membership
-// is determined topologically by an event's relation to E's Now and BOTH of its poles —
-// never a stored containment edge (q-containment already guards this shape, see
-// assertNotMembershipContainment above; that guard is about part/whole nesting ink,
-// this is the derivation the drawer/bucket UI actually reads).
-//
-// THE LAW: m is a member of E iff
-//   (1) m reaches E's Once through grounding (m ~…because…~> once(E) — m began inside
-//       E's course), AND
-//   (2) E's gathering edge reaches m: closed E → end(E) reaches m (the End's cone gathered
-//       it); open E → now(E) reaches m (the moving Now has it so far).
-// A never-unpacked event has no Now/End at all, so nothing gathers — empty membership,
-// same as a never-closing differential whose Now never advanced through anything.
+// Ruling (2026-07-16): membership is never a stored containment edge — it's derived.
+// LAW: m is a member of E iff
+//   (1) m reaches E's Once through grounding, AND
+//   (2) E's gathering edge reaches m: closed E uses end(E), open E uses now(E).
+// A never-unpacked event gathers nothing — empty membership.
 
 /** groundedCone: every node that reaches `once` through grounding — the backward cone,
- *  walked via the REVERSE adjacency (prehensionsOnto, not reaches' forward BFS) so this
- *  stays one index-backed walk instead of calling reaches() once per candidate node (which
- *  would need the candidate set already in hand — the thing this function produces). Bounded
- *  by the grounding fabric's actual size, never a soc.all() scan. */
+ *  walked via reverse adjacency so it's one index-backed walk, not a scan. */
 function groundedCone(soc: Society, once: string, asOf?: number): Set<string> {
   const seen = new Set<string>();
   const stack = [once];
@@ -1171,10 +827,8 @@ function groundedCone(soc: Society, once: string, asOf?: number): Set<string> {
   return seen;
 }
 
-/** membersOf: the derived membership read — the acceptance criteria of
- *  membership-topology.red.test.ts, verbatim. `event` need not be unpacked; a never-
- *  unpacked event has no gathering edge and returns []. `~holds~`/q-containment ink, if
- *  any survives in a canon, is never consulted — this walks grounding and gathering only. */
+/** membersOf: the derived membership read. `event` need not be unpacked — returns []
+ *  if not. Never consults `~holds~`/q-containment ink; walks grounding and gathering only. */
 export function membersOf(soc: Society, event: string, asOf?: number): string[] {
   const end = endOf(soc, event);
   const now = storyNow(event);
@@ -1191,57 +845,17 @@ export function membersOf(soc: Society, event: string, asOf?: number): string[] 
 }
 
 // ── BUCKETS: the drawer/interior read, built on membersOf's same walks ──────────────
-// Hallie's drawer-contents proposal (scratch/drawer-contents.md, 2026-07-17, item 10):
-// given an event, partition what's around it into the shapes the card UI's drawers and
-// interior sections read directly. ONE DERIVATION — bucketsOf never re-walks what
-// membersOf already establishes; "after"/"before" are OUTSIDE membership (prehending or
-// prehended-by the event itself, past its own bounds). "interior" is a partition of the
-// INTERVAL SET (see intervalSet's own doc — NOT membersOf; two rounds of correction
-// landed this, both traced there) by each member's relation to the card's OWN Now.
+// Partitions what's around an event into the shapes the card UI's drawers/interior read
+// (drawer-contents.md item 10). "after"/"before" are OUTSIDE membership. "interior"
+// partitions the INTERVAL SET (see intervalSet's own doc — not membersOf).
 //
-// AMBIGUOUS CALLS I HAD TO MAKE (named for Hallie — the prose left more than one honest
-// reading; see this function's own trace comments at each fork):
-//   (a) "Direct" after/before: the proposal's prose reads "what prehends this event
-//       directly" for Direct-After and "what this event prehends" for Direct-Before —
-//       I read "prehends" as the q-grounding walk (the only directional relation this
-//       kernel has that means "later grounds in earlier"), one hop, un-occluded.
-//   (b) "Indirect": "what prehends events on the expanded card" / "what direct contained
-//       events prehend" — I read this as one further hop PAST direct: prehending a
-//       direct-after node (not a member), or prehended-by a direct-before node.
-//   (c) Sublimes-tree: the proposal asks for sublimes "organized as a tree, starting with
-//       the closest." I return them as a flat closest-first array (a path, not a nested
-//       structure) — the tree shape (siblings/branches) isn't specified anywhere I could
-//       find, and inventing a branching shape felt like writing spec, not reading one.
-//       CORRECTED (THE LURE LAW, below): the walk that finds "closest" no longer tests
-//       whether an after-tree node IS itself a sublime-pole reached via grounding — see
-//       sublimesChargedFrom's own doc for why that was structurally impossible in the
-//       first place, and what it climbs instead.
+// THE LURE LAW (Hallie, 2026-07-17): "prehension by the future is appetition, prehension
+// by now is past." So: future = prehends-the-Now (reaches(m, now)), past = gathered by
+// Now. A sublime's grip on an event is APPETITION, read as a CHARGE, never grounding —
+// see sublimesChargedFrom.
 //
-// INTERIOR'S DOMAIN AND FUTURE'S DEFINITION, CORRECTED TWICE (coordinator, 2026-07-17):
-// round 1 established the domain is the interval set, not membersOf (an open event's
-// members are ALWAYS past under the fence's own law — gatherFrom is `now` for an open
-// event, so "gatherFrom reaches m" is definitionally true for every member — so
-// partitioning membersOf could never show future/present on a live card). Round 2
-// (after I surfaced that "reached by the End's scripted cone" collides with the address
-// law pre-close — see intervalSet's own doc) fixed FUTURE to item 9's exact words: "if an
-// event prehends that event's now, it has not yet happened in the context of that
-// event" — reaches(m, now), not "anything in the interval not yet gathered." past =
-// gathered by Now (≡ membersOf — kept as an explicit identity, not re-derived); present =
-// what's left in the interval — begun, but neither ahead of the Now (prehending it) nor
-// behind it (gathered by it): the imperfective straddler. membersOf ITSELF IS UNCHANGED
-// by either round — it defines membership, not interior; the fence stays as it was.
-//
-// THE LURE LAW (Hallie, grooming minutes 2026-07-17, 09:38 — verbatim, naming this whole
-// semantics): "doneness is frame relative... From the perspective of the END it has
-// happened but nothing can prehend the end. THIS is how it works. Events have a LURE
-// (not in code but in concept) but prehension by the future is appetition, prehension by
-// now is past." This CONFIRMS future = prehends-the-Now (round 2, above) and fixes
-// sublimesTree/indirectSublimesTree a third time: a sublime's grip on an event is
-// APPETITION, read as a CHARGE (a bare prehension landing on the sublime-pole node,
-// chargesOn's exact shape) — never grounding. See sublimesChargedFrom's own doc for the
-// mechanics and why the OLD sublimesTree filter (testing whether a q-grounding-reached
-// after-tree node was itself isSublimePole) could never fire: nothing reaches a
-// designated pole via grounding in the first place.
+// sublimesTree is a flat closest-first array, not a nested tree — no branching shape is
+// specified anywhere, so this doesn't invent one.
 
 /** Buckets is the shape drawer-contents.md item 10 asks for. `sublimesTree` is a flat
  *  closest-first array (see call (c) above), not a nested tree. */
@@ -1251,29 +865,11 @@ export interface Buckets {
   interior: { future: string[]; present: string[]; past: string[] };
 }
 
-/** sublimesChargedFrom: THE LURE LAW (Hallie, grooming minutes 2026-07-17, 09:38 —
- *  verbatim: "doneness is frame relative... From the perspective of the END it has
- *  happened but nothing can prehend the end. THIS is how it works. Events have a LURE
- *  (not in code but in concept) but prehension by the future is appetition, prehension
- *  by now is past"). A sublime's grip on an event is APPETITION — a CHARGE (a bare,
- *  un-quality-carrying prehension) — never grounding: the anti-q-lure guard
- *  structurally refuses a sublime ever closing (checkSublimeNeverCloses), and
- *  q-grounding is reserved for actual closings/membership, not for reaching toward a
- *  star that is never reached.
- *
- *  DIRECTION CORRECTED (Hallie, 2026-07-20, ruling correction overriding the earlier
- *  crew exemption): "sublimes prehend the user stories charged toward them —
- *  subject=sublime, object=story/event, uniformly. The earlier exemption was
- *  circular (it read pre-ruling code as normative)." So "which sublimes does this
- *  event sail under" reads the charged-node's side (edgesOntoObject(node)) — the
- *  SUBJECT of each such edge is the sublime, mirroring chargesOn's shape but from
- *  the opposite pole (an End-pole charge has the End as subject; a sublime charge
- *  has the SUBLIME as subject too — both "the abiding pole prehends the capture,"
- *  just read from node's object-side here since we're asking about node, not the
- *  sublime). Mirrors bearingsOf's semantics (sublimes.ts, same-day flip) but reads
- *  the truly bare edge shape chargesOn/the address law define, not bearingsOf's own
- *  "because" quality-string convention (a different, pre-existing sublime-
- *  orientation idiom this bucket read does not disturb). */
+/** sublimesChargedFrom: THE LURE LAW — a sublime's grip on an event is appetition, read
+ *  as a CHARGE, never grounding. "Which sublimes does this event sail under" reads edges
+ *  onto `node` whose subject is a sublime-pole (2026-07-20 direction ruling: sublimes
+ *  prehend the events charged toward them — subject=sublime, object=event). Mirrors
+ *  chargesOn's shape from the opposite pole. */
 function sublimesChargedFrom(soc: Society, node: string, asOf?: number): string[] {
   return soc.edgesOntoObject(node)
     .filter((b) => b.subject !== null && visibleAt(b, asOf) &&
@@ -1282,60 +878,17 @@ function sublimesChargedFrom(soc: Society, node: string, asOf?: number): string[
     .map((b) => b.subject!);
 }
 
-/** intervalSet: the INTERIOR's domain — bounded by BOTH poles, wider than membersOf on
- *  an open event (see the correction note above bucketsOf's ambiguous-calls list).
+/** intervalSet: the INTERIOR's domain — bounded by both poles, wider than membersOf on
+ *  an open event.
  *
- *  ADDRESS-LAW COLLISION, SURFACED AND RESOLVED FOR NOW (2026-07-17, flagged to the
- *  coordinator before landing): the literal reading — "reached by the End's SCRIPTED
- *  cone," i.e. reaches(end, m, "q-grounding") walked from the End node itself — is not
- *  constructible as house-legal data while the End is still open. assertNakedPole's
- *  address law makes q-grounding the ONE quality allowed to leave a naked pole precisely
- *  BECAUSE it IS the closing (closingEdgesFrom/endActual read "some un-occluded
- *  q-grounding edge out of a designated End-pole" as closed, full stop — there is no
- *  second q-grounding-out-of-End shape that means "scripted, not yet actual"). Verified
- *  directly: laying `end ~because~ someEvent` on a never-closed pole is accepted by
- *  layP (the guard's own quality-exemption lets it through) but immediately flips
- *  endActual(end) to true as a side effect — scripting onto an open End silently closes
- *  it. So "reached by End, actualized or not" collapses to "reached by End AFTER it
- *  closes" — which is already what membersOf covers via its own gatherFrom.
- *
- *  RESOLUTION, ROUND 2 (coordinator, 2026-07-17: "stop reaching for the End pre-close and
- *  use item 9 verbatim... post-close, End-reachability becomes meaningful and SHOULD
- *  converge with the closing→now chain — assert that convergence as a PROPERTY rather
- *  than needing scripted-onto-End data at all"). intervalSet never reads the End at
- *  all, open OR closed — a scripted future grips the present through an ordinary
- *  Now-PREHENDING edge (m ~because~ now — item 9's own shape: "an event prehends that
- *  event's now"), the same shape whether the story is open or has since closed. The
- *  bounded interval is exactly groundedCone(event) (minus the pole/Now infrastructure):
- *  everything that reaches E's Once through grounding. This makes future/present/past
- *  (below) do ALL the work of distinguishing "already gathered" from "still ahead," and
- *  is why closing a story changes NOTHING about its interval's membership, only (when
- *  new gathering edges land) which bucket a given member falls into — the convergence
- *  property bucketsOf's own tests assert. A never-unpacked event (no End at all) has no
- *  bounded interval: empty, same as membersOf's empty case.
- *
- *  THE NAMED QUESTION, ANSWERED (Hallie, grooming minutes 2026-07-17 09:44, verbatim):
- *  "Closing when we're not inside it. Depends on the reference frame." endActual's own
- *  behavior above — reading ANY un-occluded q-grounding edge out of a designated End-pole
- *  as a closing — is not a bug or an accidental collapse; it is the CORRECT reading FROM
- *  OUTSIDE the event (the external vantage, perfect aspect: from out there, the End
- *  having grounded in anything already IS its actualization). A frame standing INSIDE the
- *  event's own course reads through its own Now instead (imperfective, from within) —
- *  which is exactly the reading this file already uses everywhere except endActual
- *  (reaches(m, now) for future, reaches(now, m) for past).
- *
- *  SHARPENED (Hallie, grooming minutes 2026-07-17 09:45, verbatim): "Where does the Now
- *  of the story we're in stand w/r/t it is the question." Not inside/outside as
- *  geometry — the precise spec for the penciled vantage read, if it's ever built:
- *  endActualFor(soc, end, readerStory, asOf) = reaches(soc, storyNow(readerStory), <the
- *  closing edge on end>, "q-grounding", asOf) — closed FOR US iff OUR Now reaches the
- *  closing; another frame's Now having reached it does not close it for us. Same law as
- *  done-relative-to-viewer (establishedTo), just the two-door version applied to a pole
- *  instead of a beat.
- *
- *  No code change from either ruling: intervalSet/bucketsOf never call endActual, so
- *  nothing here is blocked on it. This closes the question I raised in the ADDRESS-LAW
- *  COLLISION note above as settled law, not an open wart. */
+ *  TRIPWIRE (2026-07-17): this never reads the End at all, open or closed. Do not try
+ *  "reached by the End's scripted cone" — laying `end ~because~ someEvent` on a
+ *  never-closed pole is accepted by layP but immediately flips endActual(end) to true as
+ *  a side effect (scripting onto an open End silently closes it). Instead: the bounded
+ *  interval is groundedCone(event) minus pole/Now infra — everything that reaches E's
+ *  Once through grounding, same shape whether the story is open or closed. future/present/
+ *  past (in bucketsOf) do all the work of separating "already gathered" from "still
+ *  ahead." A never-unpacked event has no bounded interval. */
 function intervalSet(soc: Society, event: string, asOf?: number): Set<string> {
   const end = endOf(soc, event);
   if (end === null) return new Set();
@@ -1366,10 +919,7 @@ export function bucketsOf(soc: Society, event: string, asOf?: number): Buckets {
   // `event` itself, i.e. prehensionsOnto(event) gives edges whose object is event.
   const directAfterRows = prehensionsOnto(soc, event, "q-grounding", asOf);
   const directAfter = directAfterRows.map((p) => p.subject!).filter((n) => !isInfra(n));
-  // sublimesTree: THE LURE LAW (see sublimesChargedFrom's own doc) — the stars a
-  // direct-after event sails under, found by CHARGE (bare prehension onto a sublime-pole
-  // node), never grounding. Closest-first: direct-after members contribute their stars
-  // in order, deduplicated, before indirect-after's stars are considered below.
+  // sublimesTree: stars a direct-after event sails under, closest-first, deduplicated.
   const sublimesSeen = new Set<string>();
   const sublimesTree: string[] = [];
   for (const m of directAfter) {
@@ -1410,17 +960,9 @@ export function bucketsOf(soc: Society, event: string, asOf?: number): Buckets {
     }
   }
 
-  // INTERIOR: partition the INTERVAL SET by relation to E's OWN Now (item 8/9/10 of the
-  // proposal; domain AND future's definition corrected 2026-07-17, coordinator's second
-  // pass — see the note above bucketsOf's ambiguous-calls list and intervalSet's own
-  // doc). past = gathered by Now, the identity with membersOf kept explicit (membersOf
-  // itself is unchanged and does its own walk — this just names the overlap). FUTURE is
-  // drawer-contents.md item 9 VERBATIM — "if an event prehends that event's now, it has
-  // not yet happened in the context of that event" — i.e. reaches(m, now), not "anything
-  // in the interval not yet gathered" (that reading, dropped this pass, would have swept
-  // the imperfective straddler into future too). PRESENT is what's left: in the interval,
-  // begun, but neither cleanly ahead of the Now (prehending it) nor behind it (gathered
-  // by it) — the straddler item 9's own prose implies without naming.
+  // INTERIOR: partition the interval set by relation to E's own Now. past = gathered by
+  // Now. future = prehends the Now (reaches(m, now)) — item 9 verbatim, not "anything not
+  // yet gathered." present = the straddler: neither ahead of nor behind the Now.
   const future: string[] = [], present: string[] = [], past: string[] = [];
   for (const m of intervalSet(soc, event, asOf)) {
     const gatheredByNow = hasNow && reaches(soc, now, m, "q-grounding", asOf);
@@ -1437,13 +979,9 @@ export function bucketsOf(soc: Society, event: string, asOf?: number): Buckets {
   };
 }
 
-/** countsOf: the coarse-LOD variant for the UI's collapsed/summary render — "how many,"
- *  never the member list. NOT bucketsOf-then-.length: indirect after/before fan out (a
- *  second hop over every direct neighbor's own neighbors), so a coarse caller that only
- *  ever shows a badge should not pay to materialize and hold those arrays. Every leaf
- *  below is counted from the same edge-rows bucketsOf reads (prehensionsOnto/From,
- *  membersOf's cone) without ever collecting them into arrays — one derivation, cheaper
- *  shape, not two derivations. */
+/** countsOf: coarse-LOD variant for a collapsed/summary render — counts only, never the
+ *  member arrays. Not bucketsOf-then-.length: it counts directly so a badge-only caller
+ *  never pays to materialize arrays it won't use. */
 export interface BucketCounts {
   after: { direct: number; sublimesTree: number; indirect: number; indirectSublimesTree: number };
   before: { direct: number; indirect: number };
@@ -1513,11 +1051,9 @@ export function countsOf(soc: Society, event: string, asOf?: number): BucketCoun
 }
 
 // ── THE ALGEDONIC CHANNEL (Beer) — pain the system must not be able to mute ──────────
-// Two READS, no writes. These are the algedonic channel of the viable system: the signal
-// that bypasses ordinary reporting because ordinary reporting is exactly what failed.
-// DON'T-PLUG-THE-CHANNEL LAW: these readings must never be silently filtered, thresholded
-// away in the kernel, or defaulted to quiet — threshold POLICY is Hallie's; the kernel
-// returns the raw readings, sorted loudest-first, always.
+// Two reads, no writes. TRIPWIRE (don't-plug-the-channel law): these must never be
+// silently filtered or thresholded in the kernel. Threshold policy is Hallie's; the
+// kernel always returns raw readings, loudest first.
 
 /** one floating differential: charge nobody's lineage holds. */
 export interface FloatingCharge {
@@ -1529,11 +1065,9 @@ export interface FloatingCharge {
   charges: number;
 }
 
-/** floatingCharge: the dukkha nobody holds — open differentials CARRYING CHARGE whose
- *  story-frame has no path from any live ground (its now-lineage head unreachable from
- *  every active frame's head). `grounds` are the live frames' lineage-head NODES (policy
- *  locates them; the kernel takes nodes). Sorted by charge, loudest first. Algedonic:
- *  never silently filter this (don't-plug-the-channel). */
+/** floatingCharge: open differentials carrying charge whose story-frame has no path from
+ *  any live ground. `grounds` are lineage-head nodes; locating them is the caller's job.
+ *  Sorted loudest first. Never silently filter (don't-plug-the-channel). */
 export function floatingCharge(soc: Society, grounds: ReadonlyArray<string>, asOf?: number): FloatingCharge[] {
   const out: FloatingCharge[] = [];
   const seen = new Set<string>();
@@ -1560,10 +1094,8 @@ export interface VoltageReading {
   voltage: number;
 }
 
-/** overload: the total voltage grounded through ONE lineage — the line over rating. Reads
- *  voltageOf for every story against the given ground and returns the raw readings sorted
- *  loudest-first plus their sum. NO threshold here — threshold policy stays Hallie's;
- *  algedonic: never silently filter this (don't-plug-the-channel). */
+/** overload: total voltage grounded through ONE lineage. Reads voltageOf for every story
+ *  against the given ground; raw readings, loudest first, no threshold applied here. */
 export function overload(soc: Society, ground: string, asOf?: number): { ground: string; total: number; readings: VoltageReading[] } {
   const stories = new Set<string>();
   for (const b of soc.all()) {
@@ -1584,18 +1116,10 @@ export function overload(soc: Society, ground: string, asOf?: number): { ground:
 }
 
 // ── authorOf, distanceToHEA, assigneesOf: moved to biography.ts / strain.ts ──
-// (2026-07-15, separation-of-concerns pass). authorOf now lives in biography.ts
-// (its only caller there); distanceToHEA and assigneesOf now live in strain.ts.
-// Moved, not rebranded — names unchanged; both import their kernel primitives
-// from here.
+// (2026-07-15). Names unchanged; both import their kernel primitives from here.
 
-// DRAMA CUT (Hallie, 2026-07-15: "drama isn't really in the picture any more... cut for
-// now and mark the commit" — "I suspect trub handles it"). resolutionOf/isResolved and
-// their q-resolves quality lived here, serving the drama concept; nothing else in this
-// kernel ever branched on q-resolves, and live canon carried ZERO q-resolves edges (data-
-// clean cut, no migration owed). Removed, not perished-in-place: the door is marked (see
-// the KernelQuality union tombstone above), not erased — a future drama pass may reopen
-// it once trub's own handling of resolution is legible enough to design against.
+// DRAMA CUT (2026-07-15): resolutionOf/isResolved and q-resolves were removed — zero
+// live edges used them. Door marked (see KernelQuality above), not erased.
 
 /** cleanContent: strip legacy substance-smell from a beat's content on READ.
  *  Legacy beats stored a "[well]/[better] " prefix in content; new beats store clean.
@@ -1607,11 +1131,5 @@ export function cleanContent(s: string): string {
 
 
 // ── BIOGRAPHY, SUBLIME/PATH-TO-SUBLIME READS: moved to biography.ts / sublimes.ts ──
-// (2026-07-15, separation-of-concerns pass). BiographyEntry, HearingStatus,
-// biographyOf now live in biography.ts (alongside authorOf, its sibling read).
-// bearingsOf, storyBearingsOf, voltageTowardSublime, serviceChainOf,
-// reachedSublimesOf, pathToSublime, PathSegment, PathToSublime now live in
-// sublimes.ts. Both import their kernel primitives (isSublimePole, isStory,
-// endOf, intervalOf, contentBeats, prehensions*, isOccluded, establishedTo,
-// chargesOn) from here. Moved, not rebranded — every name is unchanged; see
-// the barrel (index.ts) for the re-export surface.
+// (2026-07-15). Names unchanged; both import their kernel primitives from here.
+// See index.ts for the re-export surface.

@@ -1,20 +1,7 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// eventview.ts — EventView: one component, THREE MODES, which are Whitehead's
-// subject-superject phases (BRIEF.md "HALLIE ARCHITECTURE" 2026-07-xx, live ~09:31/09:32):
-//
-//   interior    = the occasion in its own BECOMING     (card open / detail)
-//   superject   = the occasion AS A DATUM for the next  (row / chip / glyph / sphere)
-//   proposition = not-yet-actual, a lure                (superject render + a "not-yet" SKIN)
-//
-// Two render PATHS, three ontological faces: proposition is a SKIN ON SUPERJECT, not a
-// third family (Hallie's decision, BRIEF.md line ~1630). This file follows the SAME
-// reads/spreads/taste-arm seam that just passed the fence in stories.ts (readCard ~55,
-// ModeArm ~71, cardStory ~90): a pure READ (Society -> structural shape), a structural
-// SPREAD (the dispatch + DOM skeleton), and caller-supplied TASTE ARMS for the copy/visual
-// inside each mode's slot. Mode DETECTION (interior/superject/proposition, and — inside
-// superject/proposition — is-this-beat-a-story) is scher's read; the WORDS and SKIN are
-// the caller's, exactly like modeArm never choosing English for cardStory.
-// ─────────────────────────────────────────────────────────────────────────────
+// eventview.ts — EventView has three modes: interior (the card open, full
+// detail), superject (a compact row/chip), and proposition (a not-yet-real
+// row, same shape as superject plus a "not yet" skin). Mode detection is
+// this file's job; the words and visual skin belong to the caller.
 
 import { el, on } from "./dom.js";
 import { project } from "./projection.js";
@@ -22,20 +9,15 @@ import { reading, readCard, cardStory, type CardRead, type ModeArm } from "./sto
 import { Society, isEstablished, isSublimePole } from "./society.js";
 import { bearingsOf, storyBearingsOf } from "./sublimes.js";
 
-/** the three faces. INTERIOR = becoming; SUPERJECT = datum-for-the-next; PROPOSITION =
- *  not-yet-actual (renders as superject + a not-yet skin). */
+/** The three modes. Interior = open card. Superject = a compact row.
+ *  Proposition = not real yet, same shape as superject plus a skin. */
 export type EventViewMode = "interior" | "superject" | "proposition";
 
-/** the READ: pure (Society, slug) -> structural shape for the superject/proposition
- *  faces. Reuses readCard's beat-level read (content/mode/pathos) and adds the ONE
- *  structural fact those two faces need beyond a card: is this beat PROPOSITION-y —
- *  detected, never asserted by the caller. A beat reads as a proposition iff it is NOT
- *  established (scripted — the "not yet actual" mode) OR it is itself a sublime-pole (a
- *  never-closing bearing-target — a star to steer by, never a landed datum; see
- *  society.ts's sublime guard, "a star for navigation, not a destination to land"). */
+/** Reads a beat's shape plus one extra fact: is it a proposition (not yet
+ *  real)? True if it isn't established yet, or if it's a sublime-pole (a
+ *  target you steer by, never land on). This file decides that — callers
+ *  only choose how to skin it, never set the flag themselves. */
 export interface EventViewRead extends CardRead {
-  /** structurally not-yet-actual: scripted, or a sublime bearing-target. scher's read —
-   *  callers never assert this themselves; they only decide how to SKIN it. */
   isProposition: boolean;
 }
 
@@ -45,30 +27,15 @@ export function readEventView(soc: Society, slug: string): EventViewRead {
   return { ...base, isProposition };
 }
 
-/** nextAlong: the RELATIONAL lure-read committee-eventview added (2026-07-10), distinct
- *  from `isProposition` on purpose — see the note above EventViewRead.isProposition and
- *  BRIEF.md's ghost-row/in-service-of committee (CLEARNESS-ghostrow-ontology.md, fork 3).
- *
- *  isProposition asks a PER-BEAT question ("is this beat, alone, not-yet-actual?") and is
- *  true for nearly every open todo on an ungrounded board — that's a true fact about the
- *  beat but NOT what "a ghost row attached to its todo" means. nextAlong asks a RELATIONAL
- *  question instead: "does this beat (or a story it belongs to) SERVE a sublime-pole worth
- *  previewing as a lure beside it?" — Hallie's "next thing along, attached to the todo row"
- *  / the ghost-chain-toward-the-sea image. Built entirely on the ghost-row committee's
- *  already-landed kernel reads (bearingsOf/storyBearingsOf, society.ts ~1217-1252); no new
- *  kernel primitive. Returns the FIRST direct bearing if the beat has one of its own,
- *  else the first bearing inherited via a containing story, else null (an ordinary open
- *  todo with nothing downstream to preview — the common case, and correctly undashed).
- *
- *  This is a READ ONLY — it does not decide skin or attachment DOM; callers (board.ts)
- *  decide whether/how to render a row for the returned bearing. Kept as an eventview.ts
- *  export (not folded into isProposition) because the two answer different questions and
- *  a caller may legitimately want either or both: isProposition for "skin this row that IS
- *  rendering," nextAlong for "should I render an attached ghost row at all." */
+/** nextAlong: is this beat (or its story) pointed at a sublime worth
+ *  showing as a ghost row beside it? Different question from isProposition
+ *  ("is this beat alone not-real-yet") — a beat can be real and still have
+ *  a next-thing-along worth previewing. Read only, no rendering here.
+ *  Returns the first direct bearing, else one inherited via story, else
+ *  null. */
 export function nextAlong(soc: Society, slug: string, asOf?: number): { slug: string; viaStory: boolean } | null {
-  // DIRECTION FLIPPED (Hallie, 2026-07-20, ruling correction): bearingsOf now returns
-  // edges whose SUBJECT is the sublime charging toward this beat — the sublime is
-  // .subject, not .object.
+  // 2026-07-20 direction ruling: bearingsOf's sublime is .subject, not
+  // .object. Don't flip this back.
   const firstDirect = bearingsOf(soc, slug, asOf)[0];
   if (firstDirect?.subject) {
     return { slug: firstDirect.subject, viaStory: false };
@@ -80,20 +47,17 @@ export function nextAlong(soc: Society, slug: string, asOf?: number): { slug: st
   return null;
 }
 
-/** the TASTE arm for the superject/proposition faces: given the structural read, render
- *  the compact datum's contents (the row's label/glyph — Penelope's voice, not scher's).
- *  Reuses ModeArm's shape (CardRead -> Node) since EventViewRead extends CardRead — a
- *  caller who already has a ModeArm for cards can reuse it here, or supply a dedicated one. */
+/** Renders the compact row's contents for superject/proposition. Same
+ *  shape as ModeArm, so a caller's existing card arm can be reused here. */
 export type SuperjectArm = (v: EventViewRead) => Node;
 
-/** the three interior lists, in render order (the corrected anatomy's fixed order —
- *  brief ¶2). Also the vocabulary for hiddenSections/onToggleSection. */
+/** The three interior lists, fixed render order. Also the names used by
+ *  hiddenSections/onToggleSection. */
 export type InteriorSection = "contains" | "future" | "past";
 export const INTERIOR_SECTION_ORDER: readonly InteriorSection[] = ["contains", "future", "past"];
 
-/** one row of an interior list. `met` is only meaningful on PAST rows (RequiresRow's
- *  met/pending discriminant) — rendered structurally as `data-met`; the skin is the
- *  caller's css. */
+/** One row of an interior list. `met` only matters on past rows (done or
+ *  pending); rendered as data-met, styled by the caller's css. */
 export interface InteriorRow {
   slug: string;
   label?: string;
@@ -103,121 +67,66 @@ export interface InteriorRow {
 export interface EventViewParams {
   slug: string;
   mode: EventViewMode;
-  /** the TASTE arm for the INTERIOR face — threaded straight to cardStory (see
-   *  stories.ts CardStoryParams.modeArm). REQUIRED whenever mode may be "interior". */
+  /** Renders the interior face. Required when mode may be "interior". */
   modeArm?: ModeArm;
-  /** the TASTE arm for the SUPERJECT / PROPOSITION faces — the compact row's contents.
-   *  REQUIRED whenever mode may be "superject" or "proposition". Proposition reuses this
-   *  SAME arm (it is a skin ON superject, not a different render) — the skin (dashed/
-   *  faint/conditional) is applied by scher as a structural class + data-attribute; the
-   *  ARM never needs to know it's being skinned. */
+  /** Renders the superject/proposition row. Required for those modes.
+   *  Proposition reuses this same arm; the arm never needs to know it's
+   *  being skinned as "not yet real" — that skin is added separately. */
   superjectArm?: SuperjectArm;
   /** interior-only passthroughs, threaded to cardStory. */
   standpoint?: string;
   onOpen?: (slug: string) => void;
   onReify?: (slug: string) => void;
-  /** INLINE-OPEN (committee-eventview, card-interior-superject fleet, 2026-07-10):
-   *  when supplied, a SUPERJECT/PROPOSITION row renders an additional affordance that
-   *  expands the row to show that same occasion's INTERIOR *in place*, without becoming
-   *  the standing frame — the crux move Hallie's card sketch names "peek into a
-   *  downstream, don't navigate to it." This is INTENTIONALLY separate from `onOpen`:
-   *  onOpen is a caller-routed "make this the new significator" navigation (board.ts's
-   *  job); inlineOpenArm is scher's own bounded, in-place expansion (this file's job).
-   *  A caller wanting the full card anatomy (face+tags / contains / future / past)
-   *  supplies THIS arm — typically `(v) => eventView(soc, {slug: v.slug, mode:'interior',
-   *  modeArm, depth: depth+1, ...})` — and scher enforces the depth cap below; the arm
-   *  itself never has to know or check the cap. Omit to get a plain, non-expandable row
-   *  (e.g. once the cap is reached — see `depth`). */
+  /** Lets a superject/proposition row expand to show its own interior in
+   *  place, without navigating away — a peek, not a page change. Separate
+   *  from onOpen, which does navigate. Omit for a plain row (also used
+   *  once the depth cap below is reached). */
   inlineOpenArm?: (v: EventViewRead) => Node;
-  /** RECURSION CAP — same idiom as stories.ts's frameStory(soc, params, depth=0): an
-   *  INTERNAL counter, never set past 0 by an outside caller. `inlineOpenArm` is only
-   *  offered (rendered as an affordance) while `depth < INLINE_OPEN_DEPTH_CAP`; at the
-   *  cap, the row renders plain (no expand affordance) — matching the brief's "openable
-   *  ~1-2 recursions deep... you do NOT navigate-to it / make it the standing frame."
-   *  Bounding here, not in the caller's arm, means the cap is enforced ONCE, structurally,
-   *  the same way frameStory enforces its one-level cap once rather than per-caller. */
+  /** Internal recursion counter — callers never set this above 0.
+   *  inlineOpenArm only renders while depth < INLINE_OPEN_DEPTH_CAP; past
+   *  the cap the row is plain. Enforced here once, not per caller. */
   depth?: number;
-  /** the CARD ANATOMY reads for INTERIOR mode: one opened card's interior is three
-   *  STACKED LISTS, rendered in this order — CONTAINS (interior members), FUTURE (what
-   *  X makes necessary/possible), PAST (what had to come before X, met/pending).
-   *  Caller-supplied, never read here — the ontology reads are stories.ts's
-   *  (requiresOf/containsOf/enablesOf/readCardAnatomy): PAST ≈ requiresOf (hence `met`
-   *  on InteriorRow, rendered as `data-met`; the struck/pending skin is css's and must
-   *  read as weather, never error-red), FUTURE ≈ enablesOf, CONTAINS = containsOf.
-   *  (Earlier names afters/befores, and before that upstreams/downstreams, perished
-   *  honestly.) Omit any list to omit that section — a bare beat with no assembled
-   *  reads still renders a valid, sparse interior, never a throw. */
+  /** Interior mode's three stacked lists, in order: contains (what's
+   *  inside), future (what this makes possible), past (what had to come
+   *  first, met or pending). Caller supplies the reads; this file only
+   *  renders them. Any list can be omitted — a sparse interior still
+   *  renders fine, never throws. */
   contains?: InteriorRow[];
   future?: InteriorRow[];
   past?: InteriorRow[];
   tags?: string[];
-  /** SECTION HIDE/SHOW (brief ¶4: the interior lists are hideable/showable, per-card):
-   *  the same class-toggle idiom as the per-row hide, one level up. Sections named here
-   *  START hidden; every rendered section carries a header toggle that flips the
-   *  structural `hidden` class + `data-section-hidden` attribute (the css light's DOM
-   *  contract) and reports through onToggleSection. PERSISTING the choice is the
-   *  caller's (board.ts's) job — scher only flips the structure. */
+  /** Sections named here start hidden. Each section gets a toggle button
+   *  that flips it and calls onToggleSection. Saving the choice is the
+   *  caller's job, not this file's. */
   hiddenSections?: InteriorSection[];
   onToggleSection?: (section: InteriorSection, hidden: boolean) => void;
-  /** the TASTE arm for each interior-list row's left STATE-CHANGE GLYPH (task/dropped/
-   *  migrated/... — "what kind," per the checkbox-unification decision) — distinct from
-   *  the row's right DONE-check (rendered structurally below as a plain checked/unchecked
-   *  slot; whether/how it's interactive is Penelope's callback wiring via onRowDone, not
-   *  scher's taste). SECTION-AGNOSTIC — applies to rows in all three lists (the v1
-   *  downstream-only `downstreamGlyphArm`, generalized in the perish). Omit for a
-   *  glyph-less plain list. */
+  /** Left-side glyph for a row's kind (task/dropped/migrated/...), separate
+   *  from the done-check on the right. Works for all three lists. Omit for
+   *  a plain list with no glyph. */
   rowGlyphArm?: (slug: string) => Node;
-  /** per-row DONE state — a plain read the caller supplies (scher does not decide what
-   *  "done" means for an arbitrary beat; that's a quality/mode read owned by
-   *  stories.ts/society.ts, same reasoning as contains/future/past above). */
+  /** Is this row done? Caller decides — this file doesn't judge. */
   isRowDone?: (slug: string) => boolean;
-  /** row callbacks — both OPTIONAL, both OMIT-TO-DISABLE, section-agnostic: */
   onRowDone?: (slug: string) => void;
   onRowHide?: (slug: string) => void;
-  /** "Expand to Grounding Info" — the bottom affordance that drills DEEPER than the
-   *  1-2 level inline-open cap allows (a real navigate, not a peek). Omit to hide it. */
+  /** "Expand to Grounding Info" button — a real navigate past the peek
+   *  cap, not another peek. Omit to hide the button. */
   onExpandGrounding?: (slug: string) => void;
-  /** MASS HOOK (tentative — RECESS-2 hunch, twice-confirmed, BRIEF.md "task mass made
-   *  SOMATIC"): an OPTIONAL per-occasion weight for the superject/proposition row. This
-   *  is STRUCTURE only — a number the row carries as `data-mass` + a `--mass` CSS var —
-   *  never the drag physics itself (inertia/cursor-lag is a Penelope/interaction concern,
-   *  wired later against these hooks). scher does not derive mass from voltage here:
-   *  voltageOf(soc, story, ...) reads a STORY's differentials (it needs an End/poles), so
-   *  it isn't trivially available for an arbitrary list member that may be a bare beat —
-   *  deriving mass from the society is a real read, not a trivial one, so this stays an
-   *  honest caller-supplied optional rather than a forced auto-derivation.
-   *  TODO: once a cheap per-beat voltage/bearing-depth read exists for non-story beats,
-   *  fold it in here as a fallback when `mass` is omitted. */
+  /** Optional weight for a row, carried as data-mass and --mass. Structure
+   *  only, no drag physics here. Not derived from voltage — that needs a
+   *  story's poles, which a bare beat may not have — so caller supplies it. */
   mass?: number;
 }
 
-/** INLINE-OPEN RECURSION CAP — the crux number (committee-eventview, card-interior-
- *  superject fleet, 2026-07-10). frameStory caps its ONE nesting concept ("story-beat
- *  contains story-beat") at depth < 1. EventView's inline-open is the SAME idiom applied
- *  to "interior-list row peeks into its own interior": depth 0 (a plain interior card,
- *  freshly opened by the user or the standing frame) may inline-open ITS section rows
- *  to depth 1; depth 1's section rows render WITHOUT the expand affordance at all —
- *  no drill-in stub, just a plain closed row, because inline-open (unlike frameStory's
- *  drill-in) is a PEEK, not a promise of "more exists past here, click through." A
- *  separate, deliberate `onOpen`/`onExpandGrounding` navigation is always available past
- *  the cap for a reader who wants to go deeper — that's a re-centering action, not this
- *  one. Set to 1 (not 0) because the brief explicitly asks for "~1-2 recursions deep." */
+/** Peek-inline is only allowed 1 level deep. Past that, a row renders
+ *  plain, no expand button — deeper needs a real navigate (onOpen /
+ *  onExpandGrounding), never another peek. */
 const INLINE_OPEN_DEPTH_CAP = 1;
 
-/** eventView: the harness. Dispatches on `mode` — scher's structure, never the caller's
- *  choice of copy. INTERIOR builds the full CARD ANATOMY (Hallie's corrected anatomy,
- *  card-v2 sitting 2026-07-13: face+tags, then the three stacked lists CONTAINS → AFTERS
- *  → BEFORES as superject-rows, then expand) around cardStory's existing face render
- *  (content/mode/pathos) — cardStory still owns the FACE, this harness adds the stacked
- *  sections after it, structurally, from caller-supplied reads (see
- *  EventViewParams.contains/future/past/tags — why they're caller-supplied, not read here).
- *  SUPERJECT is a compact row built fresh here (a card is too heavy — full content, pathos
- *  chips, an openable click-target — for "a datum in a list"); it may also carry an
- *  INLINE-OPEN affordance (see inlineOpenArm/depth) that expands the row to its own interior
- *  IN PLACE, capped at INLINE_OPEN_DEPTH_CAP, WITHOUT re-centering the standing frame.
- *  PROPOSITION renders the identical superject skeleton and adds ONLY a structural
- *  not-yet-actual marker (a class + data-attribute); the VISUAL skin (dashed border,
- *  faint opacity, "if…" phrasing) is the caller's CSS/taste, not scher's. */
+/** eventView: builds the DOM for one of the three modes. Interior gets the
+ *  full card: face (from cardStory) plus the three stacked lists. Superject
+ *  is a compact row, optionally peek-expandable in place. Proposition is
+ *  the same row with a "not yet real" marker added; the visual skin for
+ *  that marker is the caller's CSS, not this file's job. */
 export function eventView(soc: Society, params: EventViewParams): Node {
   const { slug, mode } = params;
   const depth = params.depth ?? 0;
@@ -249,9 +158,8 @@ export function eventView(soc: Society, params: EventViewParams): Node {
     }
     card.appendChild(faceWrap);
 
-    // ── one interior-list ROW — a bordered SUPERJECT sub-card row, SECTION-AGNOSTIC:
-    //    left state-glyph (WHAT KIND) + text + right done-check (IS IT DONE) + hide tab
-    //    (+ met/pending as data-met on past rows). Two marks, not one confusing checkbox. ──
+    // One row in any list: glyph (what kind) + text + done-check + hide
+    // tab. Two marks, not one confusing checkbox.
     const interiorRow = (r: InteriorRow): HTMLElement => {
       const dRow = el("div", {
         class: "eventview-row",
@@ -276,11 +184,8 @@ export function eventView(soc: Society, params: EventViewParams): Node {
         });
         dRow.appendChild(hideTab);
       }
-      // INLINE-OPEN: only offered below the cap. At/past the cap the row is a plain,
-      // non-expandable superject row — a peek, capped, never a promise of infinite depth.
-      // The recess discipline (sitting holdout H1): the interior mounts ONCE into a slot
-      // ON the row and toggles via the "open" class — expanded AROUND you, in place,
-      // never an accordion re-flow that swaps the open semantics.
+      // Peek only below the cap. The interior mounts once into a slot on
+      // the row and toggles open/closed in place — no accordion reflow.
       if (params.inlineOpenArm && depth < INLINE_OPEN_DEPTH_CAP) {
         let openNode: Node | null = null;
         const slot = el("div", { class: "eventview-row-interior-slot" });
@@ -355,12 +260,9 @@ export function eventView(soc: Society, params: EventViewParams): Node {
   const read = reading(soc, (s) => readEventView(s, slug));
 
   return project(read, (v) => {
-    // the "is this a proposition RIGHT NOW" flag for THIS render is scher's structural
-    // detection (v.isProposition) UNIONED with the caller's declared mode — a caller may
-    // force mode:'proposition' on a beat scher would otherwise read as plain superject
-    // (e.g. previewing a not-yet-committed lure before it's laid at all), but scher's own
-    // detection can never be silenced by a caller declaring mode:'superject' on a beat
-    // that structurally IS one — the not-yet-actual marker is never hidden.
+    // A caller can force mode:'proposition' on a plain beat. But a caller
+    // can never force mode:'superject' to hide a real isProposition — this
+    // OR can only add the marker, never remove it.
     const asProposition = mode === "proposition" || v.isProposition;
 
     const row = el("div", {
@@ -377,8 +279,7 @@ export function eventView(soc: Society, params: EventViewParams): Node {
     if (params.onOpen) on(row, "click", () => params.onOpen!(slug));
     row.appendChild(superjectArm(v));
 
-    // INLINE-OPEN affordance at the top level too — a bare superject row (e.g. a board
-    // list item, not a downstream sub-row) can offer the same peek-inline, same cap rule.
+    // Same peek affordance for a plain top-level superject row.
     if (params.inlineOpenArm && depth < INLINE_OPEN_DEPTH_CAP) {
       let openNode: Node | null = null;
       const slot = el("div", { class: "eventview-inline-interior-slot" });
@@ -400,9 +301,5 @@ export function eventView(soc: Society, params: EventViewParams): Node {
   }).node;
 }
 
-// NOTE: "a list is a spread of superject-face EventViews" (PORT work-round 3) lives in
-// stories.ts's listStory, not here — list COMPOSITION belongs on the stories.ts side of
-// the file-advocate boundary (this file owns the single EventView harness above; stories.ts
-// owns spreading it across a slice, same as it already owns cardStory/frameStory/boardStory).
-// listStory's default per-item render (no `item` override) composes eventView(soc, {slug,
-// mode:'superject', superjectArm}) per member — see stories.ts.
+// List rendering (spreading eventView across many items) lives in
+// stories.ts's listStory, not here. This file owns one EventView only.

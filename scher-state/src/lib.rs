@@ -57,6 +57,18 @@
 //!     poisoned key — never an overflow); and code-as-state means a splice
 //!     can retroactively change what a later call ran — power and hazard,
 //!     unruled.
+//!   • PARAMETERS (Hallie, mid-build: "expect events with state values and
+//!     break if not?") — YES, as law here: a parameter IS a state event laid
+//!     before the call (bind-then-prehend, chain-shaped; scher-time's shape).
+//!     The call reads its arguments from the fold at its own moment — so a
+//!     binding SPLICED in later reaches an existing call (late binding for
+//!     free, tested). "need:<key>:<body>" declares a param; declared-but-
+//!     absent breaks LOUDLY (poisoned key), never runs on a silent default.
+//!     SEAM: UNDECLARED keys still fold from 0 (accumulators want this) —
+//!     silent-defaulting survives for them, confessed, unruled.
+//!     Hallie's naming, on seeing it: "now THAT'S a lure" — an unsatisfied
+//!     need is a proposition awaiting satisfaction; the call doesn't HAVE
+//!     arguments, it is lured toward what the fold offers at its moment.
 //!   • STANDPOINT RASTER (Hallie pointed at the backwards-code experiments,
 //!     gen4-policy/tests/doll_standpoint_ancestors_only.rs) — because the
 //!     pointers run newer→older, `rasterize_at(standpoint)` folds only the
@@ -659,6 +671,57 @@ mod dolls {
             Value::Text(t) => assert!(t.contains("REFUSED"), "must refuse loudly, got: {t}"),
             other => panic!("expected loud REFUSED text, got {other:?}"),
         }
+    }
+
+    /// PARAMETERS (Hallie, mid-build: "just expect events with state values
+    /// and break if not?") — yes, sharpened: params ARE state events laid
+    /// before the call; a definition DECLARES its needs; a declared param
+    /// absent at the call moment breaks loudly instead of running on a
+    /// silent 0. Same tri, now honest about its argument.
+    #[test]
+    fn parameter_doll_bound_param_runs_unbound_breaks_loudly() {
+        let def = Value::Text("need:n:unless:n=0:add:acc:n;incr:n:-1;call:tri".to_string());
+
+        // unbound: no n laid before the call — REFUSED, not triangular-of-0
+        let mut s = StateStore::open_in_memory().unwrap();
+        s.lay_state("def", "tri", def.clone()).unwrap();
+        s.lay_action("go", "call:tri").unwrap();
+        let state = s.rasterize().unwrap();
+        match &state["n"] {
+            Value::Text(t) => assert!(t.contains("REFUSED"), "must break loudly, got: {t}"),
+            other => panic!("expected loud REFUSED text, got {other:?}"),
+        }
+        assert!(!state.contains_key("acc"), "the body must not have run at all");
+
+        // bound: the param is a state event laid before the call — runs clean
+        let mut s = StateStore::open_in_memory().unwrap();
+        s.lay_state("def", "tri", def).unwrap();
+        s.lay_state("arg", "n", Value::Integer(4)).unwrap();
+        s.lay_action("go", "call:tri").unwrap();
+        assert_eq!(s.rasterize().unwrap()["acc"], Value::Integer(10)); // 4+3+2+1
+    }
+
+    /// Late binding, chain-shaped: the SAME call event, and the parameter
+    /// SPLICED in before it after the fact — the call reads its arguments
+    /// from the fold at its own moment, so the spliced binding reaches it.
+    /// (scher-time's lazy_read_sees_params_bound_after_the_prehend, data-shaped.)
+    #[test]
+    fn parameter_doll_spliced_binding_reaches_an_existing_call() {
+        let mut s = StateStore::open_in_memory().unwrap();
+        s.lay_state(
+            "def",
+            "tri",
+            Value::Text("need:n:unless:n=0:add:acc:n;incr:n:-1;call:tri".into()),
+        )
+        .unwrap();
+        s.lay_action("go", "call:tri").unwrap();
+        // first read: REFUSED — n was never bound
+        assert!(matches!(&s.rasterize().unwrap()["n"], Value::Text(t) if t.contains("REFUSED")));
+
+        // now SPLICE the binding in between def and call
+        s.splice_state("late-arg", "n", Value::Integer(3), "def").unwrap();
+        // the same call event now finds its argument at its moment
+        assert_eq!(s.rasterize().unwrap()["acc"], Value::Integer(6)); // 3+2+1
     }
 
     /// Calling an undefined key is a miss, not a silent no-op.

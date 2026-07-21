@@ -1,0 +1,15 @@
+[package]
+name = "scher-epistemology"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+description = "MUSLIN — the penelope-level epistemology over scher-core's pure algebra (Hallie's ruling, 2026-07-21): membersOf/bucketsOf and THE LURE LAW, extracted out of scher-core-wasm's confessed seam. Private, unpublished — consumed only by scher-core-wasm, which remains the one shipped compiled package."
+
+# scher builds under its own roof (matches scher-core, scher-core-wasm, scher-time,
+# scher-state) — this empty table keeps cargo from grafting this crate onto
+# penelope-gen4's workspace.
+[workspace]
+
+[dependencies]
+scher-core = { path = "../scher-core" }
+serde = { version = "1", features = ["derive"] }

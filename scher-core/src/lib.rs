@@ -1058,6 +1058,33 @@ pub fn is_sublime_pole(soc: &Society, node: &str, as_of: Option<u64>) -> bool {
     })
 }
 
+/// sublimesChargedFrom (society.ts): THE LURE LAW — a sublime's grip is APPETITION,
+/// a bare (quality-free) prehension whose SUBJECT is the sublime-pole. Ported home to
+/// scher-core (Hallie's ruling, 2026-07-21, 09:54: "the sublime section and lure law
+/// are still metaphysicsy enough — sublime is my answer to Whitehead's God so it's
+/// gotta be in the metaphysics"). This function briefly lived in scher-epistemology
+/// (a private copy, same LURE LAW logic, born under an earlier charter that read all
+/// of membersOf/bucketsOf's helpers as penelope-level epistemology); that crate's own
+/// helpers (grounded_cone, interval_set) stay there — they interpret the substrate into
+/// todo/wish/sublime-shaped BUCKET taxonomy, which is a designed epistemology, not
+/// metaphysics. THE LURE LAW itself is different: it's the reading of what a sublime-pole
+/// IS (never-actual, never-closing, its grip is bare appetition, never grounding) — the
+/// same order of claim as is_sublime_pole/is_designated_end_pole above it, so it comes
+/// home to sit beside them. scher-epistemology now calls this pub fn instead of holding
+/// its own copy (single source of THE LURE LAW, no duplicate to keep in conformance sync).
+pub fn sublimes_charged_from(soc: &Society, node: &str, as_of: Option<u64>) -> Vec<String> {
+    soc.edges_onto_object(node)
+        .filter(|b| {
+            b.subject.is_some()
+                && visible_at(b, as_of)
+                && !has_any_quality(soc, &b.slug, as_of)
+                && !is_occluded(soc, &b.slug, as_of)
+                && is_sublime_pole(soc, b.subject.as_deref().unwrap(), as_of)
+        })
+        .map(|b| b.subject.clone().unwrap())
+        .collect()
+}
+
 /// charges_on: the charges on a differential — a PURE ADDRESS READ (the naked-pole law's
 /// payoff): the un-occluded BARE prehensions the End itself makes onto the charged event.
 /// No charge quality exists; the charge is a property of the EDGE, never node-contents

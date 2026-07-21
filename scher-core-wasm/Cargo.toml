@@ -14,6 +14,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 scher-core = { path = "../scher-core" }
+scher-epistemology = { path = "../scher-epistemology" }
 wasm-bindgen = "0.2"
 serde = { version = "1", features = ["derive"] }
 # The boundary speaks JSON strings both ways (SEAM: serde-wasm-bindgen would shave

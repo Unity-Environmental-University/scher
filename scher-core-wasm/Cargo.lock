@@ -76,9 +76,18 @@ version = "0.0.1"
 dependencies = [
  "console_error_panic_hook",
  "scher-core",
+ "scher-epistemology",
  "serde",
  "serde_json",
  "wasm-bindgen",
+]
+
+[[package]]
+name = "scher-epistemology"
+version = "0.0.1"
+dependencies = [
+ "scher-core",
+ "serde",
 ]
 
 [[package]]

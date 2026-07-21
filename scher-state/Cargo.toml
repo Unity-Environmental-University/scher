@@ -1,0 +1,12 @@
+[package]
+name = "scher-state"
+version = "0.0.1"
+edition = "2021"
+description = "MUSLIN — typed key/value state hung on a q-succeeds succession chain: state events lay serially, and the current state RASTERIZES as a fold over the chain (oldest→newest, last-write-wins per key). The raster is a READ; mutation is storying, never overwrite — same law as scher-time's lazy read_result, data-shaped."
+
+# scher builds under its own roof (see repo-root Cargo.toml's note) — this empty
+# table keeps cargo from grafting this crate onto penelope-gen4's workspace.
+[workspace]
+
+[dependencies]
+rusqlite = { version = "0.31", features = ["bundled"] }

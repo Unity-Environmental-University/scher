@@ -1,0 +1,12 @@
+[package]
+name = "scher-time"
+version = "0.0.1"
+edition = "2021"
+description = "MUSLIN — ingression of a sublime as a function call: the output IS the ingression, and the RESULT is storied on the event of prehending it. Time is the first domain (sublime-today), not the grammar's owner; if a second domain wants this shape, the grammar extracts toward scher-core."
+
+# scher builds under its own roof (see repo-root Cargo.toml's note) — this empty
+# table keeps cargo from grafting this crate onto penelope-gen4's workspace.
+[workspace]
+
+[dependencies]
+scher-core = { path = "../scher-core" }

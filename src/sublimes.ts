@@ -1,7 +1,7 @@
 // sublimes.ts — sublime-DAG reads: bearings, service chains, path-to-sublime.
 // Depends only on kernel reads from society.ts.
 
-import { type Society, type EventRow, prehensionsFrom, prehensionsOnto, isOccluded, isSublimePole, isStory, endOf, intervalOf, contentBeats } from "./society.js";
+import { type Society, type EventRow, prehensionsFrom, prehensionsOnto, isOccluded, isSublimePole, isStory, endOf, intervalOf, contentBeats, endActual } from "./society.js";
 
 // ── SUBLIME READS ────────────────────────────────────────────────────────────
 // Sublimes are never-closing poles. They orient events via because-edges
@@ -192,6 +192,42 @@ export function pathToSublime(soc: Society, fromNow: string, sublime: string, as
 
   // Neither path found the sublime
   return { segments: [], reachable: false, established: false };
+}
+
+// ── FALLEN STAR: a designation alone is not conduct (Hallie's ruling, 2026-07-21) ──
+
+/** FallenReason: a promise a designated sublime has broken. Empty list = still a star. */
+export type FallenReason = "closed" | "charges-nothing" | "orphaned";
+
+/** fallenStarOf: which promises a designated sublime has broken. Non-sublime input
+ *  returns [] (not a star at all, not fallen). See each reason below for the kernel
+ *  read chosen. */
+export function fallenStarOf(soc: Society, sublime: string, asOf?: number): FallenReason[] {
+  if (!isSublimePole(soc, sublime, asOf)) return [];
+  const reasons: FallenReason[] = [];
+
+  // closed: the sublime's own pole reads as an actual End. Sublimes never close by
+  // the guard, but a designation can still be read this way if the kernel ever says so.
+  if (endActual(soc, sublime, asOf)) reasons.push("closed");
+
+  // charges-nothing: no un-occluded because-edge FROM the sublime onto anything —
+  // same subject-edge family as bearingsOf/voltageTowardSublime, from its own side.
+  if (voltageTowardSublime(soc, sublime, asOf) === 0) reasons.push("charges-nothing");
+
+  // orphaned: no sublime<->sublime bearing either direction. RULED
+  // (ruling-one-constellation): new constellations are impossible — no exemption,
+  // fires regardless of whether any other sublime exists.
+  {
+    // as subject: sublime prehends another sublime (chains up, "sublime serves").
+    const asSubject = prehensionsFrom(soc, sublime, "because", asOf).some(
+      (p) => !isOccluded(soc, p.slug, asOf) && isSublimePole(soc, p.object, asOf),
+    );
+    // as object: bearingsOf already restricts to subjects that are sublimes.
+    const asObject = bearingsOf(soc, sublime, asOf).length > 0;
+    if (!asSubject && !asObject) reasons.push("orphaned");
+  }
+
+  return reasons;
 }
 
 /** buildSegments: helper to construct PathSegments from a pole sequence. */

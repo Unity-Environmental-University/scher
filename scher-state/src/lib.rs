@@ -69,6 +69,15 @@
 //!     Hallie's naming, on seeing it: "now THAT'S a lure" — an unsatisfied
 //!     need is a proposition awaiting satisfaction; the call doesn't HAVE
 //!     arguments, it is lured toward what the fold offers at its moment.
+//!   • RASTER-FROM-RASTER (Hallie's ruling after the gravity demo showed the
+//!     cold-fold cost curve: "the raster can calculate from the raster, as
+//!     long as the cache remains valid") — rasterize() folds only the suffix
+//!     laid since the cached standpoint, on top of the cached map. The cache
+//!     is MEMOIZATION OF A READ, not stored state; rasterize_at stays pure
+//!     and uncached and is the truth-check. Validity is blunt on purpose:
+//!     appends extend, ANY splice invalidates wholesale. SEAM: per-read
+//!     clone of the cached map, and the blunt invalidation, are both
+//!     unruled costs — fine at muslin scale, arguable at scher-stacks scale.
 //!   • STANDPOINT RASTER (Hallie pointed at the backwards-code experiments,
 //!     gen4-policy/tests/doll_standpoint_ancestors_only.rs) — because the
 //!     pointers run newer→older, `rasterize_at(standpoint)` folds only the
@@ -111,6 +120,12 @@ pub struct StateStore {
     pub conn: Connection,
     /// The newest event — the End the list hangs from. None = empty chain.
     pub end: Option<String>,
+    /// RASTER-FROM-RASTER (Hallie's blessing: "the raster can calculate from
+    /// the raster, as long as the cache remains valid"): the last end-raster,
+    /// keyed by the standpoint it was folded at. Memoization of a READ, not
+    /// stored state — the fold stays the truth. Validity is blunt on purpose:
+    /// appends at the End extend it; ANY splice invalidates it wholesale.
+    cache: Option<(String, BTreeMap<String, Value>)>,
 }
 
 impl StateStore {
@@ -129,7 +144,7 @@ impl StateStore {
             "CREATE TABLE chain (event_id TEXT PRIMARY KEY, succeeds TEXT)",
             [],
         )?;
-        Ok(Self { conn, end: None })
+        Ok(Self { conn, end: None, cache: None })
     }
 
     /// Hang `event_id` on the chain at the End: it succeeds the old End and
@@ -193,6 +208,9 @@ impl StateStore {
             // `after` was the End itself — the splice lands at the End
             self.end = Some(event_id.to_string());
         }
+        // topology changed behind the standpoint: the cached raster may
+        // describe a past that no longer leads here. Invalidate wholesale.
+        self.cache = None;
         Ok(())
     }
 
@@ -238,8 +256,55 @@ impl StateStore {
     /// last-write-wins per key. Nothing is cached, nothing is overwritten;
     /// every call re-reads the whole story. (Rhymes with scher-time's
     /// read_result: the state is forced by the read, it does not sit anywhere.)
-    pub fn rasterize(&self) -> rusqlite::Result<BTreeMap<String, Value>> {
-        self.rasterize_at(self.end.as_deref().unwrap_or_default())
+    pub fn rasterize(&mut self) -> rusqlite::Result<BTreeMap<String, Value>> {
+        let Some(end) = self.end.clone() else { return Ok(BTreeMap::new()) };
+        // RASTER-FROM-RASTER: walk back from the End only as far as the cached
+        // standpoint; fold the suffix on top of the cached map. If the walk
+        // reaches genesis without meeting the cache, refold from nothing.
+        let cached_at = self.cache.as_ref().map(|(at, _)| at.clone());
+        let mut suffix = Vec::new(); // newest-first
+        let mut cursor = Some(end.clone());
+        let mut hit_cache = false;
+        while let Some(id) = cursor {
+            if cached_at.as_deref() == Some(id.as_str()) {
+                hit_cache = true;
+                break;
+            }
+            suffix.push(id.clone());
+            cursor = self.conn.query_row(
+                "SELECT succeeds FROM chain WHERE event_id = ?1",
+                [&id],
+                |r| r.get::<_, Option<String>>(0),
+            )?;
+            if suffix.len() as i64 > LOOP_FENCE {
+                panic!("rasterize: cycle or runaway chain past {LOOP_FENCE} — refused loudly");
+            }
+        }
+        let mut state = if hit_cache {
+            self.cache.as_ref().expect("hit_cache implies cache").1.clone()
+        } else {
+            BTreeMap::new()
+        };
+        suffix.reverse(); // oldest-first, resuming where the cache left off
+        let mut stmt = self
+            .conn
+            .prepare("SELECT key, value FROM state_events WHERE event_id = ?1 ORDER BY rowid")?;
+        for event_id in &suffix {
+            let rows: Vec<(Option<String>, Value)> = stmt
+                .query_map([event_id], |r| Ok((r.get(0)?, r.get(1)?)))?
+                .collect::<Result<_, _>>()?;
+            for (key, value) in rows {
+                match key {
+                    Some(k) => {
+                        state.insert(k, value);
+                    }
+                    None => apply_action(&mut state, &value),
+                }
+            }
+        }
+        drop(stmt);
+        self.cache = Some((end, state.clone()));
+        Ok(state)
     }
 
     /// The raster FROM A STANDPOINT — as_of, where the clock is succession
@@ -252,23 +317,38 @@ impl StateStore {
         if standpoint.is_empty() {
             return Ok(state);
         }
-        let mut stmt = self
-            .conn
-            .prepare("SELECT key, value FROM state_events WHERE event_id = ?1")?;
-        for event_id in &self.ancestors_oldest_first(Some(standpoint.to_string()))? {
-            let rows: Vec<(Option<String>, Value)> = stmt
-                .query_map([event_id], |r| Ok((r.get(0)?, r.get(1)?)))?
-                .collect::<Result<_, _>>()?;
-            for (key, value) in rows {
-                match key {
-                    // plain state event: last write wins, by chain order
-                    Some(k) => {
-                        state.insert(k, value);
-                    }
-                    // action event: its content says what it changes,
-                    // applied to the state folded SO FAR (chain order matters)
-                    None => apply_action(&mut state, &value),
+        // ONE query, not n: sqlite walks its own succeeds pointers (recursive
+        // CTE, standpoint→genesis) and hands back rows oldest-first. Same pure
+        // read, same fold — the first cut did ~2n round-trip queries per
+        // raster and the gravity demo's HUD showed ~865ms at 4.9k events;
+        // this is the plumbing fix that keeps the read a read (no cache, no
+        // materialized state — checkpointing stays an unruled seam).
+        let mut stmt = self.conn.prepare(
+            "WITH RECURSIVE walk(event_id, depth) AS (
+                 SELECT ?1, 0
+                 UNION ALL
+                 SELECT c.succeeds, w.depth + 1
+                 FROM chain c JOIN walk w ON c.event_id = w.event_id
+                 WHERE c.succeeds IS NOT NULL AND w.depth < ?2
+             )
+             SELECT s.key, s.value FROM walk w
+             JOIN state_events s ON s.event_id = w.event_id
+             ORDER BY w.depth DESC, s.rowid ASC",
+        )?;
+        let rows: Vec<(Option<String>, Value)> = stmt
+            .query_map(rusqlite::params![standpoint, LOOP_FENCE], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })?
+            .collect::<Result<_, _>>()?;
+        for (key, value) in rows {
+            match key {
+                // plain state event: last write wins, by chain order
+                Some(k) => {
+                    state.insert(k, value);
                 }
+                // action event: its content says what it changes,
+                // applied to the state folded SO FAR (chain order matters)
+                None => apply_action(&mut state, &value),
             }
         }
         Ok(state)
@@ -733,6 +813,32 @@ mod dolls {
             Value::Text(t) => assert!(t.contains("REFUSED")),
             other => panic!("expected loud REFUSED text, got {other:?}"),
         }
+    }
+
+    /// RASTER-FROM-RASTER (Hallie's blessing): the cached raster must be
+    /// indistinguishable from a cold fold — extended by appends, invalidated
+    /// wholesale by a splice. Truth-check is rasterize_at(End), the pure
+    /// uncached CTE read.
+    #[test]
+    fn cache_doll_cached_raster_always_equals_cold_fold() {
+        let mut s = StateStore::open_in_memory().unwrap();
+        s.lay_state("e1", "count", Value::Integer(10)).unwrap();
+        let warm = s.rasterize().unwrap(); // primes the cache
+        assert_eq!(warm, s.rasterize_at("e1").unwrap());
+
+        // appends extend the cache: still equal to the cold fold
+        s.lay_action("e2", "incr:count:5").unwrap();
+        s.lay_state("e3", "mood", Value::Text("clear".into())).unwrap();
+        let warm = s.rasterize().unwrap();
+        assert_eq!(warm, s.rasterize_at("e3").unwrap());
+        assert_eq!(warm["count"], Value::Integer(15));
+
+        // a splice behind the standpoint invalidates: the cached past no
+        // longer leads here, and the warm read must refold and agree anyway
+        s.splice_state("e1b", "count", Value::Integer(0), "e1").unwrap();
+        let warm = s.rasterize().unwrap();
+        assert_eq!(warm, s.rasterize_at("e3").unwrap());
+        assert_eq!(warm["count"], Value::Integer(5)); // 0 then +5
     }
 
     /// The standpoint raster (after gen4-policy's doll_standpoint_ancestors_only,

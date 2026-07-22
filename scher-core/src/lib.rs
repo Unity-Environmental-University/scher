@@ -26,7 +26,7 @@ pub mod edge_word;
 // already drew: pole-designation IS metaphysics, membersOf/bucketsOf-style taxonomy is not).
 mod poles;
 pub use poles::{
-    bearings_of, charges_on, end_actual, is_open_end_pole, is_sublime_pole,
+    bearings_of, charges_on, end_actual, is_any_pole, is_open_end_pole, is_sublime_pole,
     reached_sublimes_of, service_chain_of, sublimes_charged_from, story_now,
     voltage_toward_sublime,
 };
@@ -308,27 +308,36 @@ impl Society {
              into its three poles instead: lay Q_END_POLE ('{subject} ~end-pole~ end') and \
              close with 'end ~because~ now' (Q_GROUNDING). (law: three-poles, no-luring-verb)"
         );
-        // ADDRESS LAW (blocking — mirrors society.ts assertNakedPole; the law and its
-        // guard born together per the 2026-07-06 meta-law): an open End-pole receives
-        // ONLY charge-prehensions (bare edges) onto it and, eventually, the ONE closing
-        // q-grounding out of it — nothing else touches a naked pole; comments/references
-        // prehend the STORY, never its End. (q-end-pole itself is exempt structure: a
-        // pole may itself be a story whose own End lies further in.)
+        // ADDRESS LAW (BLOCKING VIA Err, not assert! — Hallie's ruling, live incident
+        // 2026-07-21: POST /bujo/occlude on a naked End-pole tripped this via a bare
+        // assert!, panicking mid-write and poisoning the shared lock a second time, same
+        // family as the sublime-guard fix just above. occlude's target is ALWAYS a live,
+        // caller-supplied slug — reachable-by-traffic exactly like the sublime guard was,
+        // not a construction-time-only caller bug. Converted from assert! to Err for the
+        // same reason: a seizure is never a refusal. Mirrors society.ts assertNakedPole;
+        // the law and its guard born together per the 2026-07-06 meta-law): an open
+        // End-pole receives ONLY charge-prehensions (bare edges) onto it and, eventually,
+        // the ONE closing q-grounding out of it — nothing else touches a naked pole;
+        // comments/references prehend the STORY, never its End. (q-end-pole itself is
+        // exempt structure: a pole may itself be a story whose own End lies further in.)
         if quality != Q_END_POLE {
-            assert!(
-                !is_open_end_pole(self, object, None),
-                "[ADDRESS LAW] '{slug}' lays a {quality} prehension ONTO the open End-pole \
-                 '{object}'. A naked pole receives only charge-prehensions (bare edges) — \
-                 comments/references prehend the STORY, never its End. Fix: point this \
-                 edge at the story, or lay a bare edge if you mean a charge. (law: naked-pole)"
-            );
-            assert!(
-                quality == Q_GROUNDING || !is_open_end_pole(self, subject, None),
-                "[ADDRESS LAW] '{slug}' lays a {quality} prehension OUT of the open \
-                 End-pole '{subject}'. The only edge that ever leaves a naked pole is its \
-                 ONE closing q-grounding ('end ~because~ now'). Fix: close with \
-                 q-grounding, or hang this relation on the story. (law: naked-pole)"
-            );
+            if is_open_end_pole(self, object, None) {
+                return Err(format!(
+                    "[ADDRESS LAW] '{slug}' lays a {quality} prehension ONTO the open \
+                     End-pole '{object}'. A naked pole receives only charge-prehensions \
+                     (bare edges) — comments/references prehend the STORY, never its End. \
+                     Fix: point this edge at the story, or lay a bare edge if you mean a \
+                     charge. (law: naked-pole)"
+                ));
+            }
+            if quality != Q_GROUNDING && is_open_end_pole(self, subject, None) {
+                return Err(format!(
+                    "[ADDRESS LAW] '{slug}' lays a {quality} prehension OUT of the open \
+                     End-pole '{subject}'. The only edge that ever leaves a naked pole is \
+                     its ONE closing q-grounding ('end ~because~ now'). Fix: close with \
+                     q-grounding, or hang this relation on the story. (law: naked-pole)"
+                ));
+            }
         }
         // SUBLIME GUARD (blocking — mirrors society.ts assertSublimeNeverCloses,
         // 2026-07-06 sublimes-store design): a sublime-pole is NEVER ACTUAL. It is a

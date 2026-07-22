@@ -53,7 +53,7 @@ pub(crate) fn is_designated_end_pole(soc: &Society, node: &str, as_of: Option<u6
 /// closing_edges_from and charges_on now both depend on to tell a closing from a charge —
 /// both are bare edges FROM a designated End; only the OBJECT's now-pole-hood tells them
 /// apart.
-fn is_now_pole(soc: &Society, node: &str, as_of: Option<u64>) -> bool {
+pub(crate) fn is_now_pole(soc: &Society, node: &str, as_of: Option<u64>) -> bool {
     soc.edges_onto_object(node).any(|b| {
         b.subject.is_some()
             && prehends_as(soc, &b.slug, Q_NOW_POLE, as_of)
@@ -122,6 +122,25 @@ pub fn story_now(story: &str) -> String {
 /// Q_END_POLE edge) not yet actual? The address law guards exactly these.
 pub fn is_open_end_pole(soc: &Society, node: &str, as_of: Option<u64>) -> bool {
     is_designated_end_pole(soc, node, as_of) && !end_actual(soc, node, as_of)
+}
+
+/// is_any_pole: is `node` designated an End-pole OR a Now-pole (the two pole kinds that can
+/// be `open_story`'s SUBJECT in this ontology)? POLE ATOMICITY (Hallie's ruling, 2026-07-21,
+/// extended live mid-incident to "now too" — End/Now/Sublime poles are all terminal). This
+/// predicate deliberately does NOT include is_sublime_pole even though a sublime is also
+/// terminal/atomic: `open_story(soc, sublime)` is an EXISTING, intentional, shipped path
+/// (gen4-policy::capture_into_day's sublime-ground charge, bujo_write.rs's "charges" bucket
+/// documented home case) — a sublime never designates its own End via end_of, so open_story
+/// mints the sublime's End-pole exactly ONCE and is idempotent on every call after (end_of
+/// then finds it). That is unpacking the SUBLIME's story, not unpacking a POLE's story — a
+/// sublime is never itself an End/Now-pole node, so it was never at risk of the nested-pole
+/// bug. What IS at risk, and what this predicate guards: calling open_story with `node`
+/// ALREADY BEING an End-pole or Now-pole slug (e.g. `hea-<event>` or `<event>~now`) — those
+/// have no End of their own (end_of finds nothing) and, pre-guard, fell through to mint a
+/// SECOND, NESTED pole. Mirrors is_designated_end_pole/is_now_pole exactly — reads structural
+/// designation, never slug-parses.
+pub fn is_any_pole(soc: &Society, node: &str, as_of: Option<u64>) -> bool {
+    is_designated_end_pole(soc, node, as_of) || is_now_pole(soc, node, as_of)
 }
 
 /// is_sublime_pole: is `node` a designated sublime-pole (object of an un-occluded

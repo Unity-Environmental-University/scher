@@ -29,21 +29,11 @@ export function trubHooksOf(soc: Society, log: string, asOf?: number): string[] 
     .filter(Boolean);
 }
 
-// WISH READ — STRUCTURE ONLY (2026-07-23, Hallie's ruling, live: "data determination
-// needs to be on structure and quality prehension" — a deliberate scream test, per
-// penelope-gen4/CLAUDE.md's house rule and this file's own opaque-slugs discipline: "a
-// reading is a node; read structure... never by parsing a slug" — string-matching FACE
-// CONTENT is the same anti-pattern one layer up from slug-parsing, so it goes too).
-// WISH_PREFIXES/isWishShaped (["User Story:", "Story:", "Wish:", "Sublime:", "Wonder:"],
-// same vocabulary gen4-policy's is_wish_shaped used) are CUT, not replaced — unlike
-// note-kind (model.ts), a real structural fallback DOES exist here (isSublimePole), so
-// this is not a full dead-end: a beat that is a designated sublime-pole still counts as
-// a wish. What's lost: a wish that is ONLY face-shaped (titled "Wish: ..." etc, never
-// designated a sublime-pole) no longer counts as a wish for trubHookIsAngry's climb — a
-// trub-hook reaching only a face-shaped (never-designated) wish will now read as angry
-// when it used to read as reached. This narrows isWish's recall; it does not eliminate
-// it. See trub-wish-shaped-face-check-cut-2026-07-23 in the live canon for the finding
-// and how many real wishes in the canon are face-only (not yet measured here).
+// A wish is a designated sublime-pole — structure only, no face-prefix fallback (the
+// old WISH_PREFIXES/isWishShaped text match is cut, same opaque-slugs discipline this
+// file already holds for slugs, applied to face content too). A trub-hook reaching only
+// a face-shaped, never-designated wish now reads angry instead of reached — see
+// trub-wish-shaped-face-check-cut-2026-07-23 in the live canon.
 function isWish(soc: Society, node: string, asOf?: number): boolean {
   return isSublimePole(soc, node, asOf);
 }

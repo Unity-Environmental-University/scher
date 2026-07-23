@@ -29,25 +29,23 @@ export function trubHooksOf(soc: Society, log: string, asOf?: number): string[] 
     .filter(Boolean);
 }
 
-// WISH READ (seam, confessed): same face-prefix discipline as gen4-policy's
-// is_wish_shaped — one vocabulary until trubness matures into a structural read.
-const WISH_PREFIXES = ["User Story:", "Story:", "Wish:", "Sublime:", "Wonder:"];
-
-/** isWishShaped: does this beat's title (or content, if no title) start with a
- *  wish face-prefix? Text-shaped, not structural — see the seam note above. */
-function isWishShaped(soc: Society, slug: string): boolean {
-  const b = soc.get(slug);
-  if (!b) return false;
-  const text = b.title ?? b.content;
-  if (!text) return false;
-  const trimmed = text.trim();
-  return WISH_PREFIXES.some((p) => trimmed.startsWith(p));
-}
-
-/** isWish: a node counts as a wish if it is a designated sublime-pole, or if its
- *  text is wish-shaped (see isWishShaped). */
+// WISH READ — STRUCTURE ONLY (2026-07-23, Hallie's ruling, live: "data determination
+// needs to be on structure and quality prehension" — a deliberate scream test, per
+// penelope-gen4/CLAUDE.md's house rule and this file's own opaque-slugs discipline: "a
+// reading is a node; read structure... never by parsing a slug" — string-matching FACE
+// CONTENT is the same anti-pattern one layer up from slug-parsing, so it goes too).
+// WISH_PREFIXES/isWishShaped (["User Story:", "Story:", "Wish:", "Sublime:", "Wonder:"],
+// same vocabulary gen4-policy's is_wish_shaped used) are CUT, not replaced — unlike
+// note-kind (model.ts), a real structural fallback DOES exist here (isSublimePole), so
+// this is not a full dead-end: a beat that is a designated sublime-pole still counts as
+// a wish. What's lost: a wish that is ONLY face-shaped (titled "Wish: ..." etc, never
+// designated a sublime-pole) no longer counts as a wish for trubHookIsAngry's climb — a
+// trub-hook reaching only a face-shaped (never-designated) wish will now read as angry
+// when it used to read as reached. This narrows isWish's recall; it does not eliminate
+// it. See trub-wish-shaped-face-check-cut-2026-07-23 in the live canon for the finding
+// and how many real wishes in the canon are face-only (not yet measured here).
 function isWish(soc: Society, node: string, asOf?: number): boolean {
-  return isSublimePole(soc, node, asOf) || isWishShaped(soc, node);
+  return isSublimePole(soc, node, asOf);
 }
 
 /** trubHookIsAngry: cycle-safe climb (seen-set — because-cycles are lawful); true

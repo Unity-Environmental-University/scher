@@ -1212,12 +1212,8 @@ pub fn distance_to_hea(soc: &Society, frame_once: &str, end: Option<&str>) -> He
 mod q_settles_tripwire {
     use super::*;
 
-    /// TRIPWIRE, not a blessing: the never-closes guard still keys on Q_GROUNDING; a
-    /// Q_SETTLES edge out of a sublime-pole is ACCEPTED today because the wiring is
-    /// fenced (Q_SETTLES doc above — done-reachability's quality filter must be traced
-    /// first, or doneness breaks board-wide). Wiring the guard flips this red on
-    /// purpose: read that fence, trace done_to_frame, then rewrite this test to expect
-    /// the refusal.
+    /// TRIPWIRE, not a blessing: pins Q_SETTLES as unwired (fence: Q_SETTLES doc
+    /// above). Goes red on purpose the day the never-closes guard reads it.
     #[test]
     fn q_settles_is_not_yet_wired_into_the_never_closes_guard() {
         let mut soc = Society::new();

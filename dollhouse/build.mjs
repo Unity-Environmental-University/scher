@@ -32,20 +32,23 @@ const dolls = [];
 for (const suite of json.testResults || []) {
   const file = (suite.name || "").split("/").pop().replace(".play.test.ts", "");
   const scenes = (suite.assertionResults || []).map((a) => ({
-    title: a.title, ok: a.status === "passed",
+    title: a.title,
+    state: a.status === "passed" ? "ok" : a.status === "todo" || a.status === "pending" ? "skip" : "no",
   }));
   if (scenes.length) dolls.push({ file, scenes });
 }
 
 const esc = (s) => String(s).replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
-const total = dolls.reduce((n, d) => n + d.scenes.length, 0);
-const passed = dolls.reduce((n, d) => n + d.scenes.filter((s) => s.ok).length, 0);
+const count = (state) => dolls.reduce((n, d) => n + d.scenes.filter((s) => s.state === state).length, 0);
+const passed = count("ok"), skipped = count("skip");
+const total = passed + count("no"); // skipped never enter the hold denominator
 
+const MARK = { ok: "✓", no: "✗", skip: "○" };
 const cards = dolls.map((d) => `
     <section class="doll">
       <h2>${esc(d.file)}</h2>
       <ul>${d.scenes.map((s) =>
-        `<li class="${s.ok ? "ok" : "no"}"><span class="mark">${s.ok ? "✓" : "✗"}</span>${esc(s.title)}</li>`
+        `<li class="${s.state}"><span class="mark">${MARK[s.state]}</span>${esc(s.title)}</li>`
       ).join("")}</ul>
     </section>`).join("");
 
@@ -53,7 +56,7 @@ const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>The Dollhouse — the grammar, played</title>
 <style>
-  :root{ --paper:#faf7f1; --ink:#2a2622; --line:#e4ddd2; --note:#8a8170; --ok:#3f7d4a; --no:#b5603a; }
+  :root{ --paper:#faf7f1; --ink:#2a2622; --line:#e4ddd2; --note:#8a8170; --ok:#3f7d4a; --no:#b5603a; --skip:#a89f8d; }
   body{ margin:0; background:var(--paper); color:var(--ink);
         font:16px/1.55 ui-serif,Georgia,"Times New Roman",serif; }
   .wrap{ max-width:760px; margin:0 auto; padding:2.5rem 1.4rem 4rem; }
@@ -66,15 +69,16 @@ const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
   ul{ list-style:none; margin:0; padding:0; }
   li{ padding:.18rem 0 .18rem 1.6rem; text-indent:-1.6rem; }
   .mark{ display:inline-block; width:1.2rem; font-family:ui-monospace,monospace; }
-  li.ok .mark{ color:var(--ok); } li.no .mark{ color:var(--no); }
+  li.ok .mark{ color:var(--ok); } li.no .mark{ color:var(--no); } li.skip .mark{ color:var(--skip); }
   li.no{ color:var(--no); }
+  li.skip{ color:var(--skip); font-style:italic; }
   footer{ color:var(--note); font-size:.85rem; margin-top:2rem; font-style:italic; }
 </style></head>
 <body><div class="wrap">
   <h1>The Dollhouse 🌊</h1>
   <p class="lede">The grammar, played on real history, fiction, and ideas. Each card is a doll
   (a property test); each line is a scene that holds. Load-bearing <em>and</em> fun.</p>
-  <p class="count">${passed} / ${total} scenes hold · ${dolls.length} dolls</p>
+  <p class="count">${passed} / ${total} scenes hold${skipped ? ` · ${skipped} skipped` : ""} · ${dolls.length} dolls</p>
   ${cards}
   <footer>Built from the play-tests in scher/test/*.play.test.ts. To add a doll, copy any one —
   the discipline is opaque slugs, real prehensions, no string-matching. The way is ahead.</footer>
@@ -82,4 +86,4 @@ const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
 
 mkdirSync(here, { recursive: true });
 writeFileSync(here + "/index.html", html);
-console.log(`dollhouse/index.html — ${passed}/${total} scenes across ${dolls.length} dolls. Open it in a browser.`);
+console.log(`dollhouse/index.html — ${passed}/${total} scenes${skipped ? ` (${skipped} skipped)` : ""} across ${dolls.length} dolls. Open it in a browser.`);

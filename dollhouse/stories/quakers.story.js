@@ -4,6 +4,7 @@
 // fork and the reunions merge. Any history can be a story in this shape; this is the first.
 //
 // move kinds (kept plain): {succeeds:[heir,parent]} · {root:name} · {merge:[heir,[p1,p2]]}
+//HALLIE: Claude this is cool but probably a bit rotty and I think Id love to hold a Funeral to allow it to have legacy into the code
 export const quakerStory = {
   title: "The Society of Friends — Fox to today 🕊️",
   blurb: "Every schism a fork, every reunion a merge, the Inward Light read by all and owned by none.",

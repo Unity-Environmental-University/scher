@@ -880,6 +880,12 @@ pub fn is_answered(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
 /// EXCEPTION (Hallie, 2026-07-24): an answered SUBLIME stays open. A koan
 /// receives its answer without closing — mu redirects, it does not resolve.
 /// A sublime never closes; this read is where that law meets Q_ANSWERS.
+///
+/// Takes `as_of` and NOT `frame`, on purpose. Those are two different axes
+/// (2026-07-24 sitting): `as_of` is the REVISION standpoint — which version of
+/// the canon — and `frame` is the POSITION standpoint, whose Now cuts what.
+/// Whether someone answered is a fact about the graph, true from anywhere.
+/// Done-by-reachability is the frame-relative read, and it lives in done_at.
 pub fn answer_closes(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
     is_answered(soc, row, as_of) && !poles::is_sublime_pole(soc, row, as_of)
 }

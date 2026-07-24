@@ -30,10 +30,12 @@ pub enum Kind {
     Sublime,
     /// Self-badged q-tag-wonder. With a telos edge it is a socratic.
     Wonder,
-    /// KIND-FROM-INCOMING-EDGE BORROW (flagged in the 2026-07-24 audit): trub
-    /// kind is still read off the q-fixes edge that lands on it, not off a
-    /// self-designation. The Q_TRUB-as-badge ruling is fenced with Hallie;
-    /// when it lands, this arm changes and nothing outside this module does.
+    /// A POSITION, not a badge (Hallie's dissolution, 2026-07-24 12:13: "why
+    /// do problems need to be a different thing?" → state derives from
+    /// relation, both ways). To be a problem IS to be what fixes reach toward
+    /// and work grounds in; the incoming q-fixes read was never a borrow to
+    /// repair — it was the honest read. The mirrored pole to Sublime: the
+    /// already-hurting FROM to its never-closing TOWARD (ontology lock).
     TrubLog,
     /// Has a designated End: an open arc.
     Story,

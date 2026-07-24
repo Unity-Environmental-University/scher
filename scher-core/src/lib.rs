@@ -106,10 +106,9 @@ pub const Q_NOW_POLE: &str = "q-now-pole";
 /// land on a sublime-pole (mirage). Naively refusing on `is_sublime_pole` alone, with no way to
 /// name "this write means to close", would break the legal bearing ring. So: the CLOSING is the
 /// exception and gets the honest mark; ordinary grounding is the unmarked default. `Q_SETTLES`
-/// names that marked exception. NOT YET WIRED into the never-closes guard (scope of THIS commit
-/// is the constant + a grandfather warn-ratchet on `q-grounding`/`~holds~` writes only) — the
-/// guard rewrite to test `Q_SETTLES` instead of `Q_GROUNDING` is a deliberately separate,
-/// later commit.
+/// names that marked exception. NOT YET WIRED into the never-closes guard — the unwired state
+/// is pinned by `q_settles_tripwire` (bottom of this file), which goes red the day the guard
+/// starts testing `Q_SETTLES`; the test names the fence to clear first.
 /// RULED KEPT and renamed (Hallie, 2026-07-24 12:02, the koan sitting): "q-closing is
 /// good. or even — q-settles." The linguistic surplus earns the quality: topology says a
 /// reaching exists; only the word says whether it SETTLES the telos or merely carries it.
@@ -1206,5 +1205,32 @@ pub fn distance_to_hea(soc: &Society, frame_once: &str, end: Option<&str>) -> He
         realized: is_established(soc, &the_end, None),
         remaining,
         total: interior.len(),
+    }
+}
+
+#[cfg(test)]
+mod q_settles_tripwire {
+    use super::*;
+
+    /// TRIPWIRE, not a blessing: the never-closes guard still keys on Q_GROUNDING; a
+    /// Q_SETTLES edge out of a sublime-pole is ACCEPTED today because the wiring is
+    /// fenced (Q_SETTLES doc above — done-reachability's quality filter must be traced
+    /// first, or doneness breaks board-wide). Wiring the guard flips this red on
+    /// purpose: read that fence, trace done_to_frame, then rewrite this test to expect
+    /// the refusal.
+    #[test]
+    fn q_settles_is_not_yet_wired_into_the_never_closes_guard() {
+        let mut soc = Society::new();
+        soc.lay(EventRow::node("star", "a sublime"));
+        soc.lay(EventRow::node("now", "a now"));
+        soc.lay_p("star~pole~star", "designate", "star", "star", Q_SUBLIME_POLE)
+            .unwrap();
+        assert!(is_sublime_pole(&soc, "star", None));
+        let landed = soc.lay_p("star~settles~now", "close?", "star", "now", Q_SETTLES);
+        assert!(
+            landed.is_ok(),
+            "the guard now refuses Q_SETTLES — the fence is crossed; re-point this \
+             tripwire at the refusal and verify done_to_frame first"
+        );
     }
 }

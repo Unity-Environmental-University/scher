@@ -19,6 +19,7 @@ use std::collections::HashMap;
 // the gen4 edge grammar (one verb: `because`). A pure string⇄struct module, proved inverse.
 // Not yet wired into Society — it exists so reads stop slug-searching `{slug}~q`.
 pub mod edge_word;
+pub mod substance;
 
 // End / Now / Sublime pole-designation reads (split out 2026-07-21, Hallie's ruling:
 // "sublime law is core enough to the ontology" — pays down this file's pre-existing
@@ -104,12 +105,19 @@ pub const Q_NOW_POLE: &str = "q-now-pole";
 /// per the 2026-07-10 relaxation), while a CLOSING actualizes/lands its subject and must never
 /// land on a sublime-pole (mirage). Naively refusing on `is_sublime_pole` alone, with no way to
 /// name "this write means to close", would break the legal bearing ring. So: the CLOSING is the
-/// exception and gets the honest mark; ordinary grounding is the unmarked default. `Q_CLOSING`
+/// exception and gets the honest mark; ordinary grounding is the unmarked default. `Q_SETTLES`
 /// names that marked exception. NOT YET WIRED into the never-closes guard (scope of THIS commit
 /// is the constant + a grandfather warn-ratchet on `q-grounding`/`~holds~` writes only) — the
-/// guard rewrite to test `Q_CLOSING` instead of `Q_GROUNDING` is a deliberately separate,
+/// guard rewrite to test `Q_SETTLES` instead of `Q_GROUNDING` is a deliberately separate,
 /// later commit.
-pub const Q_CLOSING: &str = "q-closing";
+/// RULED KEPT and renamed (Hallie, 2026-07-24 12:02, the koan sitting): "q-closing is
+/// good. or even — q-settles." The linguistic surplus earns the quality: topology says a
+/// reaching exists; only the word says whether it SETTLES the telos or merely carries it.
+/// Wiring into open_story's circuit edge stays fenced until done-reachability's quality
+/// filter is traced — that edge feeds done_to_frame, and changing its color untested is
+/// how doneness breaks board-wide. No canon row has ever carried q-closing, so the value
+/// rename is free.
+pub const Q_SETTLES: &str = "q-settles";
 /// The structural comment designation (2026-07-14, comment-readability fix). `bujo_comment`
 /// lays a comment INSIDE a parent's betweenness interval via ordinary q-grounding edges — that
 /// gives it membership for free when the parent's interval is small, but for a parent already
@@ -866,6 +874,14 @@ pub fn trub_hooks_of(soc: &Society, log: &str, as_of: Option<u64>) -> Vec<String
 /// de-facto done. `answers_of` names the answering events.
 pub fn is_answered(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
     bears_quality(soc, row, Q_ANSWERS, as_of)
+}
+
+/// answer_closes: the done-composing form of `is_answered`, with the KOAN
+/// EXCEPTION (Hallie, 2026-07-24): an answered SUBLIME stays open. A koan
+/// receives its answer without closing — mu redirects, it does not resolve.
+/// A sublime never closes; this read is where that law meets Q_ANSWERS.
+pub fn answer_closes(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
+    is_answered(soc, row, as_of) && !poles::is_sublime_pole(soc, row, as_of)
 }
 
 /// answers_of: the answering events (subjects) of every un-occluded Q_ANSWERS

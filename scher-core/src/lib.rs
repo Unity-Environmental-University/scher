@@ -75,6 +75,10 @@ pub const Q_TRUB: &str = "q-trub";
 /// `Q_TRUB` / `is_trub_explicit` are a DIFFERENT, older channel — do not conflate.
 /// q-resolves does NOT exist — never add it.
 pub const Q_FIXES: &str = "q-fixes";
+/// The answer marker (Hallie's socratic-closure ruling, 2026-07-24): edge
+/// `{answer} ~answers~ {socratic}`. An event that prehends a socratic with this
+/// quality makes it read de-facto done — see `is_answered`.
+pub const Q_ANSWERS: &str = "q-answers";
 /// The structural End-pole designation the lazy three-pole unpack lays (2026-07-06).
 /// q-lure is DEAD — killed with fire (Hallie, same ruling): it smuggled an agent and
 /// could not state its own direction. `lay_p` REFUSES it (panic, fail-closed).
@@ -827,21 +831,47 @@ pub fn is_trub_explicit(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
         .any(|p| !is_occluded(soc, &p.slug, as_of) && p.content == FROWNY_REACTION)
 }
 
-/// is_trub_log: true iff some un-occluded prehension onto `row` carries Q_FIXES.
-/// Not the same channel as `is_trub_explicit` above — do not conflate.
-pub fn is_trub_log(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
-    prehensions_onto(soc, row, Q_FIXES, as_of)
+/// The shared quality-read: does any un-occluded prehension onto `row` carry `quality`?
+/// Factored out of `is_trub_log` (Hallie's socratic, 2026-07-24) so each new
+/// designated quality is one call, not one more hand-rolled loop.
+pub fn bears_quality(soc: &Society, row: &str, quality: &str, as_of: Option<u64>) -> bool {
+    prehensions_onto(soc, row, quality, as_of)
         .iter()
         .any(|p| !is_occluded(soc, &p.slug, as_of))
 }
 
-/// trub_hooks_of: the hooks (subjects) of every un-occluded Q_FIXES prehension onto `log`.
-pub fn trub_hooks_of(soc: &Society, log: &str, as_of: Option<u64>) -> Vec<String> {
-    prehensions_onto(soc, log, Q_FIXES, as_of)
+/// The shared companion read: the subjects of every un-occluded `quality`
+/// prehension onto `row` — "who reaches me this way".
+pub fn quality_subjects_onto(soc: &Society, row: &str, quality: &str, as_of: Option<u64>) -> Vec<String> {
+    prehensions_onto(soc, row, quality, as_of)
         .iter()
         .filter(|p| !is_occluded(soc, &p.slug, as_of))
         .filter_map(|p| p.subject.clone())
         .collect()
+}
+
+/// is_trub_log: true iff some un-occluded prehension onto `row` carries Q_FIXES.
+/// Not the same channel as `is_trub_explicit` above — do not conflate.
+pub fn is_trub_log(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
+    bears_quality(soc, row, Q_FIXES, as_of)
+}
+
+/// trub_hooks_of: the hooks (subjects) of every un-occluded Q_FIXES prehension onto `log`.
+pub fn trub_hooks_of(soc: &Society, log: &str, as_of: Option<u64>) -> Vec<String> {
+    quality_subjects_onto(soc, log, Q_FIXES, as_of)
+}
+
+/// is_answered: true iff some un-occluded prehension onto `row` carries Q_ANSWERS.
+/// The socratic-closure read (ruling 2026-07-24): an answered socratic is
+/// de-facto done. `answers_of` names the answering events.
+pub fn is_answered(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
+    bears_quality(soc, row, Q_ANSWERS, as_of)
+}
+
+/// answers_of: the answering events (subjects) of every un-occluded Q_ANSWERS
+/// prehension onto `row`.
+pub fn answers_of(soc: &Society, row: &str, as_of: Option<u64>) -> Vec<String> {
+    quality_subjects_onto(soc, row, Q_ANSWERS, as_of)
 }
 
 /// stressOf: a beat's blast-radius — how much waits on it, weighted by the dependents' own

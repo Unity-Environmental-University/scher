@@ -44,7 +44,12 @@ describe("trubHookIsAngry", () => {
   it("a hook that grounds straight into a wish-shaped beat is NOT angry", () => {
     const soc = new Society();
     node(soc, "hook");
-    node(soc, "wish", "User Story: fix the thing");
+    // A wish is a DESIGNATED sublime-pole — structure, not a "User Story:" prefix.
+    // The face-prefix fallback was cut (192fa1a); these fixtures now build the
+    // wish the way the code reads it.
+    node(soc, "wish");
+    node(soc, "sub");
+    soc.layP("wish-sublime", "wish is a sublime", "sub", "wish", "q-sublime-pole");
     soc.layP("hook-because-wish", "hook because wish", "hook", "wish", "q-grounding");
     expect(trubHookIsAngry(soc, "hook")).toBe(false);
   });
@@ -60,7 +65,9 @@ describe("trubHookIsAngry", () => {
   it("a hook is not angry if held by something wish-shaped (bare edge onto it)", () => {
     const soc = new Society();
     node(soc, "hook");
-    node(soc, "wish", "Wish: someday");
+    node(soc, "wish");
+    node(soc, "sub");
+    soc.layP("wish-sublime", "wish is a sublime", "sub", "wish", "q-sublime-pole");
     soc.lay({ slug: "wish-holds-hook", content: "wish holds hook", subject: "wish", object: "hook" });
     expect(trubHookIsAngry(soc, "hook")).toBe(false);
   });
@@ -75,7 +82,10 @@ describe("trubHookIsAngry", () => {
 
   it("a hook reaches a wish via its story's End (q-end-pole hop)", () => {
     const soc = new Society();
-    node(soc, "story", "Story: the umbrella");
+    node(soc, "story");
+    // The story IS the wish — designated a sublime-pole, reached via its End.
+    node(soc, "sub");
+    soc.layP("story-sublime", "story is a sublime", "sub", "story", "q-sublime-pole");
     const u = unpackPoles(soc, "story");
     node(soc, "hook");
     layCharge(soc, "story", "hook");

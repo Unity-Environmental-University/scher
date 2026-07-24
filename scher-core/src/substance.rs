@@ -1,21 +1,11 @@
-//! substance — convenience scaffolding for treating relational reads as substance.
+//! substance — relational reads, read as substance. The World collapsed to a Fool.
 //!
-//! Penelope looks at ORMs and says "what if that was my whole deal" (Hallie,
-//! 2026-07-24). The relations are the reality; a Substance is what a society of
-//! prehensions looks like at a rev. The superject read: what this occasion has
-//! become — derivable, never stored.
+//! Grounded in: the socratic/koan sitting (2026-07-24). Kind comes from what I
+//! AM; settledness from what REACHES me; the two never conflate.
+//! Fixes/Prevents: callers improvising substance-reads out of raw edges.
 //!
-//! Grounded in: the socratic/koan sitting (2026-07-24) — kind must come from
-//! what I AM (self-designations), settledness from what REACHES me, and the two
-//! must be unconflatable by construction.
-//! Fixes/Prevents: every caller improvising its own substance-read out of raw
-//! edges (the is_trub_log-as-kind borrow); the ORM war crimes — no active
-//! record (a Substance has no save(); writes stay verbs), no lazy loading
-//! (compute whole or not at all), no identity-map caching past the rev
-//! discipline (stale substance is yesterday's-slice in a suit).
-//!
-//! Doneness-by-reachability is deliberately ABSENT: done is frame-relative
-//! (a read FOR someone), a Substance is frame-free (what the thing is).
+//! The refusals this module makes are pinned in `tests` below, not asserted
+//! here: no save(), no partial read, no cache, no frame-relative doneness.
 
 use crate::{answers_of, bears_quality, end_of, is_occluded, is_trub_log, Society};
 use crate::poles::is_sublime_pole;
@@ -116,6 +106,53 @@ mod tests {
         soc.lay_p("fixer~fixes~socratic", "fix", "fixer", "socratic", crate::Q_FIXES).unwrap();
         let s = substance_of(&soc, "socratic", None);
         assert_eq!(s.kind, Kind::Wonder);
+    }
+
+    /// THE ORM REFUSALS, as tests instead of a header paragraph (2026-07-24).
+    /// Penelope looks at ORMs and says "what if that was my whole deal" — the
+    /// good half of that bargain only holds if the object never writes back.
+    ///
+    /// No ACTIVE RECORD: a Substance carries no door back to the Society. It is
+    /// built from a &Society and holds none, so `s.save()` cannot be written —
+    /// this test would stop compiling if a mutable handle were ever added.
+    #[test]
+    fn a_substance_cannot_write_back() {
+        let mut soc = Society::default();
+        node(&mut soc, "beat");
+        let s = substance_of(&soc, "beat", None);
+        // The proof is structural: `soc` is still exclusively borrowable after
+        // the read, so the Substance kept no reference into it.
+        node(&mut soc, "later-beat");
+        assert_eq!(s.slug, "beat");
+    }
+
+    /// No LAZY LOADING: every field is computed in the one call. A Substance is
+    /// never half-built, so a caller can never observe a partial one.
+    #[test]
+    fn a_substance_is_whole_or_not_at_all() {
+        let mut soc = Society::default();
+        node(&mut soc, "beat");
+        node(&mut soc, "a");
+        soc.lay_p("a~answers~beat", "relate", "a", "beat", Q_ANSWERS).unwrap();
+        let s = substance_of(&soc, "beat", None);
+        // Fields agree with each other at the same standpoint — the invariant a
+        // lazily-loaded field set would break.
+        assert_eq!(s.settled_by_answer, !s.answered_by.is_empty() && s.kind != Kind::Sublime);
+    }
+
+    /// No CACHE past the standpoint: the same slug read after a change reads
+    /// differently. Stale substance is yesterday's slice in a suit.
+    #[test]
+    fn a_substance_is_honest_at_its_standpoint_only() {
+        let mut soc = Society::default();
+        node(&mut soc, "q");
+        node(&mut soc, "a");
+        assert!(!substance_of(&soc, "q", None).settled_by_answer);
+        soc.lay_p("a~answers~q", "relate", "a", "q", Q_ANSWERS).unwrap();
+        assert!(
+            substance_of(&soc, "q", None).settled_by_answer,
+            "a re-read after a write must see the write — no memo lives here"
+        );
     }
 
     #[test]

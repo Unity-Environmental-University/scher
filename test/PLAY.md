@@ -68,6 +68,29 @@ cd scher && npm test                        # run everything (the dolls + the re
   moment-with-something-open, and a routine that never closes or a constraint that isn't a moment
   is a different shape of thing the grammar was never asked to hold.
 
+- **qualities / qualities-composed** — a play-TEST of Hallie's "qualities are Events"
+  ruling (2026-07-27) and its mid-task extension ("qualities can prehend qualities — like
+  & types"). Base doll: a quality laid as a real event reads end-to-end with no string
+  comparison; an edge CAN carry two qualities at once by bolting a side-prehension beside
+  layP, but layP's own `quality: Quality` argument stays one string per call and every
+  kernel guard reads only that one; reaching a quality's laying rather than its bare self
+  is supported, not enforced; a quality's own primordial/sublime is mechanically valid but
+  reads as ceremony until something downstream consumes it; the "quality of a quality's
+  laying" recursion stops because layP's own `~q` mode-beat is written with the cheaper
+  `lay()`, never a recursing `layP()` — an asymmetry, not a clean self-ground; and the
+  leading finding: a dangling quality-string (30 of 33 live qualities today) stays fully
+  readable forever under the new rule too, because nothing calls `s.has()` on it.
+  Composition doll: a composite quality's parts ARE discoverable by a cold walk (real
+  intersection, not decoration); q-end-pole/q-now-pole/q-sublime-pole could share one
+  `quality-pole` composite, doing generically what scher-core's hand-enumerated
+  `is_any_pole` does today — and would make its silent exclusion of sublime an explicit,
+  visible edge instead of a paragraph of justifying comment; the q-depends-on/q-blocked-by
+  "both-spellings window" (a 2026-07-15 rename) could have been a single quality-prehends-
+  quality edge instead of a rename at all; cycles terminate only because the doll wrote its
+  own `seen`-guard, the same discipline `routesTo` already needs — the kernel gives no
+  guard of its own; and composition buys real AND (intersection) and a subsumption shape,
+  but no negation, no first-class union, no constraints — half a type system, not one.
+
 ## How to add one
 Copy the shape of any doll. The discipline (learned the hard way, 2026-06-26):
 **nodes + real prehensions, OPAQUE slugs, NO string-matching.** A reading is a *node*, not a parsed

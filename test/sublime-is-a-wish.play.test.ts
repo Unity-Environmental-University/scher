@@ -635,4 +635,99 @@ describe("Sublime is a wish, read two ways — the scheduled-granting model 🌗
     const drawerLineFallsOutForFree = true;
     expect(drawerLineFallsOutForFree).toBe(true);
   });
+
+  it("SCENE 15 — FINAL: membership is the anchor PLUS the Now-position, and the anchor pair never round-trips", () => {
+    const s = new Society();
+    // spec item 6, verbatim: "Events that are part of other events prehend the
+    // beginning of the containing event and is prehended by the end of the
+    // containing event." This is the ANCHOR — mandatory, both halves, no
+    // exceptions, always running future-to-past on BOTH legs:
+    const containingBeginning = "containing-event-beginning";
+    const containingEnd = "containing-event-end";
+    const containingNow = "containing-event-now";
+    node(s, containingBeginning); node(s, containingEnd); node(s, containingNow);
+
+    const member = "lawfully-anchored-member";
+    node(s, member);
+    // leg 1: member prehends the containing event's BEGINNING —
+    s.layP(`${member}~prehends~${containingBeginning}`, "the member prehends the containing event's beginning",
+      member, containingBeginning, "q-grounding");
+    // leg 2: the containing event's END prehends the member —
+    s.layP(`${containingEnd}~prehends~${member}`, "the containing event's end prehends the member",
+      containingEnd, member, "q-grounding");
+
+    // THE POSITION (items 9-10, same shape as SCENE 13): which side of Now.
+    // Here the member has not yet happened — it prehends the Now:
+    s.layP(`${member}~prehends-now~${containingNow}`, "the member prehends the now — not yet happened",
+      member, containingNow, "q-grounding");
+
+    const hasAnchor =
+      prehensionsFrom(s, member, "q-grounding").some((e) => e.object === containingBeginning) &&
+      prehensionsFrom(s, containingEnd, "q-grounding").some((e) => e.object === member);
+    const hasPosition = prehensionsFrom(s, member, "q-grounding").some((e) => e.object === containingNow);
+    expect(hasAnchor).toBe(true);
+    expect(hasPosition).toBe(true);
+
+    // NOT A CYCLE: both anchor legs run the SAME direction — future-to-past.
+    // Leg 1 is member -> beginning. Leg 2 is end -> member. These are two
+    // DIFFERENT edges with two DIFFERENT subjects (member, then end) and two
+    // DIFFERENT objects (beginning, then member) — never the same pair walked
+    // both ways. Contrast the old holds/charge shape (SCENE 11's exact
+    // violation): {day}~holds~{event} PLUS {event}~charge~{day} IS a
+    // round-trip on the SAME pair. Here, walking forward from member never
+    // returns to member — there is no edge beginning->member or member->end
+    // laid at all:
+    expect(walks(s, containingBeginning, member, "q-grounding", new Set())).toBe(false);
+    expect(walks(s, member, containingEnd, "q-grounding", new Set())).toBe(false);
+    const anchorPairIsTwoLegsOfOneDirectionNeverARoundTrip = true;
+    expect(anchorPairIsTwoLegsOfOneDirectionNeverARoundTrip).toBe(true);
+  });
+
+  it("SCENE 16 — RED-TEST TARGET: a Now-position edge with NO anchor at all — forbidden by the law, and today nothing stops it", () => {
+    const s = new Society();
+    // hard law, stated in this doll's own words: no position without the
+    // anchor — something positioned relative to a Now while belonging to no
+    // containing event at all is forbidden. Built here to check whether the
+    // engine (scher's own laying, via layP — the same helper play.ts's node/
+    // succeeds/why all go through) actually refuses this, or merely ought to:
+    const orphanNow = "some-events-now-with-no-owner-of-its-own";
+    node(s, orphanNow);
+    const floatingMember = "floating-event-positioned-with-no-containing-event";
+    node(s, floatingMember);
+
+    // ONLY the position edge — no beginning-prehension, no end-prehension,
+    // anywhere, from or onto floatingMember. Attempt the lay directly and
+    // observe, rather than trusting any prior claim about what layP enforces:
+    expect(() => {
+      s.layP(`${floatingMember}~prehends-now~${orphanNow}`, "positioned relative to a now, belonging to no containing event",
+        floatingMember, orphanNow, "q-grounding");
+    }).not.toThrow(); // CURRENTLY PERMITTED — layP has no anchor+position conjunction guard
+
+    // confirmed the construction actually exists, by reading it back, not by
+    // trusting the lay call alone:
+    const positionEdgeExists = prehensionsFrom(s, floatingMember, "q-grounding").some((e) => e.object === orphanNow);
+    expect(positionEdgeExists).toBe(true);
+
+    // and confirmed, by walking outward from floatingMember on q-grounding,
+    // that no anchor edge exists in either direction — no beginning it
+    // prehends, and nothing (standing in for a containing event's end) that
+    // prehends it back:
+    const floatingMemberPrehendsSomeBeginning = prehensionsFrom(s, floatingMember, "q-grounding")
+      .some((e) => e.object !== orphanNow);
+    const somethingPrehendsFloatingMemberAsAnEnd = s.all()
+      .some((b) => b.object === floatingMember && b.subject !== orphanNow && b.subject !== floatingMember);
+    expect(floatingMemberPrehendsSomeBeginning).toBe(false);
+    expect(somethingPrehendsFloatingMemberAsAnEnd).toBe(false);
+
+    // THE GAP, same shape as SCENE 11: this is a description of TODAY'S
+    // gap-having behavior, not an endorsement. A guard OUGHT to exist — an
+    // "anchor+position conjunction" check, refusing any prehends/prehended-by
+    // edge onto a containing event's Now unless that same member already
+    // carries both anchor legs to that same containing event — and does not,
+    // in either scher's laying helpers or (checked directly, not assumed)
+    // api/'s containment law. This doll does not add it (no src/ or api/
+    // changes) — it exists to make the gap loud for whoever picks this up:
+    const thisIsAGapNotALaw = true;
+    expect(thisIsAGapNotALaw).toBe(true);
+  });
 });

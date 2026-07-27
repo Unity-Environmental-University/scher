@@ -270,6 +270,36 @@ export function isNowPole(soc: Society, node: string | null, asOf?: number): boo
 
 // ── the society itself ───────────────────────────────────────────────────────
 
+// TRANSACTION ERRORS: in-flight (ordinary, retry) vs aborted (permanent) never share a
+// type or tone — see atomic-lay.play.test.ts.
+/** A row still being laid by an open transaction; not corruption, retry after it returns. */
+export class RowInFlightError extends Error {
+  constructor(readonly slug: string, readonly txnLabel: string) {
+    super(
+      `[IN-FLIGHT] '${slug}' is still being laid by transaction ${txnLabel} — not yet ` +
+      `committed, not corrupted. Read it again after that layAtomic call returns; if you ARE ` +
+      `that transaction, read through the same layAtomic call instead of a fresh Society method. ` +
+      `(law: transactions-throw-not-hide)`,
+    );
+    this.name = "RowInFlightError";
+  }
+}
+
+/** A row whose transaction THREW before completing — permanent, corrupt-by-construction. */
+export class AbortedTransactionRowError extends Error {
+  constructor(readonly slug: string, readonly txnLabel: string, readonly cause: unknown) {
+    super(
+      `[ABORTED TRANSACTION] '${slug}' was laid by transaction ${txnLabel}, which ABORTED ` +
+      `before completing (cause: ${cause instanceof Error ? cause.message : String(cause)}). ` +
+      `This row is permanently quarantined — it will never become readable, by design: an ` +
+      `aborted half-write must never masquerade as valid data. Do not retry reading it. Fix: ` +
+      `re-lay the intended edge(s) as a fresh transaction under a new slug, and look at the ` +
+      `aborting guard's own error to see what it refused. (law: transactions-throw-not-hide)`,
+    );
+    this.name = "AbortedTransactionRowError";
+  }
+}
+
 /** An append-only society of beats. The only write is lay(). `rev` rises on every
  *  append; a Cell over the society subscribes to it and re-reads when it changes. */
 export class Society {
@@ -282,10 +312,29 @@ export class Society {
   // Safe because subject/object never change after insert. Kept in insertion order.
   readonly #bySubject = new Map<string, string[]>();
   readonly #byObject = new Map<string, string[]>();
+  // TRANSACTION MARKS (2026-07-27): a row laid inside layAtomic carries its transaction id
+  // here until #assertReadable clears it (or leaves it, if the transaction aborted).
+  readonly #txnOf = new Map<string, symbol>();
+  readonly #txnLabel = new Map<symbol, string>();
+  readonly #abortedTxns = new Map<symbol, unknown>(); // txn -> the cause it aborted with
+  #activeTxnStack: symbol[] = [];
+  #txnSeq = 0;
 
   constructor(seed: ReadonlyArray<EventRow> = []) {
     this.rev = new Cell(0);
     for (const b of seed) this.#insert(b);
+  }
+
+  /** Throws (RowInFlightError or AbortedTransactionRowError) if `slug` is marked
+   *  mid-transaction and the caller isn't inside that transaction (or nesting within it).
+   *  Every read that resolves a specific row goes through this. */
+  #assertReadable(slug: string): void {
+    const txn = this.#txnOf.get(slug);
+    if (txn === undefined) return;
+    if (this.#activeTxnStack.includes(txn)) return; // reading from inside its own transaction (or an outer one it nests within)
+    const label = this.#txnLabel.get(txn) ?? "(unlabeled)";
+    if (this.#abortedTxns.has(txn)) throw new AbortedTransactionRowError(slug, label, this.#abortedTxns.get(txn));
+    throw new RowInFlightError(slug, label);
   }
 
   // the one write. lay() of an existing slug is inert (ON CONFLICT DO NOTHING).
@@ -310,6 +359,8 @@ export class Society {
       if (list) list.push(b.slug); else this.#byObject.set(b.object, [b.slug]);
     }
     this.#beats.set(b.slug, { ...b, witnessed });
+    const innermost = this.#activeTxnStack[this.#activeTxnStack.length - 1];
+    if (innermost !== undefined) this.#txnOf.set(b.slug, innermost);
     return true;
   }
 
@@ -320,6 +371,7 @@ export class Society {
     if (!slugs) return [];
     const out: EventRow[] = [];
     for (const slug of slugs) {
+      this.#assertReadable(slug);
       const row = this.#beats.get(slug);
       if (row) out.push(row);
     }
@@ -333,6 +385,7 @@ export class Society {
     if (!slugs) return [];
     const out: EventRow[] = [];
     for (const slug of slugs) {
+      this.#assertReadable(slug);
       const row = this.#beats.get(slug);
       if (row) out.push(row);
     }
@@ -348,24 +401,56 @@ export class Society {
     return appended;
   }
 
-  /** Lay a prehension (an edge) co-prehending a quality. Lays the prehension and its
-   *  '~q' mode-beat, so the reads below can see the mode. */
-  // TODO(socratic): if the prehension slug is already present but its '~q' beat is not (or vice versa),
-  // I lay only the missing half and report true — is a half-mode-carrying prehension a state I mean to
-  // permit, or a corruption the append-only law just made unfixable?
+  /** ATOMIC LAY (2026-07-27): runs `steps` under one transaction mark; a row laid
+   *  mid-`steps` is unreadable outside until it returns (or forever, if it throws). */
+  layAtomic<T>(steps: () => T): T {
+    const txn = Symbol(`txn-${++this.#txnSeq}`);
+    this.#txnLabel.set(txn, String(txn.description));
+    this.#activeTxnStack.push(txn);
+    try {
+      const result = steps();
+      const outer = this.#activeTxnStack[this.#activeTxnStack.length - 2];
+      for (const [slug, t] of this.#txnOf) {
+        if (t !== txn) continue;
+        if (outer !== undefined) this.#txnOf.set(slug, outer); // hand off to the enclosing transaction
+        else this.#txnOf.delete(slug); // outermost transaction: fully committed, ordinary row now
+      }
+      return result;
+    } catch (e) {
+      this.#abortedTxns.set(txn, e);
+      throw e;
+    } finally {
+      this.#activeTxnStack.pop();
+      this.#txnLabel.delete(txn);
+    }
+  }
+
+  /** Lay a prehension and its '~q' mode-beat as ONE atomic act. Answers the old
+   *  TODO(socratic) — a half-mode-carrying prehension IS a corruption, mechanized in
+   *  atomic-lay.play.test.ts's "MECHANIZED GUARANTEE". */
   layP(slug: string, content: string, subject: string, object: string, quality: Quality): boolean {
     // TRIPWIRE: all four guards below throw on purpose, by ruling (2026-07-15) — do not
     // swap them for the non-throwing check* variants. See checkSublimeNeverCloses's note.
-    assertNoLure(slug, quality); // BLOCKS: q-lure is dead grammar (Hallie, 2026-07-06)
-    assertNakedPole(this, slug, subject, object, quality); // BLOCKS: nothing touches a naked pole
-    assertSublimeNeverCloses(this, slug, subject, object, quality); // BLOCKS: sublimes never close
-    assertSublimeAcyclic(this, slug, subject, object, quality); // BLOCKS: sublime-DAG stays acyclic (currently never fires — RELAXED, see its own comment)
-    assertNotMembershipContainment(slug, quality);
-    // TODO(socratic): does the quality belong in the '~q' beat's content (as "[${quality}]"), or is it already fully encoded by the object field?
-    const a = this.lay({ slug, content, subject, object });
-    const q = this.lay({ slug: slug + "~q", content: `${content} [${quality}]`, subject: slug, object: quality });
-    // TODO(socratic): returning a || q means we report "appended" if either half is new — but if only the '~q' half lands (prehension already laid), did we really append a full prehension?
-    return a || q;
+    return this.layAtomic(() => {
+      assertNoLure(slug, quality); // BLOCKS: q-lure is dead grammar (Hallie, 2026-07-06)
+      assertNakedPole(this, slug, subject, object, quality); // BLOCKS: nothing touches a naked pole
+      assertSublimeNeverCloses(this, slug, subject, object, quality); // BLOCKS: sublimes never close
+      assertSublimeAcyclic(this, slug, subject, object, quality); // BLOCKS: sublime-DAG stays acyclic (currently never fires — RELAXED, see its own comment)
+      assertNotMembershipContainment(slug, quality);
+      const a = this.lay({ slug, content, subject, object });
+      const q = this.lay({ slug: slug + "~q", content: `${content} [${quality}]`, subject: slug, object: quality });
+      return a || q;
+    });
+  }
+
+  /** THE COUPLING PRIMITIVE (2026-07-27): one satisfaction grants a wish AND solves a
+   *  problem in a single layAtomic batch. One `satisfaction` param: no two satisfying nodes. */
+  layCoupling(satisfaction: string, wish: string, problem: string): boolean {
+    return this.layAtomic(() => {
+      const g = this.layP(`${satisfaction}~grants~${wish}`, "this satisfaction grants the wish", satisfaction, wish, "q-grants");
+      const s = this.layP(`${satisfaction}~solves~${problem}`, "this same satisfaction solves the problem", satisfaction, problem, "q-solves");
+      return g || s;
+    });
   }
 
   /** Bulk-lay (e.g. a fetched canon, or a seed package). One rev bump for the batch. */
@@ -377,14 +462,17 @@ export class Society {
   }
 
   get(slug: string): EventRow | undefined {
+    if (this.#beats.has(slug)) this.#assertReadable(slug);
     return this.#beats.get(slug);
   }
 
-  /** All beats (a snapshot; do not mutate). */
+  /** All beats (a snapshot; do not mutate). Throws if any row is mid-transaction. */
   all(): EventRow[] {
+    for (const slug of this.#txnOf.keys()) this.#assertReadable(slug);
     return [...this.#beats.values()];
   }
 
+  /** Existence check only — does NOT throw on a mid-transaction row (not a content read). */
   has(slug: string): boolean {
     return this.#beats.has(slug);
   }

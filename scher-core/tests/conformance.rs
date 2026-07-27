@@ -918,7 +918,7 @@ mod idempotence {
 
     proptest! {
         #[test]
-        fn relaying_every_row_leaves_every_read_unchanged(
+        fn writing_down_the_same_facts_twice_does_not_change_what_anyone_can_read(
             (targets, prehensions) in scene(),
             duplicate_twice in any::<bool>(),
         ) {
@@ -955,7 +955,7 @@ mod idempotence {
         // contract), pinned here at the kernel level it's built from: relaying an identical
         // q-grounding edge slug onto the same subject/object/quality is inert.
         #[test]
-        fn relaying_a_grounding_edge_is_inert(
+        fn recording_the_same_connection_a_second_time_changes_nothing(
             a in "[a-z]{1,6}", b in "[a-z]{1,6}", quality in quality_edge_name(),
         ) {
             prop_assume!(a != b);
@@ -985,7 +985,7 @@ mod monotonicity {
 
     proptest! {
         #[test]
-        fn adding_unrelated_rows_never_flips_established_or_occluded(
+        fn adding_facts_about_unrelated_things_never_changes_whether_something_is_done_or_hidden(
             (targets, prehensions) in scene(),
             extra_slugs in prop::collection::hash_set("[a-z]{1,4}", 0..=4),
         ) {
@@ -1023,7 +1023,7 @@ mod monotonicity {
         // establishment path, never remove one already there — so is_established is
         // monotone non-decreasing purely under adding MORE grounding edges (no occlusion).
         #[test]
-        fn adding_more_grounding_never_un_establishes(
+        fn giving_something_more_reasons_it_is_true_never_makes_it_stop_being_true(
             frame in "[a-z]{1,4}", target in "[a-z]{1,4}", extra_frames in prop::collection::hash_set("[a-z]{1,4}", 0..=5),
         ) {
             prop_assume!(frame != target);
@@ -1050,7 +1050,7 @@ mod monotonicity {
 // refused — this test documents exactly what the kernel does today, so a future direction
 // guard has a red test to turn green (per the task's own instruction: pin, do not guard).
 #[test]
-fn a_reversed_grounding_edge_is_accepted_and_reads_backward_today() {
+fn recording_a_connection_backward_is_wrongly_allowed_and_reads_backward_today() {
     let mut soc = Society::new();
     soc.lay(EventRow::node("resting-thing", "a"));
     soc.lay(EventRow::node("ground-thing", "b"));

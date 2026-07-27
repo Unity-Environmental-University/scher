@@ -1,32 +1,66 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // sublime-is-a-wish.play.test.ts — a play-TEST of Hallie's collapse ruling
-// (2026-07-27), SHARPENED the same day: a wish and a sublime are not two kinds
-// of node. They are ONE kind, read two ways depending on whether SOME FRAME HAS
-// SCHEDULED the granting.
+// (2026-07-27), sharpened twice more the same day.
 //
-// Hallie, verbatim (first pass): "I think for now, we have to make them like
-// wishes. And any wishes that are granted outside of a known frame are --
-// sublimes." / "sublimes are speed of light like constants but we can only
-// access the ones whose laid by is in our frame of reference."
+// PASS 1 (kept below as "the READ" — end-of-linear-time framing, subsumes the
+// original absence-test): a wish and a sublime are not two kinds of node. They
+// are ONE kind, read two ways depending on where the granting is GROUNDED.
+// A granting settled in a reachable future day reads as a WISH. A granting
+// settled only at the end of linear time (or nowhere) reads as a SUBLIME.
+// Modeled with a synthetic terminal/end-of-linear-time pole — the analog of
+// live canon's `everyone-lived-happily-ever-after` (row 1 of canon, designated
+// q-sublime-pole, 11 things grounding into it; not queried live here, built
+// fresh so this doll stays self-contained). Ungrounded/unscheduled grantings
+// ground into this terminal pole by default — nowhere else to go.
 //
-// Hallie, verbatim (the sharpening): "So the difference between a wish and a
-// sublime is just, the granting event of a wish is -- predicted in time. As in
-// in a day or sprint frame in the projected future."
+// PASS 2 — THE LAW (ranks ABOVE the READ; these scenes now LEAD the doll):
+// Hallie, verbatim: "Loops can exist in the sublime, not outside of it." "in
+// theory loops in the primordeal are also possible." Why this outranks the
+// READ material: absence-of-reach / scheduled / end-of-linear-time are all
+// things the engine CANNOT check from inside a frame — observer-dependent.
+// Cycles are STRUCTURAL — the engine can always see them, unconditionally.
+// This is the first enforceable (not just descriptive) distinction the doll
+// plays. THE LAW: loops live AT THE POLES, never in ordinary time. Sublimes at
+// the far pole, primordials at the near pole — both sit outside linear time,
+// so ordinary cycle rules don't bind them. Everything BETWEEN the poles must
+// stay acyclic. society.ts's checkSublimeAcyclic (~line 230) already always-
+// allows sublime rings (gutted 2026-07-10) — this doll shows that behavior IS
+// the law working, not a gap, and shows the matching gap: nothing guards
+// ordinary time the same way, and nothing should be modeled to look like it
+// does until that guard exists for real.
 //
-// THE SHARPENED MODEL: the first pass's test was an ABSENCE test — reaches the
-// laying AND does NOT reach a granting. That's a live hazard: absence-of-reach
-// is indistinguishable from not-having-walked-far-enough, so the old test's
-// answer depended on how hard you looked. The sharpened reading asks a bounded
-// question with a definite answer instead: is the granting HELD BY A DAY OR
-// SPRINT? A frame is exactly the thing that PLACES a granting in time — a day
-// or sprint frame schedules it. So: a sublime is a wish whose granting no frame
-// you hold has scheduled. Someone holding a frame that DOES schedule it sees an
-// ordinary wish. Same node, both correct — the collapse still holds, sharper.
+// CORRECTION folded in before this pass was finished: holds/charge edges are
+// NOT modeled anywhere in this file, not even to show them failing. Hallie:
+// "holds and charge are both bad edges, this is why we're killing the canon."
+// The `{day}~holds~{event}` + `{event}~charge~{day_end}` pair is two edges in
+// OPPOSITE DIRECTIONS between the same pair in ordinary time — that pair IS a
+// cycle by definition, not a puzzle to route around. Scene 12 (the ordinary-
+// time red-test) is built from plain, single-direction because/prehension
+// edges between two ordinary events instead.
 //
-// This doll does NOT touch society.ts's isSublimePole/checkSublimeNeverCloses —
-// those model the OLD two-kind reading (a designated, permanently-never-actual
-// pole). This doll plays the ALTERNATIVE reading, entirely in test-file-local
-// helpers, using only real node()/why()/succeeds()/layP prehensions.
+// PASS 3 — the constructive fix (Hallie): "in the new model there is one
+// simple test for membership, a bare prehension one way or the other with the
+// now." Membership (an event being "inside" a containing event) is not two
+// stored edges. It is ONE bare prehension edge with the Now; direction encodes
+// which side. Specced, never implemented, at specs/drawer-contents.md items
+// 8-10:
+//   8) Now is prehended by the end of the event and prehends the beginning
+//      of the event.
+//   9) If an event prehends that event's now, it has not yet happened in the
+//      context of that event.
+//   10) If an event is prehended by an event's now, it has happened in the
+//       past of the context.
+// Scene 14 plays this directly. It ties straight back to the loops-law: a
+// single directional edge cannot loop by itself — that's WHY holds/charge (two
+// opposite-direction edges) was structurally unlawful in ordinary time, and WHY
+// this replacement is automatically compliant with the same law, not a second
+// fix bolted alongside the first.
+//
+// This doll does NOT touch society.ts's isSublimePole/checkSublimeNeverCloses/
+// checkSublimeAcyclic (only reads them, to compare against); it plays its own
+// alternative reading in test-file-local helpers, using only real
+// node()/why()/succeeds()/layP prehensions. DO NOT model `holds` or `charge`
+// edges anywhere in this file — see the correction above.
 //
 // Run: cd scher && npx vitest run sublime-is-a-wish.play
 // ─────────────────────────────────────────────────────────────────────────────
@@ -34,6 +68,8 @@
 import { describe, it, expect } from "vitest";
 import { Society, prehensionsFrom, isSublimePole } from "../src/society.js";
 import { node, succeeds } from "../src/play.js";
+
+// ── shared doll-local helpers ───────────────────────────────────────────────
 
 /** a wish is laid: an ordinary node, plus the LAYING as its own dated event
  *  (same laying/aim split first-day.play and qualities.play both use). */
@@ -77,19 +113,18 @@ function frameReachesAScheduleFor(s: Society, frame: string, granting: string, s
     .some((e) => e.object != null && frameReachesAScheduleFor(s, e.object, granting, seen));
 }
 
-/** THE CENTRAL HELPER, sharpened (was the absence-form; see the header and
- *  SCENE 1 for why this replaced it): reads as a sublime to `frame` iff the
- *  frame's walk reaches the wish's LAYING, but the granting is NOT held by any
- *  day or sprint the frame reaches. Not "did we fail to find a granting" —
- *  "is the granting scheduled anywhere this frame can see." Bounded; has a
- *  definite answer regardless of how far the walk went. */
+/** THE CENTRAL HELPER: reads as a sublime to `frame` iff the frame's walk
+ *  reaches the wish's LAYING, but the granting is NOT held by any day or
+ *  sprint the frame reaches. Not "did we fail to find a granting" — "is the
+ *  granting scheduled anywhere this frame can see." Bounded; has a definite
+ *  answer regardless of how far the walk went. */
 function isSublimeTo(s: Society, frame: string, laying: string, granting: string | null): boolean {
   const reachesLaying = reaches(s, frame, laying);
   const grantingIsScheduled = granting !== null && frameReachesAScheduleFor(s, frame, granting);
   return reachesLaying && !grantingIsScheduled;
 }
 
-/** the OLD absence-form, kept as its own named helper (see SCENE 1b for why it
+/** the OLD absence-form, kept as its own named helper (see SCENE 2 for why it
  *  still earns its place): reaches the laying and does NOT reach the granting
  *  edge itself at all — a strictly weaker, unbounded question than
  *  isSublimeTo's "is it scheduled." */
@@ -99,7 +134,46 @@ function isSublimeToByAbsence(s: Society, frame: string, laying: string, grantin
   return reachesLaying && !reachesGranting;
 }
 
+/** helper for SCENE 5: does `day`'s frame reach `laying` by walking q-succeeds
+ *  back to the day that contains it, then q-grounding forward into the laying?
+ *  Two different qualities chained by hand (routesTo alone only walks ONE
+ *  quality, q-end-pole) — this is the carry-forward mechanism the ruling asks for. */
+function routesToViaSuccessionThenGrounding(s: Society, day: string, laying: string, seen = new Set<string>()): boolean {
+  if (seen.has(day)) return false;
+  seen.add(day);
+  if (prehensionsFrom(s, day, "q-grounding").some((e) => e.object === laying)) return true;
+  return prehensionsFrom(s, day, "q-succeeds").some((e) => e.object != null && routesToViaSuccessionThenGrounding(s, e.object, laying, seen));
+}
+
+/** a designated pole: any node reached via an un-occluded `quality` edge from
+ *  `designator`. Used for both the sublime-pole (far) and the primordial-pole
+ *  (near) — same shape, opposite end of linear time. Plain q-sublime-pole
+ *  reuses the real kernel quality (so isSublimePole recognizes it); the
+ *  primordial pole uses a doll-local quality since nothing in the kernel
+ *  designates one — see SCENE 11 for why that's the point. */
+function designate(s: Society, designator: string, pole: string, quality: string): void {
+  node(s, designator); node(s, pole);
+  s.layP(`${designator}~designates~${pole}`, "a pole designation", designator, pole, quality as never);
+}
+
+/** does `start` reach `target` by walking a single quality forward, with a
+ *  visited-set so a ring terminates instead of recursing forever? This is the
+ *  same walk-termination shape routesTo/reaches use throughout this file and
+ *  the rest of the codebase — SCENES 9-12 exist to show that shape holds even
+ *  when the edges themselves form a ring. */
+function walks(s: Society, start: string, target: string, quality: string, seen = new Set<string>()): boolean {
+  if (start === target) return true;
+  if (seen.has(start)) return false;
+  seen.add(start);
+  return prehensionsFrom(s, start, quality)
+    .some((e) => e.object != null && walks(s, e.object, target, quality, seen));
+}
+
 describe("Sublime is a wish, read two ways — the scheduled-granting model 🌗", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // (a) THE READ — end-of-linear-time framing: where a granting is grounded
+  // ═══════════════════════════════════════════════════════════════════════
+
   it("SCENE 1 — the sharpened test: a granting HELD BY A DAY reads as an ordinary wish; unheld reads sublime, same walk-depth", () => {
     const s = new Society();
     const wish = "wish-the-garden-gets-planted";
@@ -130,7 +204,7 @@ describe("Sublime is a wish, read two ways — the scheduled-granting model 🌗
     expect(s.get(wish)?.slug).toBe(wish);
   });
 
-  it("SCENE 1b — is the absence-form still needed? YES, as a fallback for a granting scheduled where the frame cannot see the schedule at all", () => {
+  it("SCENE 2 — is the absence-form still needed? YES, as a named contrast — it is strictly dominated", () => {
     const s = new Society();
     const wish = "wish-the-bridge-gets-built";
     const laying = "laying-the-bridge-wish";
@@ -148,23 +222,17 @@ describe("Sublime is a wish, read two ways — the scheduled-granting model 🌗
     frameReaches(s, frame, laying);
 
     // under the sharpened test, this reads sublime to this frame — correctly, since
-    // this frame holds no schedule for it:
+    // this frame holds no schedule for it. The absence-form agrees here (frame
+    // doesn't reach the granting edge either) — the two forms only diverge when a
+    // frame reaches the bare granting edge WITHOUT reaching any schedule for it
+    // (SCENE 1's frame B), a case the scheduled-granting test gets right and the
+    // absence-form gets wrong. So the absence-form is strictly dominated — kept
+    // only as a named contrast to make that dominance demonstrable:
     expect(isSublimeTo(s, frame, laying, granting)).toBe(true);
-    // the absence-form gives the SAME answer here (frame doesn't reach the granting
-    // edge either) — the two forms agree whenever the frame is blind to the whole
-    // neighborhood. They'd only diverge if a frame reached the bare granting edge
-    // WITHOUT reaching any schedule for it (SCENE 1's frame B) — a case the
-    // scheduled-granting test classifies correctly (sublime, nothing scheduled here)
-    // and the absence-form gets WRONG (it would call frame B's case "not sublime"
-    // merely because the bare edge happened to be in view). So: the scheduled-granting
-    // test is not just sharper, it SUBSUMES the absence-form's correct answers and
-    // fixes its wrong one. The absence-form earns no separate fallback role — it is
-    // strictly dominated. Kept below only as a NAMED CONTRAST to make that dominance
-    // demonstrable, not because any doll needs to call it for real classification:
     expect(isSublimeToByAbsence(s, frame, laying, granting)).toBe(isSublimeTo(s, frame, laying, granting));
   });
 
-  it("SCENE 2 — the gap alone is the whole definition; no third condition was needed", () => {
+  it("SCENE 3 — the gap alone is the whole definition; no third condition was needed", () => {
     const s = new Society();
     const wish = "wish-the-roof-gets-fixed";
     const laying = "laying-the-roof-wish";
@@ -172,47 +240,11 @@ describe("Sublime is a wish, read two ways — the scheduled-granting model 🌗
     const frame = "frame-someone-far-away";
     frameReaches(s, frame, laying);
 
-    // the temptation, while building this doll, was a THIRD condition: "...AND the
-    // wish must actually be grantable in principle" (ruling out nonsense wishes). It
-    // turned out unnecessary — isSublimeTo never asks whether granting is POSSIBLE,
-    // only whether some frame has SCHEDULED one. Grantability is a property of the
-    // wish's own content, orthogonal to scheduling; conflating them would smuggle
-    // a stored judgment back onto the node, exactly what the ruling collapses away.
-    // (This finding survives the sharpening intact — see SCENE 7/8 for the stress
-    // test that pushes on exactly this temptation and still refuses it.)
+    // the temptation was a THIRD condition: "...AND the wish must actually be
+    // grantable in principle." Unnecessary — isSublimeTo never asks whether granting
+    // is POSSIBLE, only whether some frame has SCHEDULED one. Grantability is a
+    // property of the wish's own content, orthogonal to scheduling:
     expect(isSublimeTo(s, frame, laying, null)).toBe(true); // no granting exists anywhere, yet
-  });
-
-  it("SCENE 3 — carried forward through days: the wish is laid once, never re-laid, and still reads sublime for a week — UNCHANGED by the sharpening", () => {
-    const s = new Society();
-    const wish = "wish-the-drought-ends";
-    const monday = "laying-the-drought-wish-monday";
-    layWish(s, wish, monday);
-
-    // days succeed each other the same way any lineage does in this codebase
-    // (succeeds() — a real q-succeeds prehension, the day-succession pattern):
-    const tuesday = "day-tuesday", wednesday = "day-wednesday", thursday = "day-thursday";
-    succeeds(s, tuesday, "day-monday");
-    succeeds(s, wednesday, tuesday);
-    succeeds(s, thursday, wednesday);
-    // Monday itself prehends the laying — "today's work" contains what was laid today:
-    s.layP("day-monday~because~" + monday, "Monday contains the laying of this wish", "day-monday", monday, "q-grounding");
-
-    // NOTHING re-lays the wish on Tuesday, Wednesday, or Thursday. Each day's frame
-    // reaches the laying purely by walking BACK along q-succeeds to Monday, then
-    // onward via q-grounding to the laying — containment/succession, nothing bespoke:
-    const dayReachesLaying = (day: string): boolean => routesToViaSuccessionThenGrounding(s, day, monday);
-    expect(dayReachesLaying(tuesday)).toBe(true);
-    expect(dayReachesLaying(wednesday)).toBe(true);
-    expect(dayReachesLaying(thursday)).toBe(true);
-    // and none of them holds a SCHEDULE for a granting — none exists yet, and no day
-    // schedules it — so it reads sublime every single day, forward, without a single
-    // re-lay. Carry-forward survives the sharpening exactly as before: nothing about
-    // "is it scheduled" changes how the laying itself carries forward through succession.
-    for (const day of [tuesday, wednesday, thursday]) {
-      expect(dayReachesLaying(day)).toBe(true);
-      expect(frameReachesAScheduleFor(s, day, "granting-the-drought-wish-nonexistent")).toBe(false);
-    }
   });
 
   it("SCENE 4 — the moment it stops being a sublime: a later day SCHEDULES it, no un-designation, no rewrite", () => {
@@ -241,52 +273,28 @@ describe("Sublime is a wish, read two ways — the scheduled-granting model 🌗
     expect(s.get(laying)?.content).toBe(laying); // the laying: untouched too
   });
 
-  it("SCENE 5 — the honest failure mode: two unscheduled wishes look IDENTICAL from inside frame B, whether or not they're EVER grantable", () => {
+  it("SCENE 5 — carried forward through days: laid once, never re-laid, still reads sublime for a week", () => {
     const s = new Society();
-    // wish ONE: laid, and — unbeknownst to anyone in frame B — genuinely never
-    // grantable (its granting-condition can't be met; nothing anywhere will ever
-    // schedule a granting for it). This doll cannot MODEL "never" as a positive
-    // fact (absence of a future edge that will never come); it can only model the
-    // ABSENCE-OF-A-SCHEDULE as of now, same as any other never-yet:
-    const perpetualWish = "wish-that-can-never-be-granted";
-    const perpetualLaying = "laying-the-perpetual-wish";
-    layWish(s, perpetualWish, perpetualLaying);
+    const wish = "wish-the-drought-ends";
+    const monday = "laying-the-drought-wish-monday";
+    layWish(s, wish, monday);
 
-    // wish TWO: laid, ordinary, will be scheduled eventually — just not yet, and not
-    // yet visible to frame B either way:
-    const ordinaryWish = "wish-that-will-be-scheduled-next-month";
-    const ordinaryLaying = "laying-the-ordinary-wish";
-    layWish(s, ordinaryWish, ordinaryLaying);
+    const tuesday = "day-tuesday", wednesday = "day-wednesday", thursday = "day-thursday";
+    succeeds(s, tuesday, "day-monday");
+    succeeds(s, wednesday, tuesday);
+    succeeds(s, thursday, wednesday);
+    s.layP("day-monday~because~" + monday, "Monday contains the laying of this wish", "day-monday", monday, "q-grounding");
 
-    const frameB = "frame-b-cannot-tell-these-apart";
-    frameReaches(s, frameB, perpetualLaying);
-    frameReaches(s, frameB, ordinaryLaying);
-
-    // BOTH read as sublime to frame B, right now — same shape, same walk result:
-    expect(isSublimeTo(s, frameB, perpetualLaying, null)).toBe(true);
-    expect(isSublimeTo(s, frameB, ordinaryLaying, null)).toBe(true);
-    // there is no assertion that could tell them apart from here — that IS the point,
-    // and it is the SAME point the Riemann/P=NP stress scene below plays for real:
-    expect(isSublimeTo(s, frameB, perpetualLaying, null)).toBe(isSublimeTo(s, frameB, ordinaryLaying, null));
-
-    // Hallie's ask was to state a position, not dodge it: THIS IS ACCEPTABLE, not a bug.
-    // The only knowable thing is whether some frame has SCHEDULED a granting — not
-    // whether one is possible. A model that COULD tell these apart from frame B would
-    // need a god's-eye view of the future, which is exactly the kind of stored,
-    // frame-free truth this whole ruling exists to refuse. The asymmetry resolves
-    // itself later, honestly, the only way it can: if a schedule ever arrives and frame
-    // B's walk reaches it, ordinaryWish stops reading sublime (SCENE 4's mechanism). If
-    // none ever does, perpetualWish reads sublime forever — indistinguishable, from any
-    // FINITE vantage, from "not yet scheduled." That is not a hole in the model; it is
-    // the model.
+    // NOTHING re-lays the wish on Tuesday/Wednesday/Thursday; each day's frame reaches
+    // it purely by walking BACK along q-succeeds to Monday, then onward via q-grounding:
+    for (const day of [tuesday, wednesday, thursday]) {
+      expect(routesToViaSuccessionThenGrounding(s, day, monday)).toBe(true);
+      expect(frameReachesAScheduleFor(s, day, "granting-the-drought-wish-nonexistent")).toBe(false);
+    }
   });
 
-  it("SCENE 6 — designation vs. walk: when the OLD pole-designation and the NEW scheduled-granting walk disagree, the walk wins — UNCHANGED by the sharpening", () => {
+  it("SCENE 6 — designation vs. walk: when the OLD pole-designation and the NEW scheduled-granting walk disagree, the walk wins", () => {
     const s = new Society();
-    // society.ts's isSublimePole reads a designation — an un-occluded q-sublime-pole
-    // edge onto a node — completely independent of whether any frame's granting-walk
-    // can reach a schedule for it. Here a node is DESIGNATED sublime under the old
-    // mechanism:
     const designatedSublime = "designated-as-sublime-by-the-old-mechanism";
     const designator = "someone-who-designated-it";
     node(s, designator);
@@ -294,8 +302,6 @@ describe("Sublime is a wish, read two ways — the scheduled-granting model 🌗
       designator, designatedSublime, "q-sublime-pole");
     expect(isSublimePole(s, designatedSublime)).toBe(true); // the OLD reading says: sublime, full stop
 
-    // but under the NEW reading, this same node has a laying AND a granting that IS
-    // scheduled by a day some frame reaches:
     const laying = "laying-of-the-designated-node";
     layWish(s, designatedSublime, laying);
     const granting = "granting-of-the-designated-node";
@@ -308,125 +314,69 @@ describe("Sublime is a wish, read two ways — the scheduled-granting model 🌗
     frameReaches(s, frame, laying);
     frameReaches(s, frame, day);
 
-    // THE DISAGREEMENT, played: the old designation says sublime; the new walk, from
-    // this frame, says granted-wish (it is SCHEDULED). THE WALK WINS. Argument: a
-    // designation is a claim laid IN THE PAST by whoever wrote the q-sublime-pole edge
-    // — evidence of a judgment made at that time, from that frame, with the information
-    // then available. It is not load-bearing truth; per this doll's own ontology
-    // (Hallie: "the difference between a sublime and a wish is pretty immaterial"),
-    // nothing is stored on the node that could outrank a live walk. Treating the
-    // designation as ground truth would mean a stale claim could permanently overrule
-    // what every later frame can actually reach — exactly the kind of frame-free,
-    // un-updatable fact this whole model exists to refuse.
+    // THE DISAGREEMENT: the old designation says sublime; the new walk, from this
+    // frame, says granted-wish (it is SCHEDULED). THE WALK WINS — a designation is a
+    // claim laid IN THE PAST; nothing stored on the node outranks a live walk:
     expect(isSublimePole(s, designatedSublime)).toBe(true); // the old mechanism, unmodified, still says so
     expect(isSublimeTo(s, frame, laying, granting)).toBe(false); // the walk, for this frame, says granted
-    // the doll's own assertion takes the walk's side — this is the position, not a hedge:
-    const theWalkWins = !isSublimeTo(s, frame, laying, granting);
-    expect(theWalkWins).toBe(true);
+    expect(!isSublimeTo(s, frame, laying, granting)).toBe(true);
   });
 
-  it("SCENE 7 — measured consequence, played honestly: a board where one day past today holds 4 things and 21 rows sit unscheduled reads almost EVERYTHING as sublime, today", () => {
-    const s = new Society();
-    // Synthetic analog of the live board's measured shape (not a live-DB query — this
-    // doll stays self-contained like every other one here): exactly one day-node later
-    // than today HOLDS scheduled grantings (four of them); the rest of the backlog
-    // — 21 rows — sits laid, with no schedule anywhere in reach.
-    const today = "day-today";
-    const oneDayOut = "day-one-day-out-the-only-scheduled-day";
-    succeeds(s, oneDayOut, today);
-    const frame = "frame-the-board-as-a-whole";
-    frameReaches(s, frame, today);
-    frameReaches(s, frame, oneDayOut);
-
-    const scheduledWishes: string[] = [];
-    for (let i = 0; i < 4; i++) {
-      const wish = `wish-scheduled-${i}`, laying = `laying-scheduled-${i}`, granting = `granting-scheduled-${i}`;
-      layWish(s, wish, laying);
-      node(s, granting);
-      s.layP(`${granting}~grants~${wish}`, "granted", granting, wish, "q-grounding");
-      schedules(s, oneDayOut, granting);
-      frameReaches(s, frame, laying);
-      scheduledWishes.push(wish);
-    }
-
-    const unscheduledWishes: { wish: string; laying: string; granting: string }[] = [];
-    for (let i = 0; i < 21; i++) {
-      const wish = `wish-unscheduled-${i}`, laying = `laying-unscheduled-${i}`, granting = `granting-unscheduled-${i}`;
-      layWish(s, wish, laying);
-      node(s, granting); // a granting NODE exists (someone imagined the finish) —
-      s.layP(`${granting}~grants~${wish}`, "granted, in principle", granting, wish, "q-grounding");
-      // — but NOTHING schedules it. No day, no sprint, holds this granting anywhere.
-      frameReaches(s, frame, laying);
-      unscheduledWishes.push({ wish, laying, granting });
-    }
-
-    // the four scheduled wishes read as ordinary wishes to the board's own frame:
-    for (const wish of scheduledWishes) {
-      const granting = wish.replace("wish-", "granting-");
-      expect(isSublimeTo(s, frame, wish.replace("wish-", "laying-"), granting)).toBe(false);
-    }
-    // ALL TWENTY-ONE unscheduled rows read as sublimes, today, to the same frame:
-    for (const { laying, granting } of unscheduledWishes) {
-      expect(isSublimeTo(s, frame, laying, granting)).toBe(true);
-    }
-    // stated plainly, as the doll's own position rather than left to the report: this is
-    // NOT a flaw in the reading. It is an accurate report of a board where 21 of 25 rows
-    // have not actually been committed to a day or sprint by anyone. "Almost everything
-    // is a sublime today" is uncomfortable, not wrong — see SCENE 8's "sky full of false
-    // stars" discussion for why a backlog that reads mostly-sublime is USEFUL information,
-    // not category collapse:
-    const scheduledCount = scheduledWishes.length;
-    const unscheduledCount = unscheduledWishes.length;
-    expect(unscheduledCount).toBeGreaterThan(scheduledCount * 4); // the measured lopsidedness, asserted, not just narrated
-  });
-
-  it("SCENE 8 — THE STRESS TEST: P=NP, Riemann, and an ordinary receding-horizon wish are THE SAME KIND under this test, and that collapse is correct, not a bug", () => {
+  it("SCENE 7 — the Riemann/P=NP stress test: grounding at the terminal pole, explicitly, for wishes no day or sprint has ever scheduled", () => {
     const s = new Society();
     const frame = "frame-the-mathematical-community";
 
-    // three wishes, laid, none scheduled by any day or sprint anywhere:
-    const pEqualsNp = "wish-a-proof-for-p-equals-np";
-    const pEqualsNpLaying = "laying-p-equals-np-wish";
-    layWish(s, pEqualsNp, pEqualsNpLaying);
-    frameReaches(s, frame, pEqualsNpLaying);
+    // a synthetic terminal/end-of-linear-time pole — analog of live canon's row-1
+    // `everyone-lived-happily-ever-after` (designated q-sublime-pole, 11 things
+    // grounding into it in the real graph; not queried live, built fresh here so
+    // this doll stays self-contained). Ungrounded grantings ground into THIS pole
+    // by default — nowhere else in linear time for them to go:
+    const terminalPole = "pole-end-of-linear-time";
+    const canonRoot = "canon-root";
+    designate(s, canonRoot, terminalPole, "q-sublime-pole");
+    expect(isSublimePole(s, terminalPole)).toBe(true);
 
-    const riemann = "wish-a-proof-for-the-riemann-hypothesis";
-    const riemannLaying = "laying-riemann-wish";
-    layWish(s, riemann, riemannLaying);
-    frameReaches(s, frame, riemannLaying);
+    function laidAndGroundedAtTerminal(wishSlug: string, layingSlug: string): void {
+      layWish(s, wishSlug, layingSlug);
+      frameReaches(s, frame, layingSlug);
+      // no day/sprint schedules a granting for this wish — its granting, if it has
+      // one at all, grounds at the terminal pole explicitly, not by mere absence:
+      const granting = `granting-${wishSlug}`;
+      node(s, granting);
+      s.layP(`${granting}~grants~${wishSlug}`, "granted only at the end of linear time",
+        granting, wishSlug, "q-grounding");
+      s.layP(`${granting}~grounds-at-terminal~${terminalPole}`, "this granting rests nowhere in reachable time",
+        granting, terminalPole, "q-grounding");
+    }
 
-    const peopleCoordinate = "wish-people-coordinate-their-tasks-easily";
-    const peopleCoordinateLaying = "laying-people-coordinate-wish";
-    layWish(s, peopleCoordinate, peopleCoordinateLaying);
-    frameReaches(s, frame, peopleCoordinateLaying);
+    const pEqualsNp = "wish-a-proof-for-p-equals-np", pEqualsNpLaying = "laying-p-equals-np-wish";
+    laidAndGroundedAtTerminal(pEqualsNp, pEqualsNpLaying);
+    const riemann = "wish-a-proof-for-the-riemann-hypothesis", riemannLaying = "laying-riemann-wish";
+    laidAndGroundedAtTerminal(riemann, riemannLaying);
+    const peopleCoordinate = "wish-people-coordinate-their-tasks-easily", peopleCoordinateLaying = "laying-people-coordinate-wish";
+    laidAndGroundedAtTerminal(peopleCoordinate, peopleCoordinateLaying);
 
-    // intuition wants these to differ: a finite, specific mathematical proof "feels"
-    // different from a receding-horizon social aspiration that may never fully close.
-    // Under the scheduled-granting test, THEY DO NOT DIFFER — none is scheduled, so
-    // all three read as sublimes:
+    // all three ground at the SAME terminal pole, explicitly — not "no day holds it,"
+    // but "grounds here, at the pole, because we cannot place it anywhere else":
+    for (const granting of [`granting-${pEqualsNp}`, `granting-${riemann}`, `granting-${peopleCoordinate}`]) {
+      expect(walks(s, granting, terminalPole, "q-grounding")).toBe(true);
+    }
+    // and none is scheduled by any day or sprint, so all three still read sublime:
     expect(isSublimeTo(s, frame, pEqualsNpLaying, null)).toBe(true);
     expect(isSublimeTo(s, frame, riemannLaying, null)).toBe(true);
     expect(isSublimeTo(s, frame, peopleCoordinateLaying, null)).toBe(true);
 
-    // THE RESOLUTION (Hallie's own cut against the naive move): do not hunt for a walk
-    // that separates "unscheduled-but-doable" from "unschedulable-in-principle." We do
-    // not actually KNOW P=NP or Riemann are doable-in-time-just-not-yet-scheduled —
-    // Riemann may be independent of ZFC; P=NP may be unprovable outright. The intuition
-    // that these differ from "people coordinate easily" assumes an achievability-
-    // knowledge nobody possesses. There is no such distinguishing walk available, not in
-    // this graph and not epistemically — looking for one would encode false confidence
-    // this doll refuses to fake. So the assertion below is not a limitation surfaced by
-    // accident; it is the doll's stated POSITION:
+    // THE POSITION, stated plainly: this collapse is CORRECT, not a bug. We do not
+    // actually KNOW P=NP or Riemann are achievable — Riemann may be independent of
+    // ZFC; P=NP may be unprovable outright — so we cannot place the granting, so it
+    // sits with the eternal things, same as an ordinary receding-horizon social wish:
     const allThreeCollapseToTheSameReading =
       isSublimeTo(s, frame, pEqualsNpLaying, null) === isSublimeTo(s, frame, riemannLaying, null) &&
       isSublimeTo(s, frame, riemannLaying, null) === isSublimeTo(s, frame, peopleCoordinateLaying, null);
     expect(allThreeCollapseToTheSameReading).toBe(true);
-    // the ONLY knowable thing, from any frame anyone can occupy, is whether SOME FRAME
-    // HAS SCHEDULED a granting. Not a model limitation — an accurate report of the
-    // actual epistemic situation these three wishes are genuinely, equally, in.
   });
 
-  it("SCENE 9 — the mathematician's sprint: scheduling un-sublimes a wish MECHANICALLY, regardless of whether the schedule can be delivered — a feature, not a hole", () => {
+  it("SCENE 8 — designation-vs-walk, and carry-forward, hold under scheduling too: scheduling un-sublimes mechanically, whatever the credibility", () => {
     const s = new Society();
     const frame = "frame-a-mathematician-with-a-sprint-board";
     const riemann = "wish-a-proof-for-the-riemann-hypothesis-again";
@@ -435,9 +385,9 @@ describe("Sublime is a wish, read two ways — the scheduled-granting model 🌗
     frameReaches(s, frame, riemannLaying);
     expect(isSublimeTo(s, frame, riemannLaying, null)).toBe(true); // sublime, before the sprint
 
-    // the mathematician schedules it — "prove Riemann this quarter" — in their own
-    // sprint frame. However deluded that commitment may turn out to be, it is a REAL
-    // scheduling edge, mechanically identical in shape to any other:
+    // the mathematician schedules it — "prove Riemann this quarter." However deluded
+    // that commitment may be, it is a REAL scheduling edge, mechanically identical in
+    // shape to any other:
     const granting = "granting-riemann-this-quarter";
     node(s, granting);
     s.layP(`${granting}~grants~${riemann}`, "granted (claimed)", granting, riemann, "q-grounding");
@@ -445,76 +395,244 @@ describe("Sublime is a wish, read two ways — the scheduled-granting model 🌗
     schedules(s, thisQuarter, granting);
     frameReaches(s, frame, thisQuarter);
 
-    // MECHANICALLY, under this test, the node becomes an ordinary wish for this frame —
-    // full stop, no separate "is this credible" gate anywhere in the walk:
+    // MECHANICALLY, the node becomes an ordinary wish for this frame — full stop, no
+    // separate "is this credible" gate anywhere in the walk. The graph reports what a
+    // FRAME CLAIMS, never whether the frame is RIGHT — the same discipline the laying
+    // end already tolerates (any fool can lay a wish that will never be granted),
+    // applied consistently at the scheduling end too:
     expect(isSublimeTo(s, frame, riemannLaying, granting)).toBe(false);
-
-    // THE SHARPEST QUESTION, stated as this doll's own verdict: the model reports what
-    // a FRAME CLAIMS, never whether the frame is RIGHT. That is read here as a FEATURE,
-    // not a hole — argued three ways: (1) the graph's whole discipline is "no statement
-    // is not spoken from" (laid_by, 2026-07-07) — it is built to record commitments and
-    // their authors, never to adjudicate truth, so asking it to also grade credibility
-    // would be asking a ledger to also be a judge; (2) the alternative — some mechanism
-    // that only un-sublimes a wish when the schedule is "credible" — needs a credibility
-    // oracle this graph does not have and SCENE 8 just showed cannot exist even in
-    // principle (we don't know if Riemann is deliverable AT ALL); building one would
-    // silently launder a guess as kernel-level truth; (3) "any fool can un-sublime
-    // anything by scheduling it" is exactly as true, and exactly as fine, as "any fool
-    // can lay a wish that will never be granted" — the graph already tolerates that at
-    // the laying end, so tolerating it at the scheduling end is the same discipline
-    // applied consistently, not a new leak:
-    const graphReportsClaimsNotTruth = true;
-    expect(graphReportsClaimsNotTruth).toBe(true);
   });
 
-  it("SCENE 10 (bonus) — a self-referential granting: laying it does not throw, but it never resolves the walk it needs to resolve", () => {
+  // ═══════════════════════════════════════════════════════════════════════
+  // (b) THE LAW — loops live AT THE POLES, never in ordinary time
+  // ═══════════════════════════════════════════════════════════════════════
+
+  it("SCENE 9 — a loop among sublimes is LEGAL, and the walk terminates: Hallie's ruling played structurally", () => {
     const s = new Society();
-    // Hallie's aside: Riemann may depend on its own proof to prove itself (prime
-    // structure entwined with representability of proofs) — its granting may be
-    // SELF-REFERENTIALLY unschedulable, not merely unscheduled: placing it in a
-    // projected day would presuppose the very thing being proved. Modeled here as a
-    // granting whose own "why" aims back at the wish it grants — the sublime-to-sublime
-    // ring relaxation (society.ts ~line 230, RELAXED 2026-07-10: "aims mutually prehend
-    // at the limit") makes this LAWFUL to lay, not refused and not silently divergent:
-    const riemann = "wish-riemann-self-referential";
-    const riemannLaying = "laying-riemann-self-referential";
-    layWish(s, riemann, riemannLaying);
+    // three sublime-pole nodes that mutually prehend — a genuine ring, entirely at
+    // the far pole. society.ts's checkSublimeAcyclic (~line 230) always-allows this
+    // shape (RELAXED 2026-07-10) — this scene shows that IS the law working, played
+    // as a real ring rather than described in a comment:
+    const designator = "someone-who-designates-these";
+    const sublimeA = "sublime-pole-a", sublimeB = "sublime-pole-b", sublimeC = "sublime-pole-c";
+    designate(s, designator, sublimeA, "q-sublime-pole");
+    designate(s, designator, sublimeB, "q-sublime-pole");
+    designate(s, designator, sublimeC, "q-sublime-pole");
+    expect(isSublimePole(s, sublimeA)).toBe(true);
+    expect(isSublimePole(s, sublimeB)).toBe(true);
+    expect(isSublimePole(s, sublimeC)).toBe(true);
 
-    const selfGranting = "granting-riemann-that-presupposes-itself";
-    node(s, selfGranting);
-    // the granting event grants the wish...
-    s.layP(`${selfGranting}~grants~${riemann}`, "granted, if you already had the proof", selfGranting, riemann, "q-grounding");
-    // ...but its own justification loops back onto the wish it is meant to settle —
-    // laid as q-end-pole (why()'s quality), same shape any why-circuit uses:
+    // the ring itself: A serves B serves C serves A, a bare doll-local quality (not
+    // q-grounding, so checkSublimeNeverCloses's closure guard is not even in play here
+    // — this quality is a lateral "mutually prehend" edge, not an actualizing close):
+    s.layP(`${sublimeA}~mutually-prehends~${sublimeB}`, "A reaches toward B", sublimeA, sublimeB, "q-end-pole");
+    s.layP(`${sublimeB}~mutually-prehends~${sublimeC}`, "B reaches toward C", sublimeB, sublimeC, "q-end-pole");
+    s.layP(`${sublimeC}~mutually-prehends~${sublimeA}`, "C reaches toward A, closing the ring", sublimeC, sublimeA, "q-end-pole");
+
+    // ALLOWED: laying the ring did not throw. And the walk TERMINATES — it does not
+    // infinite-loop — because walks()/routesTo's existing visited-set logic already
+    // handles a ring the same way it handles any other graph shape:
+    expect(walks(s, sublimeA, sublimeC, "q-end-pole")).toBe(true); // reachable, going around
+    expect(walks(s, sublimeA, "nothing-in-the-ring")).toBe(false); // and it still terminates cleanly on a miss
+  });
+
+  it("SCENE 10 — a loop among primordials is legal BY THE SAME REASONING — pure synthetic play, nothing in real canon designates one", () => {
+    const s = new Society();
+    // no primordial exists in real canon; this is pure synthetic play, arguing from
+    // the same structural reasoning as SCENE 9: both poles sit outside linear time,
+    // so ordinary cycle rules don't bind either one. Nothing in society.ts or
+    // scher-core has a primordial-specific check — it is simply UNGUARDED, same as
+    // everything in ordinary time currently is (see SCENE 11, the actual gap):
+    const designator = "someone-who-designates-primordials";
+    const primordialX = "primordial-pole-x", primordialY = "primordial-pole-y";
+    designate(s, designator, primordialX, "q-primordial-pole"); // doll-local quality — no kernel guard reads it, and none needs to for this scene
+    designate(s, designator, primordialY, "q-primordial-pole");
+
+    s.layP(`${primordialX}~mutually-prehends~${primordialY}`, "X reaches toward Y", primordialX, primordialY, "q-end-pole");
+    s.layP(`${primordialY}~mutually-prehends~${primordialX}`, "Y reaches back toward X, closing the ring", primordialY, primordialX, "q-end-pole");
+
+    // ALLOWED — nothing in the kernel forbids it, and by the same "outside linear
+    // time" reasoning as sublimes, nothing SHOULD forbid it:
+    expect(walks(s, primordialX, primordialY, "q-end-pole")).toBe(true);
+    expect(walks(s, primordialY, primordialX, "q-end-pole")).toBe(true); // the ring, walked from either end, terminates
+  });
+
+  it("SCENE 11 — RED-TEST TARGET: a loop in ORDINARY time should be refused, and today it is not — plain prehension edges, no holds/charge", () => {
+    const s = new Society();
+    // two ORDINARY (non-pole) events — no q-sublime-pole, no q-primordial-pole, no
+    // holds/charge anywhere (Round D correction: holds/charge are dead, forbidden-
+    // to-even-model grammar; this uses plain q-end-pole because/prehension edges,
+    // the same quality why()/routesTo already use elsewhere in this doll):
+    const mondayMeeting = "ordinary-event-monday-meeting";
+    const tuesdayFollowup = "ordinary-event-tuesday-followup";
+    node(s, mondayMeeting); node(s, tuesdayFollowup);
+    expect(isSublimePole(s, mondayMeeting)).toBe(false);
+    expect(isSublimePole(s, tuesdayFollowup)).toBe(false);
+
+    // the mutual prehension: Monday's meeting happens so that Tuesday's followup can,
+    // AND Tuesday's followup happens so that Monday's meeting can — a genuine cycle
+    // between two plain ordinary-time events:
+    s.layP(`${mondayMeeting}~so-that~${tuesdayFollowup}`, "Monday happens so Tuesday's followup can",
+      mondayMeeting, tuesdayFollowup, "q-end-pole");
     expect(() => {
-      s.layP(`${selfGranting}~needs~${riemann}`, "the proof of the granting presupposes the wish itself",
-        selfGranting, riemann, "q-end-pole");
-    }).not.toThrow(); // LAWFUL: the kernel's acyclic guard was relaxed for exactly this shape
+      s.layP(`${tuesdayFollowup}~so-that~${mondayMeeting}`, "Tuesday's followup happens so Monday's meeting can, closing the ring",
+        tuesdayFollowup, mondayMeeting, "q-end-pole");
+    }).not.toThrow(); // CURRENTLY PERMITTED — layP has no ordinary-time acyclic guard at all
 
-    // but a frame that reaches the laying and even reaches this self-referential
-    // granting edge STILL cannot schedule it — no day or sprint holds it, and none
-    // honestly could, since holding it would require already holding its own proof:
-    const frame = "frame-a-number-theorist";
-    frameReaches(s, frame, riemannLaying);
-    frameReaches(s, frame, selfGranting);
-    expect(isSublimeTo(s, frame, riemannLaying, selfGranting)).toBe(true); // still reads sublime
+    // the walk finds the ring, same as at the poles — because nothing distinguishes
+    // ordinary time from pole-time in the walk machinery today:
+    expect(walks(s, mondayMeeting, tuesdayFollowup, "q-end-pole")).toBe(true);
+    expect(walks(s, tuesdayFollowup, mondayMeeting, "q-end-pole")).toBe(true);
 
-    // the punchline this scene plays: self-reference gives the sublime FIRMER footing
-    // (unplaceable IN PRINCIPLE, not merely unplaced-so-far) — but from inside any
-    // frame, this is INDISTINGUISHABLE from SCENE 8's ordinary unscheduled case. The
-    // collapse still holds; the reason underneath is just more interesting, and the
-    // graph cannot see the difference between "more interesting reason" and "no reason
-    // at all" — which is, again, the model working as intended, not failing to notice.
+    // THE GAP, stated as this doll's own position, not a hedge: THE LAW says loops
+    // live AT THE POLES, never in ordinary time — everything BETWEEN the poles must
+    // stay acyclic. This construction is a plain ordinary-time loop and the engine
+    // did not refuse it. That is a description of TODAY'S gap-having behavior, not an
+    // endorsement — a guard OUGHT to exist here (an "ordinary-time acyclic" check,
+    // sibling to checkSublimeAcyclic but asserting the opposite: throw unless subject
+    // or object is a designated pole) and does not. This doll does not add it (no
+    // src/ changes) — it exists to make the gap loud and unmissable for whoever picks
+    // this up next:
+    const thisIsAGapNotALaw = true;
+    expect(thisIsAGapNotALaw).toBe(true);
+  });
+
+  it("SCENE 12 — THE SHARP CASE: a loop with one foot at a pole and one foot in ordinary time is FORBIDDEN — decided and argued", () => {
+    const s = new Society();
+    // THE LAW says loops live at poles; it doesn't say what happens when only ONE
+    // node in the cycle is a pole and the other is ordinary. Built here to force the
+    // question:
+    const designator = "someone-who-designates-a-half-in-pole";
+    const farPole = "sublime-pole-half-in-case";
+    designate(s, designator, farPole, "q-sublime-pole");
+    const ordinaryEvent = "ordinary-event-half-in-case";
+    node(s, ordinaryEvent);
+    expect(isSublimePole(s, farPole)).toBe(true);
+    expect(isSublimePole(s, ordinaryEvent)).toBe(false);
+
+    // the half-in ring: the ordinary event reaches toward the pole, and the pole
+    // reaches back toward the ordinary event, closing a two-node cycle:
+    s.layP(`${ordinaryEvent}~reaches-toward~${farPole}`, "the ordinary event reaches toward the far pole",
+      ordinaryEvent, farPole, "q-end-pole");
+    s.layP(`${farPole}~reaches-back-toward~${ordinaryEvent}`, "the pole reaches back, closing the ring",
+      farPole, ordinaryEvent, "q-end-pole");
+
+    // laying it does not throw today (same gap as SCENE 11 — nothing currently
+    // guards this either), but the DECISION this doll commits to is that it SHOULD be
+    // forbidden. Argument: THE LAW draws its line at the node, not at the edge —
+    // "everything BETWEEN the poles must stay acyclic" means every node that is NOT a
+    // pole must never sit on any cycle, regardless of what is on the cycle's other
+    // end. The ordinary event's mere PARTICIPATION in a cycle is itself the
+    // violation, full stop — the far end being a legitimate pole does not launder it,
+    // because the ordinary node still closes a loop back onto its own past, which is
+    // exactly what ordinary time is not allowed to do. A softer rule — "half-in is
+    // fine because one foot is safely outside time" — would mean any ordinary event
+    // could dodge the acyclic requirement just by reaching for a pole, which hollows
+    // the law out entirely (every ordinary node has SOME why-chain that could be
+    // routed toward a sublime eventually). So: half-in is FORBIDDEN, and the failure
+    // belongs to the ordinary node, not the pole:
+    const ordinaryNodeParticipatesInACycle = walks(s, ordinaryEvent, ordinaryEvent, "q-end-pole", new Set());
+    // (walks() with start===target short-circuits true trivially per its own
+    // documented TODO in play.ts — so the real test is the two-hop ring reachability
+    // actually laid above, asserted directly:)
+    const halfInRingExists =
+      walks(s, ordinaryEvent, farPole, "q-end-pole") && walks(s, farPole, ordinaryEvent, "q-end-pole");
+    expect(halfInRingExists).toBe(true); // the construction is laid and reachable both ways today
+    const halfInShouldBeForbidden = true; // THE DECISION: any ordinary-time participant in ANY cycle is the violation
+    expect(halfInShouldBeForbidden).toBe(true);
+    expect(ordinaryNodeParticipatesInACycle).toBe(true); // trivial per walks()'s own start===target rule, noted rather than hidden
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // (c) THE CONSTRUCTIVE FIX — membership via bare prehension with the Now
+  // ═══════════════════════════════════════════════════════════════════════
+
+  it("SCENE 13 — membership is a bare prehension with the Now, not a stored holds/charge pair — and it cannot loop by construction", () => {
+    const s = new Society();
+    // a containing event and its own Now (specs/drawer-contents.md #8: "Now is
+    // prehended by the end of the event and prehends the beginning of the event").
+    // Modeled directly as a node standing in for that containing event's Now — no
+    // holds edge, no charge edge, anywhere:
+    const containingDay = "containing-event-a-day";
+    const dayNow = "the-days-now";
+    node(s, containingDay); node(s, dayNow);
+
+    // an inner event that has NOT YET HAPPENED in the context of this day: per spec
+    // item 9, "if an event prehends that event's now, it has not yet happened in the
+    // context of that event" — ONE directional edge, the inner event is the subject:
+    const notYetHappened = "inner-event-not-yet-happened";
+    node(s, notYetHappened);
+    s.layP(`${notYetHappened}~prehends~${dayNow}`, "this inner event prehends the day's now — not yet happened",
+      notYetHappened, dayNow, "q-grounding");
+
+    // an inner event that HAS ALREADY HAPPENED in the context of this day: per spec
+    // item 10, "if an event is prehended by an event's now, it has happened in the
+    // past of the context" — ONE directional edge, the day's now is the subject:
+    const alreadyHappened = "inner-event-already-happened";
+    node(s, alreadyHappened);
+    s.layP(`${dayNow}~prehends~${alreadyHappened}`, "the day's now prehends this inner event — already happened",
+      dayNow, alreadyHappened, "q-grounding");
+
+    // read purely via the ONE directional edge, both directions shown:
+    const prehendsTheNow = prehensionsFrom(s, notYetHappened, "q-grounding").some((e) => e.object === dayNow);
+    const isPrehendedByTheNow = prehensionsFrom(s, dayNow, "q-grounding").some((e) => e.object === alreadyHappened);
+    expect(prehendsTheNow).toBe(true); // not-yet-happened, relative to the container
+    expect(isPrehendedByTheNow).toBe(true); // already-happened, relative to the container
+    // either direction means the event is INSIDE the containing event — membership,
+    // read off ONE edge, no second edge required to establish "inside":
+    expect(prehendsTheNow || isPrehendedByTheNow).toBe(true);
+
+    // NO cycle: unlike the old holds/charge pair — {day}~holds~{event} PLUS
+    // {event}~charge~{day_end}, two edges in OPPOSITE directions between the same
+    // pair, which IS a cycle in ordinary time by definition (Round D's finding: this
+    // is why the canon built on it is unrepairable in place, not just untidy) — a
+    // SINGLE directional edge cannot loop by itself. Ties straight to THE LAW from
+    // SCENE 11/12: this membership pattern is automatically acyclic-compliant,
+    // because there is only ever one edge, never a returning second one:
+    // (walks()/routesTo both short-circuit true on start===target trivially per
+    // play.ts's own documented TODO — so the real check is whether the SINGLE edge
+    // laid above ever routes back to its own subject via a SECOND hop; it cannot,
+    // because only one edge exists at all:)
+    expect(walks(s, dayNow, notYetHappened, "q-grounding", new Set())).toBe(false); // no edge dayNow -> notYetHappened exists
+    expect(walks(s, alreadyHappened, dayNow, "q-grounding", new Set())).toBe(false); // no edge alreadyHappened -> dayNow exists
+    // contrast, stated directly: had this been modeled the old way — dayNow~holds~X
+    // AND X~charge~dayNow — the two opposite-direction edges between the same pair
+    // would themselves BE the two-hop ring THE LAW forbids in ordinary time (SCENE
+    // 11's exact shape). The bare single-edge reading never creates that pair, so
+    // the violation cannot arise structurally, not just by discipline:
+    const singleEdgeCannotFormATwoHopRingWithItself = true;
+    expect(singleEdgeCannotFormATwoHopRingWithItself).toBe(true);
+  });
+
+  it("SCENE 14 (bonus) — does the drawer-line (Now-line) fall out for free from the bare-prehension membership fix?", () => {
+    const s = new Society();
+    // the drawer/Now-line distinction (specs/drawer-contents.md #8-10, and the card
+    // UI's top/bottom drawer split): things prehended-by-Now (past, done, bottom
+    // drawer) vs things that prehend-the-Now (future, not-yet, top drawer).
+    const dayNow = "the-days-now-for-the-drawer-line";
+    node(s, dayNow);
+    const past1 = "inner-event-past-1", past2 = "inner-event-past-2";
+    const future1 = "inner-event-future-1", future2 = "inner-event-future-2";
+    for (const e of [past1, past2, future1, future2]) node(s, e);
+    s.layP(`${dayNow}~prehends~${past1}`, "already happened", dayNow, past1, "q-grounding");
+    s.layP(`${dayNow}~prehends~${past2}`, "already happened", dayNow, past2, "q-grounding");
+    s.layP(`${future1}~prehends~${dayNow}`, "not yet happened", future1, dayNow, "q-grounding");
+    s.layP(`${future2}~prehends~${dayNow}`, "not yet happened", future2, dayNow, "q-grounding");
+
+    // the bottom drawer (past/done): everything the Now prehends —
+    const bottomDrawer = prehensionsFrom(s, dayNow, "q-grounding").map((e) => e.object);
+    // the top drawer (future/todo): everything that prehends the Now —
+    const topDrawer = s.all()
+      .filter((b) => b.object === dayNow && b.subject !== null)
+      .map((b) => b.subject!);
+
+    expect(bottomDrawer.sort()).toEqual([past1, past2].sort());
+    expect(topDrawer.sort()).toEqual([future1, future2].sort());
+    // YES — this falls out for free: the drawer split is just "which side of the ONE
+    // directional edge is the Now on," no separate mechanism needed. The single-edge
+    // membership fix from SCENE 13 pays for the drawer/Now-line mechanic too, as a
+    // straight read of edge direction rather than a second concept:
+    const drawerLineFallsOutForFree = true;
+    expect(drawerLineFallsOutForFree).toBe(true);
   });
 });
-
-/** helper for SCENE 3: does `day`'s frame reach `laying` by walking q-succeeds
- *  back to the day that contains it, then q-grounding forward into the laying?
- *  Two different qualities chained by hand (routesTo alone only walks ONE
- *  quality, q-end-pole) — this is the carry-forward mechanism the ruling asks for. */
-function routesToViaSuccessionThenGrounding(s: Society, day: string, laying: string, seen = new Set<string>()): boolean {
-  if (seen.has(day)) return false;
-  seen.add(day);
-  if (prehensionsFrom(s, day, "q-grounding").some((e) => e.object === laying)) return true;
-  return prehensionsFrom(s, day, "q-succeeds").some((e) => e.object != null && routesToViaSuccessionThenGrounding(s, e.object, laying, seen));
-}

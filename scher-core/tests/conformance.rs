@@ -903,3 +903,175 @@ fn two_sublimes_charging_each_other_plus_a_story_charged_toward_one_terminates()
     soc.lay(EventRow::node("still-usable-2", "proof of life after cyclic walks"));
     assert!(soc.has("still-usable-2"));
 }
+
+// ── idempotence: laying the same row twice reads exactly like laying it once ─────────────
+// TS precedent: society.prop's "a genuine lay grows the log by exactly one; an inert lay
+// leaves it unchanged" proves the WRITE side (append_only_growth, above). This proves the
+// READ side over the grammar's own is_established/is_occluded — a duplicate row must never
+// change what a reader sees, for any because/occludes topology proptest can build.
+mod idempotence {
+    use super::*;
+
+    fn quality_edge_name() -> impl Strategy<Value = &'static str> {
+        prop_oneof![Just(Q_GROUNDING), Just(Q_OCCLUDES)]
+    }
+
+    proptest! {
+        #[test]
+        fn relaying_every_row_leaves_every_read_unchanged(
+            (targets, prehensions) in scene(),
+            duplicate_twice in any::<bool>(),
+        ) {
+            let beats: Vec<EventRow> = {
+                let mut beats: Vec<EventRow> = targets.iter().map(|t| EventRow::node(t, t)).collect();
+                for (i, p) in prehensions.iter().enumerate() {
+                    let kind = if p.grounding { Q_GROUNDING } else { Q_EXCLUSION };
+                    let slug = format!("p{i}-{kind}");
+                    let tgt = &targets[p.target];
+                    beats.push(EventRow::edge(&slug, &format!("{}->{}", p.frame, tgt), &p.frame, tgt));
+                    beats.push(EventRow::edge(&format!("{slug}~q"), &format!("[{kind}]"), &slug, kind));
+                }
+                beats
+            };
+
+            let mut once_soc = Society::new();
+            for b in &beats { once_soc.lay(b.clone()); }
+
+            let mut dup_soc = Society::new();
+            for b in &beats {
+                dup_soc.lay(b.clone());
+                if duplicate_twice { dup_soc.lay(b.clone()); } // re-lay: dedup by slug, ON CONFLICT DO NOTHING
+            }
+
+            prop_assert_eq!(once_soc.size(), dup_soc.size(), "a duplicate row must never grow the log");
+            for t in &targets {
+                prop_assert_eq!(is_established(&once_soc, t, None), is_established(&dup_soc, t, None));
+                prop_assert_eq!(is_occluded(&once_soc, t, None), is_occluded(&dup_soc, t, None));
+                prop_assert_eq!(mode_at(&once_soc, t, None), mode_at(&dup_soc, t, None));
+            }
+        }
+
+        // mark_done's own idempotence law (gen4-policy's stated no-op-when-already-done
+        // contract), pinned here at the kernel level it's built from: relaying an identical
+        // q-grounding edge slug onto the same subject/object/quality is inert.
+        #[test]
+        fn relaying_a_grounding_edge_is_inert(
+            a in "[a-z]{1,6}", b in "[a-z]{1,6}", quality in quality_edge_name(),
+        ) {
+            prop_assume!(a != b);
+            let mut soc = Society::new();
+            soc.lay(EventRow::node(&a, &a));
+            soc.lay(EventRow::node(&b, &b));
+            let slug = format!("{a}~e~{b}");
+            let first = soc.lay_p(&slug, "e", &a, &b, quality).unwrap();
+            let before = (soc.size(), is_established(&soc, &b, None), is_occluded(&soc, &b, None));
+            let second = soc.lay_p(&slug, "e", &a, &b, quality).unwrap();
+            let after = (soc.size(), is_established(&soc, &b, None), is_occluded(&soc, &b, None));
+            prop_assert!(first);
+            prop_assert!(!second, "relaying the identical edge slug must be inert (ON CONFLICT DO NOTHING)");
+            prop_assert_eq!(before, after);
+        }
+    }
+}
+
+// ── monotonicity: adding rows never un-establishes an established beat, and never
+// un-occludes an occluded one — TWO SEPARATE laws, each with its own true counter-move
+// (occlusion is lifted only by occluding the OCCLUDER, per emergent_un_occlusion above;
+// establishment is lost only by occluding the GROUNDING edge itself). Adding UNRELATED rows
+// must disturb neither. Mirrors the "monotone non-decreasing" shape society.prop already
+// proves for `rev` (rev_rises_iff_appended, above), lifted to the two live reads.
+mod monotonicity {
+    use super::*;
+
+    proptest! {
+        #[test]
+        fn adding_unrelated_rows_never_flips_established_or_occluded(
+            (targets, prehensions) in scene(),
+            extra_slugs in prop::collection::hash_set("[a-z]{1,4}", 0..=4),
+        ) {
+            let mut soc = Society::new();
+            for t in &targets { soc.lay(EventRow::node(t, t)); }
+            for (i, p) in prehensions.iter().enumerate() {
+                let kind = if p.grounding { Q_GROUNDING } else { Q_EXCLUSION };
+                let slug = format!("p{i}-{kind}");
+                let tgt = &targets[p.target];
+                soc.lay(EventRow::edge(&slug, &format!("{}->{}", p.frame, tgt), &p.frame, tgt));
+                soc.lay(EventRow::edge(&format!("{slug}~q"), &format!("[{kind}]"), &slug, kind));
+            }
+
+            let before: Vec<(bool, bool)> = targets
+                .iter()
+                .map(|t| (is_established(&soc, t, None), is_occluded(&soc, t, None)))
+                .collect();
+
+            // add rows that touch none of `targets` (they name only fresh, disjoint slugs)
+            let extra: Vec<String> = extra_slugs
+                .into_iter()
+                .filter(|s| !targets.contains(s))
+                .map(|s| format!("unrelated-{s}"))
+                .collect();
+            for s in &extra { soc.lay(EventRow::node(s, s)); }
+
+            let after: Vec<(bool, bool)> = targets
+                .iter()
+                .map(|t| (is_established(&soc, t, None), is_occluded(&soc, t, None)))
+                .collect();
+            prop_assert_eq!(before, after, "unrelated rows must never change an existing read");
+        }
+
+        // the counter-move each law actually has: grounding an event can only ever ADD an
+        // establishment path, never remove one already there — so is_established is
+        // monotone non-decreasing purely under adding MORE grounding edges (no occlusion).
+        #[test]
+        fn adding_more_grounding_never_un_establishes(
+            frame in "[a-z]{1,4}", target in "[a-z]{1,4}", extra_frames in prop::collection::hash_set("[a-z]{1,4}", 0..=5),
+        ) {
+            prop_assume!(frame != target);
+            let mut soc = Society::new();
+            soc.lay(EventRow::node(&target, &target));
+            let slug = format!("{frame}~g~{target}");
+            soc.lay_p(&slug, "grounds", &frame, &target, Q_GROUNDING).unwrap();
+            prop_assert!(is_established(&soc, &target, None));
+
+            for f in extra_frames {
+                if f == frame || f == target { continue; }
+                let s2 = format!("{f}~g~{target}");
+                soc.lay_p(&s2, "also grounds", &f, &target, Q_GROUNDING).unwrap();
+                // still established — more grounding paths never retract establishment
+                prop_assert!(is_established(&soc, &target, None));
+            }
+        }
+    }
+}
+
+// ── direction: PINNING today's behavior on a reversed edge (known gap, no guard exists) ──
+// `because`/`grounds` is defined future→past: `a` rests on `b`, so `a`'s grounding edge has
+// subject=a, object=b. Laying the SAME edge with subject/object swapped is not currently
+// refused — this test documents exactly what the kernel does today, so a future direction
+// guard has a red test to turn green (per the task's own instruction: pin, do not guard).
+#[test]
+fn a_reversed_grounding_edge_is_accepted_and_reads_backward_today() {
+    let mut soc = Society::new();
+    soc.lay(EventRow::node("resting-thing", "a"));
+    soc.lay(EventRow::node("ground-thing", "b"));
+    // the CORRECT direction: resting-thing rests on ground-thing.
+    let forward_ok = soc
+        .lay_p("fwd~g", "forward", "resting-thing", "ground-thing", Q_GROUNDING)
+        .unwrap();
+    assert!(forward_ok);
+    assert!(is_established(&soc, "ground-thing", None));
+    assert!(!is_established(&soc, "resting-thing", None));
+
+    // the REVERSED direction on a fresh pair: subject/object swapped. TODAY: silently
+    // accepted (no direction guard exists), and establishment reads backward from what the
+    // "future rests on past" law would want — the reversed subject becomes established,
+    // pinning the known gap the task instructs NOT to fix here.
+    let reversed_ok = soc
+        .lay_p("rev~g", "reversed", "ground-thing", "resting-thing", Q_GROUNDING)
+        .unwrap();
+    assert!(reversed_ok, "PIN: a reversed edge is laid without refusal — no direction guard exists today");
+    assert!(
+        is_established(&soc, "resting-thing", None),
+        "PIN: the reversed edge's OBJECT reads established even though it is the semantically-earlier beat"
+    );
+}

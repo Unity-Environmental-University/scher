@@ -74,7 +74,7 @@ pub const Q_BLOCKED_BY: &str = "q-blocked-by";
 pub const Q_TRUB: &str = "q-trub";
 /// The trub marker (ruling-trub-pair-q-fixes, 2026-07-21): edge `{hook} ~fixes~ {log}`.
 /// `Q_TRUB` / `is_trub_explicit` are a DIFFERENT, older channel — do not conflate.
-/// q-resolves does NOT exist — never add it.
+/// See `q_resolves_stays_cut.rs` (tests/) for the enforced ban on a sibling quality.
 pub const Q_FIXES: &str = "q-fixes";
 /// The answer marker (Hallie's socratic-closure ruling, 2026-07-24): edge
 /// `{answer} ~answers~ {socratic}`. An event that prehends a socratic with this

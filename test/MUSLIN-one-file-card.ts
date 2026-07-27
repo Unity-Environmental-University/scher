@@ -107,19 +107,52 @@ export function assertTrailCoversSociety(): void {
 // names where they land. That is the "editable without knowing TypeScript" test
 // — everything between the backticks is HTML plus single-word holes.
 
+const RENDERED = Symbol("rendered-by-the-engine");
+
+/** Markup this engine built itself, from a template it also escaped. The brand is
+ *  not decoration: a hole fills with escaped text unless the value carries it, and
+ *  a walk cannot forge one, so "holes never render markup" survives lists. */
+export interface Rendered {
+  readonly [RENDERED]: true;
+  readonly html: string;
+}
+
+export type Hole = string | Rendered;
+
+function isRendered(v: Hole): v is Rendered {
+  return typeof v === "object" && v !== null && (v as Rendered)[RENDERED] === true;
+}
+
+/** One sub-template per item, concatenated. This is the loop `{holes}` refuses to
+ *  grow: the markup stays declarative HTML, and the list stops pushing element
+ *  building back into TypeScript. Each item's holes escape exactly as a card's do. */
+export function rows<T>(items: readonly T[], each: (item: T) => Record<string, Hole>, template: string): Rendered {
+  return {
+    [RENDERED]: true,
+    html: items.map((item) => fillHoles(template, each(item))).join(""),
+  };
+}
+
 export interface OneFileCard<D> {
   name: string;
   /** CSS. Scoped by the runtime to `[data-card="<name>"]` — so a rule here CANNOT
    *  leak to another card, which is the property 15 shared partials do not have. */
   style: string;
   /** The walk. Gets a society; returns the holes. Its reads become the trail. */
-  walk: (soc: Society, data: D) => Record<string, string>;
+  walk: (soc: Society, data: D) => Record<string, Hole>;
   /** HTML with {holes}. No logic. A hole with no value renders empty, never
    *  "undefined" — an unfilled hole is a blank, which is honest. */
   markup: string;
 }
 
 const HOLE = /\{(\w+)\}/g;
+
+function fillHoles(template: string, holes: Record<string, Hole>): string {
+  return template.replace(HOLE, (_m, key: string) => {
+    const v = holes[key];
+    return v === undefined ? "" : isRendered(v) ? v.html : escapeText(v);
+  });
+}
 
 function escapeText(s: string): string {
   return String(s ?? "").replace(/[&<>"']/g, (c) =>
@@ -162,8 +195,7 @@ export function mountOneFile<D>(card: OneFileCard<D>, soc: Society, data: D): Ca
     renders++;
     const run = walkWithTrail(s, (lens) => card.walk(lens, d));
     trail = run.trail;
-    const holes = run.value;
-    html = card.markup.replace(HOLE, (_m, key: string) => escapeText(holes[key] ?? ""));
+    html = fillHoles(card.markup, run.value);
   };
 
   paint(soc, data);
@@ -208,6 +240,39 @@ export const TitleCard: OneFileCard<{ slug: string }> = {
     <article class="card">
       <h2 class="title">{title}</h2>
       <p class="count">{count}</p>
+    </article>
+  `,
+};
+
+/** The list card. `buildStarRow` in card-drawer.ts hand-builds one of these rows
+ *  with createElement, className ternaries and dataset writes — twenty lines whose
+ *  shape a non-programmer cannot see. Here the shape IS the markup, and the walk
+ *  only says which words go where. */
+export const StarListCard: OneFileCard<{ slug: string }> = {
+  name: "muslin-star-list",
+
+  style: `
+    .card { border: 2px dashed #999; background: #eee; padding: 8px; font-family: monospace; }
+    .star { border-bottom: 1px dotted #bbb; padding: 2px 0; }
+    .fallen { color: #a00; font-style: italic; }
+  `,
+
+  walk(soc, { slug }) {
+    const edges = soc.edgesOntoObject(slug);
+    return {
+      heading: `${edges.length} things reach this`,
+      stars: rows(
+        edges,
+        (e) => ({ name: soc.get(e.subject)?.content ?? e.subject, mood: e.subject.length > 12 ? "fallen" : "star" }),
+        `<li class="{mood}">{name}</li>`,
+      ),
+    };
+  },
+
+  markup: `
+    <article class="card">
+      <h2>{heading}</h2>
+      <ul class="stars">{stars}</ul>
     </article>
   `,
 };

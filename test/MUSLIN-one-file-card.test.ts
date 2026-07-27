@@ -4,8 +4,8 @@ import { describe, it, expect } from "vitest";
 import { Society } from "../src/society.js";
 import { prehensionsOnto, isOccluded } from "../src/society.js";
 import {
-  TitleCard, NeighborCard, CensusCard,
-  mountOneFile, walkWithTrail, scopeStyle, assertTrailCoversSociety,
+  TitleCard, NeighborCard, CensusCard, StarListCard,
+  mountOneFile, walkWithTrail, scopeStyle, assertTrailCoversSociety, rows,
 } from "./MUSLIN-one-file-card.js";
 
 const beat = (slug: string, content: string) => ({ slug, subject: null, object: null, content, witnessed: 0 });
@@ -129,6 +129,45 @@ describe("MUSLIN: the single file", () => {
     const c = mountOneFile(TitleCard, soc, { slug: "evil" });
     expect(c.html).not.toContain("<script>");
     expect(c.html).toContain("&lt;script&gt;");
+  });
+
+  it("a list lives in the markup, not in TypeScript", () => {
+    const soc = new Society([
+      beat("target", "the thing reached"),
+      beat("one", "first reacher"),
+      beat("two", "second reacher"),
+      edge("one~x~target", "one", "target"),
+      edge("two~x~target", "two", "target"),
+    ]);
+    const c = mountOneFile(StarListCard, soc, { slug: "target" });
+    expect(c.html.match(/<li /g)!.length).toBe(2);
+    expect(c.html).toContain("first reacher");
+  });
+
+  it("an item's own words are still escaped inside a row", () => {
+    const soc = new Society([beat("evil", "<script>alert(1)</script>"), edge("evil~x~target", "evil", "target")]);
+    const c = mountOneFile(StarListCard, soc, { slug: "target" });
+    expect(c.html).not.toContain("<script>");
+    expect(c.html).toContain("&lt;script&gt;");
+  });
+
+  it("a walk cannot forge rendered markup — only rows() mints it", () => {
+    const soc = seeded();
+    const forged = { html: "<b>trusted?</b>" } as unknown as ReturnType<typeof rows>;
+    const c = mountOneFile(
+      { name: "forge", style: "", walk: () => ({ x: forged }), markup: "<p>{x}</p>" },
+      soc, {},
+    );
+    expect(c.html).not.toContain("<b>");
+  });
+
+  it("an empty list renders an empty container, not the word undefined", () => {
+    const soc = seeded();
+    const c = mountOneFile(
+      { name: "empty", style: "", walk: () => ({ xs: rows([], () => ({}), "<li>{a}</li>") }), markup: "<ul>{xs}</ul>" },
+      soc, {},
+    );
+    expect(c.html).toBe("<ul></ul>");
   });
 
   it("an unfilled hole renders blank, never the word undefined", () => {

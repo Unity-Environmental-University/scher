@@ -58,6 +58,15 @@ cd scher && npm test                        # run everything (the dolls + the re
   over-mints three near-identical trubs for one real miss (a picture for the taste-deferral); and a
   named chafe — `event~because~ground` (capture's orientation) does NOT make `isEstablished(event)`
   true, because that read walks the SAME quality in the OPPOSITE direction (`frame~because~event`).
+- **helpdesk** — a play-TEST, not a demo, of problem/wish (Hallie's brief, 2026-07-27): a campus
+  helpdesk's login-storm honestly blocks the single-sign-on wish and unblocks when fixed; the SSO
+  fix ITSELF sires a new problem (grade-book auth breaks) and the grammar holds both facts at once
+  with no automatic vigilance; two staff read the same ticket done/not-done, both right from their
+  own frame (`establishedTo` is frame-relative by design); the sublime is reached through the
+  ordinary past moment it was wished for, never itself closed. Leading finding: a recurring
+  standup and a person's standing workload have NO native slot — every event here is a
+  moment-with-something-open, and a routine that never closes or a constraint that isn't a moment
+  is a different shape of thing the grammar was never asked to hold.
 
 ## How to add one
 Copy the shape of any doll. The discipline (learned the hard way, 2026-06-26):

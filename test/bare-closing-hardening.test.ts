@@ -334,12 +334,18 @@ describe("NAME-FUZZ — no read depends on pole naming; structure alone carries 
     const p = unpackPoles(s, "🎯task", "🔥end-of-fire");
     // a quality prehension ONTO the hostile-named open End is still refused:
     expect(() => s.layP("cmt~x~y", "comment", "commenter", p.end, "q-feel")).toThrow(/ADDRESS LAW/);
-    // a non-grounding prehension OUT of it is still refused:
-    expect(() => s.layP("dep~x~y", "dep", p.end, "🎯task", "q-blocked-by")).toThrow(/ADDRESS LAW/);
+    // out-of is no longer guarded (2026-07-28) — the law that half carried moved to
+    // layBareP, which fires on structure just as indifferently to naming:
+    expect(() => s.layP("dep~x~y", "dep", p.end, "🎯task", "q-blocked-by")).not.toThrow();
     // the bare charge/close shapes still work regardless (a raw .lay() bypasses layP's
     // guards entirely no matter which way the edge points):
     expect(() => s.lay({ slug: "bare-charge", content: "c", subject: p.end, object: "presser" })).not.toThrow();
     expect(() => closePole(s, "🎯task", "🔥end-of-fire")).not.toThrow();
+    // and the one-closing law fires on structure too, hostile naming and all:
+    capture(s, "🌊other");
+    const other = unpackPoles(s, "🌊other");
+    expect(() => s.layBareP("rival~x~y", "rival closing", p.end, other.now))
+      .toThrow(/ONE-CLOSING LAW/);
   });
 
   it("dependsOn/dependentsOf/isBlocked work on hostile slugs — q-blocked-by and legacy q-depends-on both read regardless of spelling of the slugs they connect", () => {

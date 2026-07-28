@@ -1,12 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // address-law.test.ts — nothing touches a naked pole.
 //
-// THE LAW (2026-07-06, born with its guard per the same morning's meta-law: no
-// quality/structure without its one-sentence law and blocking guard in the same commit):
-// an open End-pole receives ONLY charge-prehensions onto it and, eventually, the ONE
-// closing q-grounding out of it. Comments/references prehend the STORY, never its End.
-// Charge is thereby a pure address read: "charges on this differential" = the bare
-// prehensions onto its open End — a property of the EDGE, never node-contents (Hallie).
+// THE LAW, as it stands after the 2026-07-20 direction flip and the 2026-07-28 bare
+// closing: a labelled edge never lands ON an open End — comments and references prehend
+// the STORY. Charges and closings both LEAVE the End, bare, and are told apart only by
+// whether the object is a designated Now-pole. Exactly one closing ever leaves (layBareP).
+// Charge stays a pure address read — a property of the EDGE, never node-contents (Hallie).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
@@ -24,12 +23,37 @@ describe("the naked-pole address law — the guard BLOCKS", () => {
     expect(s.has("cmt~feels~end")).toBe(false); // fail-closed
   });
 
-  it("a non-grounding prehension OUT of an open End-pole is refused — only the closing leaves", () => {
+  // The out-of guard was REMOVED 2026-07-28. It refused labelled edges leaving a pole to
+  // protect a closing that went bare on 2026-07-20 — a guard whose only remaining content
+  // was an exemption for q-grounding, the string this repo is killing. What it actually
+  // protected (one closing per pole) is now layBareP's, tested below.
+  it("a labelled prehension OUT of an open End-pole is no longer refused", () => {
     const s = new Society();
     capture(s, "task");
     const p = unpackPoles(s, "task");
     expect(() => s.layP("end~dep~x", "the pole depending on things", p.end, "task", "q-depends-on"))
-      .toThrowError(/ADDRESS LAW.*OUT of the open End-pole.*ONE closing/s);
+      .not.toThrow();
+  });
+
+  it("exactly one closing leaves a pole — a second, different one is refused", () => {
+    const s = new Society();
+    capture(s, "task");
+    capture(s, "other");
+    const p = unpackPoles(s, "task");
+    const other = unpackPoles(s, "other");
+    closePole(s, "task");
+    expect(endActual(s, p.end)).toBe(true);
+    expect(() => s.layBareP("second~closing", "a rival closing", p.end, other.now))
+      .toThrowError(/ONE-CLOSING LAW.*one-closing/s);
+  });
+
+  it("re-laying the SAME closing is inert, never a violation", () => {
+    const s = new Society();
+    capture(s, "task");
+    const p = unpackPoles(s, "task");
+    const slug = `${p.end}~because~${p.now}`;
+    expect(s.layBareP(slug, "the closing", p.end, p.now)).toBe(true);
+    expect(s.layBareP(slug, "the closing", p.end, p.now)).toBe(false);
   });
 
   it("the closing q-grounding out of the pole is the one legal exit; a closed pole is no longer naked", () => {

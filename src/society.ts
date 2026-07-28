@@ -149,24 +149,14 @@ export function assertNakedPole(
   if (isOpenEndPole(soc, object)) {
     throw new Error(
       `[ADDRESS LAW] '${slug}' lays a ${quality} prehension ONTO the open End-pole ` +
-      `'${object}'. A naked pole receives only charge-prehensions (bare edges) onto it — ` +
-      `comments/references prehend the STORY, never its End. Fix: point this edge at the ` +
-      `story (the pole's Once), or lay a bare edge if you mean a charge. (law: naked-pole)`,
+      `'${object}'. Comments and references prehend the STORY, never its End. ` +
+      `Fix: point this edge at the story (the pole's Once). (law: naked-pole)`,
     );
   }
-  // 2026-07-15: closePole now closes with a bare edge, not layP, so it never reaches this
-  // check. TRIPWIRE: the `quality !== "q-grounding"` exemption below is legacy-only — no
-  // live writer uses it — but it must stay. Removing it would forbid a legacy-shaped
-  // write nobody asked to forbid.
-  if (isOpenEndPole(soc, subject) && quality !== "q-grounding") {
-    throw new Error(
-      `[ADDRESS LAW] '${slug}' lays a ${quality} prehension OUT of the open End-pole ` +
-      `'${subject}'. The only edges that ever leave a naked pole are its ONE closing ` +
-      `q-grounding ('end ~because~ now') or a bare edge (no quality at all — bare edges ` +
-      `never reach this check; lay them via Society.lay() directly). Fix: close the pole ` +
-      `with q-grounding, or hang this relation on the story instead. (law: naked-pole)`,
-    );
-  }
+  // The out-of half is GONE (2026-07-28, mirrors scher-core): the closing went bare on
+  // 2026-07-20, so refusing labelled edges out of a pole protected a shape nothing lays,
+  // at the cost of a load-bearing exemption on a dying string. Its real content — exactly
+  // one closing leaves a pole — moved to layBareP, where closings live.
 }
 
 /** isDesignatedEndPole: is `node` the object of an un-occluded q-end-pole designation?
@@ -454,6 +444,28 @@ export class Society {
       const q = this.lay({ slug: slug + "~q", content: `${content} [${quality}]`, subject: slug, object: quality });
       return a || q;
     });
+  }
+
+  /** Lay a BARE prehension under the laws bare edges can break. layP's sibling; mirrors
+   *  scher-core's `lay_bare_p`, except that it THROWS where the Rust twin returns Err —
+   *  the same split every guard here already carries (no shared write lock to poison).
+   *
+   *  `lay` stays the dumb primitive because canon replay goes through it. ONE-CLOSING LAW:
+   *  a closing is a bare edge from a designated End onto a designated Now. Re-laying the
+   *  same closing is inert; a second, different one throws. */
+  layBareP(slug: string, content: string, subject: string, object: string): boolean {
+    if (!this.get(slug) && isDesignatedEndPole(this, subject) && isNowPole(this, object)) {
+      const existing = closingEdgesFrom(this, subject)[0];
+      if (existing) {
+        throw new Error(
+          `[ONE-CLOSING LAW] '${slug}' lays a SECOND closing out of the End-pole ` +
+          `'${subject}', which '${existing.slug}' already closed. Exactly one closing ever ` +
+          `leaves a pole. Fix: occlude the standing closing first, or point this edge at ` +
+          `the story. (law: one-closing)`,
+        );
+      }
+    }
+    return this.lay({ slug, content, subject, object });
   }
 
   /** THE COUPLING PRIMITIVE (2026-07-27): one satisfaction grants a wish AND solves a

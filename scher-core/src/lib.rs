@@ -31,7 +31,7 @@ pub use poles::{
     reached_sublimes_of, service_chain_of, sublimes_charged_from, story_now,
     voltage_toward_sublime,
 };
-use poles::{closing_edges_from, is_designated_end_pole};
+use poles::{closing_edges_from, is_designated_end_pole, is_now_pole};
 
 // the contraction plugin seam (merged sitting 2026-07-03): consumer-owned contraction rules
 // over the because-grammar. scher ships the trait, the collision-refusing registry, and the
@@ -342,19 +342,10 @@ impl Society {
     /// Lay a prehension co-prehending a quality: the edge and its `~q` mode-beat. Mirrors
     /// `layP`. Returns true if either the edge or its `~q` was a genuine append.
     // TODO(socratic): if the edge already exists but its `~q` doesn't (or vice versa), lay_p welds a fresh mode onto an old prehension — should re-laying with a DIFFERENT quality really return true while leaving the original quality standing, with no read to notice the disagreement?
-    /// Lay a prehension, refusing (not panicking) if it would violate the anti-q-lure
-    /// guarantee (sublime-never-closes / sublime-dag-acyclic). Hallie's ruling, 2026-07-07
-    /// ("a scream with no ears is not a scream, it's a seizure"): a bad write from ANY
-    /// caller must be REFUSED and made legible as a correctable miss, never punished by
-    /// panicking the whole shared kernel (a `panic!`/`assert!` inside a write held under a
-    /// lock poisons that lock for every subsequent caller — a seizure, not a refusal).
-    /// The RULE is unchanged (a sublime may never close; sublime-chains stay acyclic) —
-    /// only the CONSEQUENCE of violating it changed, from process-ending panic to a
-    /// `Result::Err` the caller can act on and recover from. The other guards in this
-    /// function (DEAD GRAMMAR, ADDRESS LAW) are out of scope for this ruling and keep
-    /// panicking via `assert!` as before — they are caller bugs at construction time, not
-    /// live-traffic-reachable races the way the two sublime guards are (see
-    /// docs/committees/2026-07-07-*.md, event-1828, event-1830).
+    /// Lay a prehension co-prehending a quality. EVERY guard here refuses with `Err` — a
+    /// panic inside a write under the shared lock poisons it for every later caller, which
+    /// has happened twice (2026-07-07, 2026-07-21). A scream with no ears is a seizure.
+    /// Pinned by `no_guard_in_lay_p_ever_panics`.
     pub fn lay_p(
         &mut self,
         slug: &str,
@@ -363,49 +354,27 @@ impl Society {
         object: &str,
         quality: &str,
     ) -> Result<bool, String> {
-        // DEAD GRAMMAR GUARD (blocking — mirrors society.ts assertNoLure): q-lure is DEAD
-        // (Hallie's ruling, 2026-07-06): it smuggled an agent and could not state its own
-        // direction. An event is ONE event until lazily unpacked into its three poles
-        // (Once / End / Now — "the end is because now"); End-hood is the structural
-        // Q_END_POLE designation. Fix: lay the unpack (event ~end-pole~ end, Q_END_POLE)
-        // and close with `end ~because~ now` (Q_GROUNDING).
-        assert!(
-            quality != "q-lure",
-            "[DEAD GRAMMAR] '{slug}' tries to lay q-lure — dead since 2026-07-06 (it \
-             smuggled an agent and could not state its own direction). Unpack the event \
-             into its three poles instead: lay Q_END_POLE ('{subject} ~end-pole~ end') and \
-             close with 'end ~because~ now' (Q_GROUNDING). (law: three-poles, no-luring-verb)"
-        );
-        // ADDRESS LAW (BLOCKING VIA Err, not assert! — Hallie's ruling, live incident
-        // 2026-07-21: POST /bujo/occlude on a naked End-pole tripped this via a bare
-        // assert!, panicking mid-write and poisoning the shared lock a second time, same
-        // family as the sublime-guard fix just above. occlude's target is ALWAYS a live,
-        // caller-supplied slug — reachable-by-traffic exactly like the sublime guard was,
-        // not a construction-time-only caller bug. Converted from assert! to Err for the
-        // same reason: a seizure is never a refusal. Mirrors society.ts assertNakedPole;
-        // the law and its guard born together per the 2026-07-06 meta-law): an open
-        // End-pole receives ONLY charge-prehensions (bare edges) onto it and, eventually,
-        // the ONE closing q-grounding out of it — nothing else touches a naked pole;
-        // comments/references prehend the STORY, never its End. (q-end-pole itself is
-        // exempt structure: a pole may itself be a story whose own End lies further in.)
-        if quality != Q_END_POLE {
-            if is_open_end_pole(self, object, None) {
-                return Err(format!(
-                    "[ADDRESS LAW] '{slug}' lays a {quality} prehension ONTO the open \
-                     End-pole '{object}'. A naked pole receives only charge-prehensions \
-                     (bare edges) — comments/references prehend the STORY, never its End. \
-                     Fix: point this edge at the story, or lay a bare edge if you mean a \
-                     charge. (law: naked-pole)"
-                ));
-            }
-            if quality != Q_GROUNDING && is_open_end_pole(self, subject, None) {
-                return Err(format!(
-                    "[ADDRESS LAW] '{slug}' lays a {quality} prehension OUT of the open \
-                     End-pole '{subject}'. The only edge that ever leaves a naked pole is \
-                     its ONE closing q-grounding ('end ~because~ now'). Fix: close with \
-                     q-grounding, or hang this relation on the story. (law: naked-pole)"
-                ));
-            }
+        // DEAD GRAMMAR (mirrors society.ts assertNoLure). Err, not assert!: `quality` is
+        // caller-reachable through the relate door's bucket map, and a panic mid-write
+        // poisons the shared lock. (law: three-poles, no-luring-verb)
+        if quality == "q-lure" {
+            return Err(format!(
+                "[DEAD GRAMMAR] '{slug}' tries to lay q-lure — dead since 2026-07-06 (it \
+                 smuggled an agent and could not state its own direction). Unpack the event \
+                 into its three poles instead: lay Q_END_POLE ('{subject} ~end-pole~ end') and \
+                 close with a bare edge onto the story's Now. (law: three-poles, no-luring-verb)"
+            ));
+        }
+        // ADDRESS LAW: a labelled edge never lands on an open End — comments and references
+        // prehend the STORY. Q_END_POLE is the designation that creates End-hood, so it is
+        // exempt. The law's other half (exactly one closing LEAVES a pole) moved to
+        // `lay_bare_p`, where closings now live. (law: naked-pole)
+        if quality != Q_END_POLE && is_open_end_pole(self, object, None) {
+            return Err(format!(
+                "[ADDRESS LAW] '{slug}' lays a {quality} prehension ONTO the open \
+                 End-pole '{object}'. Comments and references prehend the STORY, never its \
+                 End. Fix: point this edge at the story. (law: naked-pole)"
+            ));
         }
         // SUBLIME GUARD (blocking — mirrors society.ts assertSublimeNeverCloses,
         // 2026-07-06 sublimes-store design): a sublime-pole is NEVER ACTUAL. It is a
@@ -496,6 +465,39 @@ impl Society {
         let q_content = format!("{content} [{quality}]");
         let q = self.lay(EventRow::edge(&q_slug, &q_content, slug, quality));
         Ok(a || q)
+    }
+
+    /// Lay a BARE prehension under the laws that bare edges can now break. `lay_p`'s sibling:
+    /// same arity, same `Err`-not-panic contract, and like it a thin wrapper over `lay`.
+    ///
+    /// `lay` stays the dumb append primitive because canon replay goes through it
+    /// (api/src/canon_store) — a kernel that refuses its own past cannot boot. So doors that
+    /// take caller-supplied slugs come here instead.
+    ///
+    /// ONE-CLOSING LAW: a closing is a bare edge from a designated End onto a designated Now
+    /// (`closing_edges_from`). Re-laying the SAME closing stays inert; a second, different one
+    /// is refused. Read and guard share `is_designated_end_pole`/`is_now_pole` so they cannot
+    /// drift. (law: one-closing)
+    pub fn lay_bare_p(
+        &mut self,
+        slug: &str,
+        content: &str,
+        subject: &str,
+        object: &str,
+    ) -> Result<bool, String> {
+        let would_close = is_designated_end_pole(self, subject, None) && is_now_pole(self, object, None);
+        if would_close && self.get(slug).is_none() {
+            if let Some(existing) = closing_edges_from(self, subject, None).first() {
+                return Err(format!(
+                    "[ONE-CLOSING LAW] '{slug}' lays a SECOND closing out of the End-pole \
+                     '{subject}', which '{}' already closed. Exactly one closing ever leaves \
+                     a pole. Fix: occlude the standing closing before laying another, or \
+                     point this edge at the story. (law: one-closing)",
+                    existing.slug
+                ));
+            }
+        }
+        Ok(self.lay(EventRow::edge(slug, content, subject, object)))
     }
 
     /// Bulk-lay; one rev bump for the batch (matches `layAll`).
@@ -1469,6 +1471,92 @@ mod q_settles_tripwire {
             "the guard now refuses Q_SETTLES — the fence is crossed; re-point this \
              tripwire at the refusal and verify done_to_frame first"
         );
+    }
+}
+
+#[cfg(test)]
+mod address_law {
+    use super::*;
+
+    /// Unpack a story the way `open_story` does, without depending on gen4-policy.
+    fn story(soc: &mut Society, name: &str) -> (String, String) {
+        let end = format!("hea-{name}");
+        let now = poles::story_now(name);
+        soc.lay(EventRow::node(name, name));
+        soc.lay(EventRow::node(&end, "the End"));
+        soc.lay(EventRow::node(&now, "the Now"));
+        soc.lay_p(&format!("{name}~end-pole~{end}"), "designate", name, &end, Q_END_POLE).unwrap();
+        soc.lay_p(&format!("{name}~now-pole~{now}"), "designate", name, &now, Q_NOW_POLE).unwrap();
+        (end, now)
+    }
+
+    /// The stale prose said an open End "receives ONLY charge-prehensions (bare edges) ONTO
+    /// it." Post-2026-07-20 charges LEAVE the End, so an edge onto one is simply inert —
+    /// this is what made deleting that sentence safe.
+    #[test]
+    fn a_bare_edge_onto_an_end_is_inert() {
+        let mut soc = Society::new();
+        let (end, _) = story(&mut soc, "s");
+        soc.lay(EventRow::node("c", "a comment"));
+
+        assert!(soc.lay(EventRow::edge("c~bare~end", "onto", "c", &end)));
+        assert!(!end_actual(&soc, &end, None), "an edge onto an End never closes it");
+        assert!(charges_on(&soc, &end, None).is_empty(), "charges leave the End, never land on it");
+    }
+
+    /// THE LAW `lay_bare_p` EXISTS FOR. `lay` cannot hold it — canon replay goes through it.
+    #[test]
+    fn exactly_one_closing_leaves_a_pole() {
+        let mut soc = Society::new();
+        let (end, now) = story(&mut soc, "s");
+        let (_, other_now) = story(&mut soc, "other");
+
+        assert!(soc.lay_bare_p(&format!("{end}~because~{now}"), "closing", &end, &now).unwrap());
+        assert!(end_actual(&soc, &end, None));
+
+        let second = soc.lay_bare_p("second~closing", "closing", &end, &other_now);
+        assert!(second.is_err(), "a second closing must be refused");
+        assert!(second.unwrap_err().contains("one-closing"), "and must name the law");
+    }
+
+    /// Idempotence is the kernel's character — `lay` is inert on a known slug. The guard
+    /// refuses a second DIFFERENT closing, never a re-lay of the standing one.
+    #[test]
+    fn re_laying_the_same_closing_stays_inert_not_refused() {
+        let mut soc = Society::new();
+        let (end, now) = story(&mut soc, "s");
+        let slug = format!("{end}~because~{now}");
+
+        assert!(soc.lay_bare_p(&slug, "closing", &end, &now).unwrap());
+        assert_eq!(
+            soc.lay_bare_p(&slug, "closing", &end, &now),
+            Ok(false),
+            "the same closing re-laid is inert, not a violation"
+        );
+    }
+
+    /// A charge is the closing's shape minus now-pole-hood on the object. It must stay free.
+    #[test]
+    fn a_charge_out_of_a_closed_end_is_still_allowed() {
+        let mut soc = Society::new();
+        let (end, now) = story(&mut soc, "s");
+        soc.lay(EventRow::node("captured", "a beat the End prehends"));
+        soc.lay_bare_p(&format!("{end}~because~{now}"), "closing", &end, &now).unwrap();
+
+        assert!(soc.lay_bare_p("chg", "charge", &end, "captured").unwrap());
+        assert_eq!(charges_on(&soc, &end, None).len(), 1);
+    }
+
+    /// Every refusal is an `Err`. A panic under the shared write lock poisons it for every
+    /// later caller — twice paid for (2026-07-07, 2026-07-21).
+    #[test]
+    fn no_guard_in_lay_p_ever_panics() {
+        let mut soc = Society::new();
+        let (end, _) = story(&mut soc, "s");
+        soc.lay(EventRow::node("x", "x"));
+
+        assert!(soc.lay_p("l", "lure", "x", "s", "q-lure").is_err(), "dead grammar refuses");
+        assert!(soc.lay_p("a", "onto", "x", &end, Q_COMMENT).is_err(), "address law refuses");
     }
 }
 

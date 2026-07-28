@@ -86,7 +86,7 @@ export function assertTrailCoversSociety(): void {
     ...RECORDED_READS, ...WHOLE_SOCIETY_READS,
     "constructor", "rev",
     // writes — they change the graph, they do not read it into a trail
-    "lay", "layAll", "layAtomic", "layP", "layCoupling",
+    "lay", "layAll", "layAtomic", "layP", "layBareP", "layCoupling",
   ]);
   const unknown = proto.filter((m) => !known.has(m) && !m.startsWith("#"));
   if (unknown.length) {

@@ -142,7 +142,7 @@ describe("reactionStory + reactionsOn — a typed prehension by a standpoint", (
     return new Society([{ slug: "post", content: "a post", subject: null, object: null }]);
   }
 
-  it("press lays a q-feel from the target onto a lazily-minted emoji-node, plus the lay_authorship testimony pair, read by reactionsOn", () => {
+  it("press lays a q-feel from the target onto a lazily-minted emoji-node, plus the lay_ingression testimony pair, read by reactionsOn", () => {
     const soc = withBeat();
     const btn = reactionStory(soc, { target: "post", by: "ann", emoji: "🔥" }) as HTMLButtonElement;
     expect(reactionsOn(soc, "post")).toEqual([]);
@@ -153,17 +153,18 @@ describe("reactionStory + reactionsOn — a typed prehension by a standpoint", (
     // the q-feel edge is subject=post, object=the lazily-minted emoji-node (its own
     // content carries the glyph). AUTHORSHIP RECONCILIATION (same day): the reactor is
     // who LAID the feel — set on the q-feel row's OWN laid_by column, plus the
-    // gen4-policy-mirrored testimony pair (laid-{slug}-by-{layer} node + ~lays~ edge
-    // co-prehending q-authorship) — never a q-utterance row (that idiom stays reserved
-    // for comments/speech).
+    // gen4-policy-mirrored testimony pair (ingression-from-{slug}-by-{layer} node +
+    // ~lays~ edge co-prehending q-authorship) — never a q-utterance row (that idiom
+    // stays reserved for comments/speech). Slugs below are spelled by hand on purpose:
+    // this is the pin on the wire shape itself.
     const feel = soc.get("feel-ann-🔥-post");
     expect(feel).toMatchObject({ subject: "post", object: "emoji-🔥", laid_by: "ann" });
     const emojiNode = soc.get("emoji-🔥");
     expect(emojiNode?.content).toBe("🔥");
-    const authorshipNode = soc.get("laid-feel-ann-🔥-post-by-ann");
+    const authorshipNode = soc.get("ingression-from-feel-ann-🔥-post-by-ann");
     expect(authorshipNode).toBeDefined();
-    const authorshipEdge = soc.get("laid-feel-ann-🔥-post-by-ann~lays~feel-ann-🔥-post");
-    expect(authorshipEdge).toMatchObject({ subject: "laid-feel-ann-🔥-post-by-ann", object: "feel-ann-🔥-post" });
+    const authorshipEdge = soc.get("ingression-from-feel-ann-🔥-post-by-ann~lays~feel-ann-🔥-post");
+    expect(authorshipEdge).toMatchObject({ subject: "ingression-from-feel-ann-🔥-post-by-ann", object: "feel-ann-🔥-post" });
   });
 
   it("press-again supersedes my own reaction (append-only un-react)", () => {

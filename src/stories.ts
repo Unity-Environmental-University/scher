@@ -24,7 +24,7 @@ import {
   assertSublimeNeverCloses,
   assertSublimeAcyclic,
   assertNotMembershipContainment,
-  LAID_PREFIX,
+  INGRESSION_PREFIX,
 } from "./society.js";
 // reactionsOn: cut from society.ts into pathos.ts (2026-07-15, separation-of-
 // concerns pass, society.ts's own advocate) — same name, new source file.
@@ -666,8 +666,8 @@ export function composerStory(soc: Society, params: ComposerStoryParams): Node {
 // object=reactor shape): subject=event, object=emoji-node.
 // TRIPWIRE: the reactor is who LAID the feel, not who spoke (q-utterance stays a
 // separate, untouched idiom for comments). The q-feel row's own laid_by is set inline,
-// plus a redundant authorship testimony pair — mirrors gen4-policy's lay_authorship
-// exactly (gen4-policy/src/lib.rs:790-805), so Rust and TS read the identical shape.
+// plus a redundant authorship testimony pair — mirrors gen4-policy's lay_ingression,
+// so Rust and TS read the identical shape.
 // SINGLE-SHAPE READS ONLY: rows from either of this day's earlier, superseded shapes
 // are not supported — they wait for the kalpa.
 export interface ReactionStoryParams {
@@ -704,11 +704,11 @@ function layReactionFeel(soc: Society, slug: string, content: string, subject: s
   return a || q;
 }
 
-/** The authorship testimony pair, mirroring gen4-policy's lay_authorship exactly
- *  (gen4-policy/src/lib.rs:797-804). Deliberately redundant with the inline laid_by
- *  above — ruling 13: "both the column and the entry." */
+/** The authorship testimony pair, mirroring gen4-policy's `lay_ingression`.
+ *  Redundant with the inline laid_by above on purpose — ruling 13: "both the
+ *  column and the entry." */
 function layReactionAuthorship(soc: Society, event: string, layer: string): void {
-  const node = `${LAID_PREFIX}${event}-by-${layer}`;
+  const node = `${INGRESSION_PREFIX}${event}-by-${layer}`;
   soc.lay({ slug: node, content: `${layer} laid ${event}`, subject: null, object: null });
   soc.layP(`${node}~lays~${event}`, "authorship", node, event, "q-authorship");
 }
@@ -740,7 +740,7 @@ export function reactionStory(soc: Society, params: ReactionStoryParams): Node {
           if (!isLive(soc)) {
             // REACT: lazily mint the emoji-node (idempotent — lay() no-ops if it already
             // exists), lay a q-feel FROM `target` ONTO the emoji-node WITH laid_by set,
-            // and the q-authorship testimony pair — mirrors gen4-policy's lay_authorship
+            // and the q-authorship testimony pair — mirrors gen4-policy's lay_ingression
             // exactly (see the AUTHORSHIP RECONCILIATION note above).
             const emojiNode = emojiNodeSlug(emoji);
             soc.lay({ slug: emojiNode, content: emoji, subject: null, object: null });

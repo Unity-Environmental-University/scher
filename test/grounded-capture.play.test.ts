@@ -28,6 +28,7 @@ import {
   prehensionsOnto,
   isOccluded,
   isSublimePole,
+  INGRESSION_PREFIX,
 } from "../src/society.js";
 import { groundedBy } from "../src/strain.js";
 
@@ -64,7 +65,7 @@ function capture(s: Society, event: string, text: string, ground: string | null)
 
 /** authorship, per biography.play.test.ts's own idiom — laid_by, for "whose note is this". */
 function layAuthorship(s: Society, author: string, event: string): void {
-  const authNode = `laid-${event}-by-${author}`;
+  const authNode = `${INGRESSION_PREFIX}${event}-by-${author}`;
   lay(s, author);
   s.lay({ slug: authNode, content: `${author} laid ${event}`, subject: null, object: null });
   s.layP(`${authNode}~lays~${event}`, "authorship", authNode, event, "q-authorship");
@@ -151,8 +152,8 @@ describe("grounded capture — no floating events (Hallie's ruling, 2026-07-07) 
     // AND the board can still tell them apart — by authorship, a wholly separate prehension.
     const crewAuthor = prehensionsOnto(s, crewsCapture, "q-authorship")[0]?.subject;
     const humanAuthor = prehensionsOnto(s, halliesCapture, "q-authorship")[0]?.subject;
-    expect(crewAuthor).toBe(`laid-${crewsCapture}-by-frame-crew-dollmaker`);
-    expect(humanAuthor).toBe(`laid-${halliesCapture}-by-frame-hallie`);
+    expect(crewAuthor).toBe(`${INGRESSION_PREFIX}${crewsCapture}-by-frame-crew-dollmaker`);
+    expect(humanAuthor).toBe(`${INGRESSION_PREFIX}${halliesCapture}-by-frame-hallie`);
     // groundedness and authorship are ORTHOGONAL reads: every note answers to the same miss,
     // and every note still carries whose hand wrote it. Neither collapses into the other.
     expect(crewAuthor).not.toBe(humanAuthor);

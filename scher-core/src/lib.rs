@@ -148,7 +148,7 @@ pub struct EventRow {
     /// braid-of-societies: "no statement is not spoken from" — the author is part of the
     /// event's own character, never recovered by parsing a slug). Exactly parallel to
     /// `witnessed`: an inline property set at lay time, read without a graph walk. The
-    /// authorship EVENT+edge (`gen4_policy::lay_authorship`) still rides alongside this as
+    /// authorship EVENT+edge (`gen4_policy::lay_ingression`) still rides alongside this as
     /// testimony/process history (ruling 13) — this field is the substance read.
     pub laid_by: Option<String>,
     /// VOLTAGE (event-2681/2692): optional feeling-indicator emoji or short text, set at
@@ -518,7 +518,7 @@ impl Society {
     /// constitutive property, it never changes an already-set one. Refuses (returns false,
     /// no-op) if the row doesn't exist or already carries a `laid_by` — authorship, once
     /// spoken, does not get respoken. Exists because callers lay the content event and
-    /// record authorship as two separate calls (`lay` then `lay_authorship`); Whitehead's
+    /// record authorship as two separate calls (`lay` then `lay_ingression`); Whitehead's
     /// "no statement is not spoken from" wants the inline field to land on that SAME row,
     /// not a fresh one — and Society has no other route back to a laid row's fields.
     pub fn set_laid_by(&mut self, slug: &str, layer: &str) -> bool {
@@ -596,7 +596,7 @@ impl Society {
     ///
     /// CLOSURE-SHAPED, NOT FIXED-ARITY (by design): `steps` takes `&mut Society` and
     /// returns whatever `T` the caller needs — a bare `lay_atomic(node, edge)` couldn't
-    /// reach `lay_authorship`'s third act (the `set_laid_by` mutation); a closure can
+    /// reach `lay_ingression`'s third act (the `set_laid_by` mutation); a closure can
     /// stand for however many acts one becoming requires.
     ///
     /// SCOPED, NOT THE NEW FRONT DOOR: this does not replace `lay`/`lay_p`/`lay_all`, and

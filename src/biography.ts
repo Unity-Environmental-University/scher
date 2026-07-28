@@ -7,7 +7,12 @@
 // only the file boundary is new.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { type Society, contentBeats, isOccluded, establishedTo, prehensionsFrom, prehensionsOnto, endOf, chargesOn, LAID_PREFIX } from "./society.js";
+import { type Society, contentBeats, isOccluded, establishedTo, prehensionsFrom, prehensionsOnto, endOf, chargesOn, INGRESSION_PREFIX, LEGACY_LAID_PREFIX, isIngressionNode } from "./society.js";
+
+/** Built from the prefix constants so the parse can never drift from `isIngressionNode`. */
+const INGRESSION_NODE_SLUG = new RegExp(
+  `^(?:${INGRESSION_PREFIX}|${LEGACY_LAID_PREFIX})(.+?)-by-(.+)$`,
+);
 
 /** author_of: the subject of a q-utterance prehension onto `beat` (who said it). */
 export function authorOf(soc: Society, beat: string): string | null {
@@ -51,14 +56,9 @@ export type HearingStatus =
  *  (ground) determines whose "established" reaches the author's work. Default to
  *  author's own frame (reflexivity — an author can see their own work).
  *
- *  AUTHORSHIP DISCOVERY (rewritten 2026-07-15, cooling wave, tension 2): primary read is
- *  the real EventRow.laid_by column — structural, no parsing. The slug pattern
- *  "laid-{event}-by-{layer}" survives only as an EXPLICIT, DATED FALLBACK for legacy rows
- *  laid before the column existed (gen4-policy's Rust side, lib.rs:749, has written both
- *  the q-authorship edge and laid_by since; new data never depends on slug shape). A row
- *  is read via the fallback iff it has no laid_by AND matches the legacy shape — so a
- *  populated column always wins, and the parse never double-counts an event the column
- *  already answered for.
+ *  AUTHORSHIP DISCOVERY: primary read is the EventRow.laid_by column — structural, no
+ *  parsing. Slug-shape parsing is the fallback, used iff the column is empty, so a
+ *  populated column always wins and the parse never double-counts.
  *
  *  ASSEMBLY LOGIC (pure composition of existing reads):
  *  1. Query laid_by(author) → all events where laid_by == author
@@ -83,16 +83,12 @@ export function biographyOf(soc: Society, author: string, ground?: string): Biog
     if (beat.laid_by === author) authorialEvents.add(beat.slug);
   }
 
-  // FALLBACK, LEGACY ROWS ONLY (dated 2026-07-15; pre-laid_by-column data): the
-  // authorship node names followed the pattern "laid-{event}-by-{layer}" before
-  // scher-core wrote the column. Parse it and verify via the ~lays~ edge co-prehending
-  // q-authorship — but only for an event the column didn't already answer for, so a
-  // populated laid_by always wins and this parse never overrides or double-counts it.
+  // FALLBACK: authorship nodes carry the author in their slug. BOTH spellings are live —
+  // "ingression-from-{event}-by-{layer}" is what the doors write now, "laid-…" is the
+  // ~9k rows already in canon (renamed 2026-07-28). Guard and parse must agree on both.
   soc.all().forEach((beat) => {
-    // Look for authorship nodes: laid-{event}-by-{layer}, subject/object null (nodes, not edges)
-    if (beat.slug.startsWith(LAID_PREFIX) && beat.subject === null && beat.object === null) {
-      // Parse the slug to extract event and layer
-      const match = beat.slug.match(/^laid-(.+?)-by-(.+)$/);
+    if (isIngressionNode(beat.slug) && beat.subject === null && beat.object === null) {
+      const match = beat.slug.match(INGRESSION_NODE_SLUG);
       if (match) {
         const [, eventSlug, layerSlug] = match;
         if (eventSlug && layerSlug === author && !authorialEvents.has(eventSlug)) {

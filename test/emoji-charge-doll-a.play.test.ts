@@ -26,7 +26,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { Society, prehensionsFrom, prehensionsOnto } from "../src/society.js";
+import { Society, prehensionsFrom, prehensionsOnto, INGRESSION_PREFIX } from "../src/society.js";
 import { reactionsOn, pathosOf } from "../src/pathos.js";
 import { reactionStory } from "../src/stories.js";
 
@@ -61,12 +61,12 @@ describe("DOLL A — emoji via the existing q-feel reaction shape", () => {
     // EMOJI-AS-NODE, the final q-feel ruling (Hallie, "story-emoji-as-node", 2026-07-20):
     // the beat is subject, the lazily-minted emoji-node is object. AUTHORSHIP
     // RECONCILIATION (same day): "ren" no longer rides the q-feel edge — it's set as
-    // laid_by on the q-feel row itself, mirroring gen4-policy's lay_authorship, never a
+    // laid_by on the q-feel row itself, mirroring gen4-policy's lay_ingression, never a
     // q-utterance row (that idiom stays reserved for comments/speech).
     const feels = prehensionsFrom(s, "beat-1", "q-feel").filter((p) => p.object === "emoji-🔥");
     expect(feels.length).toBe(1); // the one edge from click 1 — occluded, never revived
     expect(s.get("feel-ren-🔥-beat-1")).toMatchObject({ laid_by: "ren" });
-    expect(s.get("laid-feel-ren-🔥-beat-1-by-ren")).toBeDefined();
+    expect(s.get(`${INGRESSION_PREFIX}feel-ren-🔥-beat-1-by-ren`)).toBeDefined();
   });
 
   it("a genuinely DIFFERENT reaction event (different reactSlug) from the same person on the same beat DOES accumulate as a second edge — the guard collapses same-button-repeat, not same-person-same-emoji as a concept", () => {
@@ -78,7 +78,7 @@ describe("DOLL A — emoji via the existing q-feel reaction shape", () => {
     // template forecloses it). EMOJI-AS-NODE, the final q-feel ruling (Hallie,
     // "story-emoji-as-node", 2026-07-20): subject=beat-1, object=emoji-node.
     // AUTHORSHIP RECONCILIATION (same day): laid_by set on each q-feel row directly,
-    // mirroring gen4-policy's lay_authorship, never a q-utterance row.
+    // mirroring gen4-policy's lay_ingression, never a q-utterance row.
     beat(s, "emoji-🔥", "🔥");
     // laid via plain lay() (not layP — layP has no laid_by parameter, same constraint
     // layReactionFeel in stories.ts works around) plus its own '~q' mode-beat, matching

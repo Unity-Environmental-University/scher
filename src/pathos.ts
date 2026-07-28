@@ -5,7 +5,14 @@
 // unchanged from their home in society.ts; only the file boundary is new.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { type Society, prehensionsFrom, prehensionsOnto, isOccluded } from "./society.js";
+import {
+  type Society,
+  prehensionsFrom,
+  prehensionsOnto,
+  isOccluded,
+  INGRESSION_PREFIX,
+  LEGACY_LAID_PREFIX,
+} from "./society.js";
 
 /** pathos: the q-feel reactions on a beat — key (the raw q-feel content, an emoji today,
  *  a stem once verbFeels lands) + count + who. */
@@ -31,29 +38,32 @@ export interface Pathos {
 // discovery already uses (biography.ts:80-110), mirroring gen4-policy's `laid_by()`
 // read (gen4-policy/src/lib.rs:821-837) exactly: PRIMARY is the q-feel row's own
 // EventRow.laid_by column (structural, no parsing); FALLBACK, for rows laid before a
-// column existed, walks the `laid-{feelSlug}-by-{layer}` node via its un-occluded
-// `~lays~` edge co-prehending q-authorship. SINGLE-SHAPE READS ONLY — no dual-shape
+// column existed, walks the ingression node via its un-occluded `~lays~` edge
+// co-prehending q-authorship. SINGLE-SHAPE READS ONLY — no dual-shape
 // compatibility with either of this same day's two earlier, since-superseded reactor
 // shapes (object=reactor, or a q-utterance authorship row); those wait for the kalpa.
 /** authorOfReaction: who LAID a q-feel edge — laid_by column first, q-authorship
  *  testimony edge as the legacy fallback. Composes the same primary-then-fallback shape
  *  biographyOf's authorship discovery already uses, rather than minting a new pattern.
- *  FALLBACK NOTE: the testimony node's slug (`laid-{feelSlug}-by-{layer}`) is parsed only
- *  in this legacy branch — the SAME dated, explicit exception biographyOf's own fallback
- *  takes (biography.ts:86-90) and Rust's laid_by() takes (gen4-policy/src/lib.rs:816-819):
- *  new writes never depend on it, since layReactionAuthorship's caller (reactionStory)
- *  always also sets the primary laid_by column at lay time. */
+ *  FALLBACK NOTE: the testimony node's slug is parsed only in this branch — the SAME dated,
+ *  explicit exception biographyOf's fallback takes and Rust's ingressed_from() takes. Prefixes
+ *  come from society.js, never hand-spelled, so the next rename shows up in one grep. */
 function authorOfReaction(soc: Society, feelSlug: string, asOf?: number): string | null {
   const feelRow = soc.get(feelSlug);
   if (feelRow?.laid_by) return feelRow.laid_by;
-  // FALLBACK, LEGACY ROWS ONLY: laid-{feelSlug}-by-{layer} node via its q-authorship edge.
+  // FALLBACK, ROWS WITH NO laid_by COLUMN: the {prefix}{feelSlug}-by-{layer} node via its
+  // q-authorship edge. Both prefixes, exactly as gen4-policy's ingressed_from() strips them.
   const laysEdge = prehensionsOnto(soc, feelSlug, "q-authorship", asOf).find((p) => !isOccluded(soc, p.slug, asOf));
   const node = laysEdge?.subject;
   if (!node) return null;
-  const match = node.match(/^laid-(.+)-by-(.+)$/);
-  if (!match) return null;
-  const [, eventSlug, layer] = match;
-  return eventSlug === feelSlug ? (layer ?? null) : null;
+  for (const prefix of [INGRESSION_PREFIX, LEGACY_LAID_PREFIX]) {
+    if (!node.startsWith(prefix)) continue;
+    const rest = node.slice(prefix.length);
+    const suffix = `-by-`;
+    if (!rest.startsWith(feelSlug + suffix)) continue;
+    return rest.slice(feelSlug.length + suffix.length) || null;
+  }
+  return null;
 }
 export function pathosOf(soc: Society, beat: string): Pathos[] {
   const feels = prehensionsFrom(soc, beat, "q-feel");

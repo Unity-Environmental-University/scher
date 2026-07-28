@@ -6,13 +6,18 @@
 
 import { Cell, type Read } from "./cell.js";
 
-/** The authorship node prefix — mirrors `gen4_policy::LAID_PREFIX` (gen4-policy/src/lib.rs).
- *  ONE HOME for the string every layer used to agree on independently: this file's own
- *  `stories.ts::layReactionAuthorship` node-builder and `biography.ts`'s legacy-fallback
- *  parser both used to spell "laid-" out by hand, same string, no shared const, until this
- *  decoupling pass (2026-07-28). Renaming the prefix is now a one-line change here plus its
- *  Rust mirror, not an edit repeated at every site that used to spell it out independently. */
-export const LAID_PREFIX = "laid-";
+/** Authorship-node prefix for NEW writes. Mirrors `gen4_policy::INGRESSION_PREFIX` —
+ *  no compiler checks that, so change both or the two languages mint different slugs. */
+export const INGRESSION_PREFIX = "ingression-from-";
+
+/** The pre-rename prefix. Read-only: it parses old canon rows, nothing writes it.
+ *  Mirrors `gen4_policy::LEGACY_LAID_PREFIX`. */
+export const LEGACY_LAID_PREFIX = "laid-";
+
+/** True for an authorship node under either prefix. Mirrors `gen4_policy::is_ingression_node`. */
+export function isIngressionNode(slug: string): boolean {
+  return slug.startsWith(INGRESSION_PREFIX) || slug.startsWith(LEGACY_LAID_PREFIX);
+}
 
 /** A beat. With subject+object it is an edge. A quality beat (slug ending '~q',
  *  object is the quality) carries mode. Its spelling is never read — see hasAnyQuality. */

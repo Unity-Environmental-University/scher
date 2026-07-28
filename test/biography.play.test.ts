@@ -11,7 +11,7 @@
 //
 // DOLL STRATEGY: test the pure read's assembly logic against known structures,
 // not full canon captures. Authorship parsing + status computations as independent
-// checkers. The real authorship machinery lives in gen4-policy (laid_by, lay_authorship);
+// checkers. The real authorship machinery lives in gen4-policy (laid_by, lay_ingression);
 // this doll proves the six-status composition works.
 // ─────────────────────────────────────────────────────────────────────────────
 

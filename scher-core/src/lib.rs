@@ -205,6 +205,44 @@ impl EventRow {
     }
 }
 
+/// Two typed quarantine failures (mirrors society.ts's `RowInFlightError` /
+/// `AbortedTransactionRowError`, 2026-07-27 ruling — "don't let every violation shriek
+/// at the same pitch"). Both name the row and the transaction; only the aborted case
+/// carries the cause, and only the aborted case is PERMANENT.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum QuarantineError {
+    /// The transaction that laid this row is still open. Ordinary — retry after it returns.
+    RowInFlight { slug: String, txn_label: String },
+    /// The transaction that laid this row returned `Err` before completing. Permanent:
+    /// this row will never become readable (append-only cannot roll it back, so it is
+    /// quarantined instead of masquerading as valid data).
+    AbortedTransactionRow { slug: String, txn_label: String, cause: String },
+}
+
+impl std::fmt::Display for QuarantineError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            QuarantineError::RowInFlight { slug, txn_label } => write!(
+                f,
+                "[IN-FLIGHT] '{slug}' is still being laid by transaction {txn_label} — not \
+                 yet committed, not corrupted. Read it again after that lay_atomic call \
+                 returns. (law: transactions-throw-not-hide)"
+            ),
+            QuarantineError::AbortedTransactionRow { slug, txn_label, cause } => write!(
+                f,
+                "[ABORTED TRANSACTION] '{slug}' was laid by transaction {txn_label}, which \
+                 ABORTED before completing (cause: {cause}). This row is permanently \
+                 quarantined — it will never become readable, by design: an aborted \
+                 half-write must never masquerade as valid data. Re-lay the intended \
+                 edge(s) as a fresh transaction under a new slug. (law: \
+                 transactions-throw-not-hide)"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for QuarantineError {}
+
 /// An append-only society of beats. The only write is `lay`. `rev` rises on every genuine
 /// append. Beats are never overwritten — to undo, occlude with a new beat.
 #[derive(Clone, Debug, Default)]
@@ -220,6 +258,19 @@ pub struct Society {
     // in any caller that reads per-row, which made /bujo/today's cold path ~1.5s.
     by_subject: HashMap<String, Vec<String>>,
     by_object: HashMap<String, Vec<String>>,
+    // TRANSACTION MARKS (2026-07-28, mirrors society.ts's #txnOf/#txnLabel/#abortedTxns/
+    // #activeTxnStack, 2026-07-27 sitting): a row laid inside `lay_atomic` carries its
+    // transaction id here until the transaction commits (cleared) or hands off to an
+    // enclosing one (reassigned) — or, if the transaction's closure returns `Err`, is left
+    // here forever, aborted. Additive-only: nothing existing reads through these; only
+    // `lay_atomic`'s own gated reads (`get_checked`/`all_checked`) consult them.
+    txn_of: HashMap<String, u64>,
+    txn_labels: HashMap<u64, String>,
+    /// txn id -> the Err message the closure returned. Permanent: an aborted txn's rows
+    /// never become readable, by design (rows are never rolled back — append-only cannot).
+    aborted_txns: HashMap<u64, String>,
+    active_txn_stack: Vec<u64>,
+    txn_seq: u64,
 }
 
 impl Society {
@@ -256,7 +307,11 @@ impl Society {
         if let Some(o) = &b.object {
             self.by_object.entry(o.clone()).or_default().push(b.slug.clone());
         }
-        self.rows.insert(b.slug.clone(), b);
+        let slug = b.slug.clone();
+        self.rows.insert(slug.clone(), b);
+        if let Some(&innermost) = self.active_txn_stack.last() {
+            self.txn_of.insert(slug, innermost);
+        }
         true
     }
 
@@ -477,12 +532,126 @@ impl Society {
     }
 
     /// All beats (a snapshot; iteration order is unspecified, like a Map's values()).
+    /// Does NOT gate on transaction marks — callers wanting the atomic-read guarantee
+    /// use `all_checked`. This one is unchanged so no existing caller's behavior shifts.
     pub fn all(&self) -> impl Iterator<Item = &EventRow> {
         self.rows.values()
     }
 
+    /// Existence check only — never gated on transaction marks (mirrors society.ts's
+    /// `has`, whose own doc says the same: "does NOT throw on a mid-transaction row —
+    /// not a content read"). A row IS in the append-only log the instant it lands,
+    /// whether or not its transaction has committed; `has` answers that question, not
+    /// "is this readable."
     pub fn has(&self, slug: &str) -> bool {
         self.rows.contains_key(slug)
+    }
+
+    /// Is `slug` marked mid-transaction, and is the CURRENT call (per `active_txn_stack`)
+    /// outside that transaction? Every gated read goes through this. Mirrors society.ts's
+    /// `#assertReadable`.
+    fn assert_readable(&self, slug: &str) -> Result<(), QuarantineError> {
+        let Some(&txn) = self.txn_of.get(slug) else { return Ok(()) };
+        if self.active_txn_stack.contains(&txn) {
+            return Ok(()); // reading from inside its own transaction (or an outer one it nests within)
+        }
+        let txn_label = self.txn_labels.get(&txn).cloned().unwrap_or_else(|| "(unlabeled)".into());
+        if let Some(cause) = self.aborted_txns.get(&txn) {
+            return Err(QuarantineError::AbortedTransactionRow {
+                slug: slug.to_string(),
+                txn_label,
+                cause: cause.clone(),
+            });
+        }
+        Err(QuarantineError::RowInFlight { slug: slug.to_string(), txn_label })
+    }
+
+    /// `get`, but gated: refuses (returns `Err`) a row still marked mid- or
+    /// permanently-aborted transaction, from OUTSIDE that transaction, instead of
+    /// silently handing it back. Mirrors society.ts's `get`.
+    pub fn get_checked(&self, slug: &str) -> Result<Option<&EventRow>, QuarantineError> {
+        if self.rows.contains_key(slug) {
+            self.assert_readable(slug)?;
+        }
+        Ok(self.rows.get(slug))
+    }
+
+    /// `all`, but gated: refuses (returns `Err`) if ANY row anywhere is mid- or
+    /// permanently-aborted transaction, from outside it. Mirrors society.ts's `all`
+    /// (which walks every transaction-marked slug before returning the snapshot).
+    pub fn all_checked(&self) -> Result<Vec<&EventRow>, QuarantineError> {
+        for slug in self.txn_of.keys() {
+            self.assert_readable(slug)?;
+        }
+        Ok(self.rows.values().collect())
+    }
+
+    /// THE ATOMIC-LAY PRIMITIVE (2026-07-28, Hallie's ruling: "the laying and the event
+    /// should be an atomic event"). Runs `steps` under one transaction mark. Every row
+    /// `steps` lays is unreadable (via `get_checked`/`all_checked`) from OUTSIDE this call
+    /// until `steps` returns `Ok` (committed — or handed to an enclosing `lay_atomic`, if
+    /// nested) — or FOREVER, if `steps` returns `Err` (permanently quarantined; append-only
+    /// means the rows already landed and cannot be rolled back, so they are made
+    /// unreadable instead of pretending nothing happened).
+    ///
+    /// CLOSURE-SHAPED, NOT FIXED-ARITY (by design): `steps` takes `&mut Society` and
+    /// returns whatever `T` the caller needs — a bare `lay_atomic(node, edge)` couldn't
+    /// reach `lay_authorship`'s third act (the `set_laid_by` mutation); a closure can
+    /// stand for however many acts one becoming requires.
+    ///
+    /// SCOPED, NOT THE NEW FRONT DOOR: this does not replace `lay`/`lay_p`/`lay_all`, and
+    /// nothing in this commit wires an existing caller to it — see this file's own
+    /// pushback (position paper, 2026-07-28) against quietly making "the event and its
+    /// authorship are one act" into "every lay must go through lay_atomic."
+    ///
+    /// THE LANGUAGE BOUNDARY (say it plainly, don't chase it): TS quarantines on `throw`,
+    /// which unwinds through any call depth and is always caught by the enclosing
+    /// `layAtomic`'s `try`. Rust's analogue is `Err`, and this function tests exactly
+    /// that path. But a Rust closure that **panics** instead of returning `Err` unwinds
+    /// past this function's bookkeeping entirely — no `catch_unwind` wraps `steps` here,
+    /// on purpose: catching unwinds is its own hazard (poisoned invariants, a lock left
+    /// half-updated) and every OTHER guard in this crate that must not poison a shared
+    /// write already converted from `panic!`/`assert!` to `Err` for exactly that reason
+    /// (see `lay_p`'s ADDRESS LAW / SUBLIME GUARD comments). A `steps` closure that
+    /// panics leaves this transaction's rows marked in-flight forever, with no aborted
+    /// cause recorded — a real gap TypeScript's `try/catch` doesn't have, not drift to
+    /// chase down, a language-boundary fact to know. Callers wiring existing panicking
+    /// guards (the ADDRESS/SUBLIME/DEAD-GRAMMAR asserts in `lay_p`) into a `lay_atomic`
+    /// closure must convert them to `Err` first, or this guarantee does not hold for them.
+    pub fn lay_atomic<T>(
+        &mut self,
+        steps: impl FnOnce(&mut Society) -> Result<T, String>,
+    ) -> Result<T, String> {
+        self.txn_seq += 1;
+        let txn = self.txn_seq;
+        self.txn_labels.insert(txn, format!("txn-{txn}"));
+        self.active_txn_stack.push(txn);
+        let result = steps(self);
+        self.active_txn_stack.pop();
+        let outer = self.active_txn_stack.last().copied();
+        match &result {
+            Ok(_) => {
+                let landed: Vec<String> =
+                    self.txn_of.iter().filter(|(_, &t)| t == txn).map(|(s, _)| s.clone()).collect();
+                for slug in landed {
+                    match outer {
+                        Some(o) => {
+                            self.txn_of.insert(slug, o); // hand off to the enclosing transaction
+                        }
+                        None => {
+                            self.txn_of.remove(&slug); // outermost: fully committed, ordinary row now
+                        }
+                    }
+                }
+                self.txn_labels.remove(&txn);
+            }
+            Err(cause) => {
+                self.aborted_txns.insert(txn, cause.clone());
+                // rows stay marked with `txn` forever — permanently quarantined, never
+                // rolled back (this crate is append-only; the row already landed).
+            }
+        }
+        result
     }
 
     pub fn size(&self) -> usize {

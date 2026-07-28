@@ -109,6 +109,8 @@ pub const Q_NOW_POLE: &str = "q-now-pole";
 /// names that marked exception. NOT YET WIRED into the never-closes guard — the unwired state
 /// is pinned by `q_settles_tripwire` (bottom of this file), which goes red the day the guard
 /// starts testing `Q_SETTLES`; the test names the fence to clear first.
+/// It IS read elsewhere: `unsettled_blocking_edges` counts unsettled reachings, and the
+/// close door refuses on them — that read is lateral to this guard, not a crossing of it.
 /// RULED KEPT and renamed (Hallie, 2026-07-24 12:02, the koan sitting): "q-closing is
 /// good. or even — q-settles." The linguistic surplus earns the quality: topology says a
 /// reaching exists; only the word says whether it SETTLES the telos or merely carries it.
@@ -973,6 +975,20 @@ pub fn is_blocked(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
     !blocked_on_now(soc, row, as_of).is_empty()
 }
 
+/// unsettledBlockingEdges: the blocking EDGES nobody has laid a Q_SETTLES onto — the closing
+/// read. The edge is the object because settling retires the dependency, not the blocker beat.
+pub fn unsettled_blocking_edges(soc: &Society, row: &str, as_of: Option<u64>) -> Vec<String> {
+    let fresh = prehensions_from(soc, row, Q_BLOCKED_BY, as_of);
+    let legacy = prehensions_from(soc, row, Q_DEPENDS_ON, as_of);
+    fresh
+        .iter()
+        .chain(legacy.iter())
+        .map(|p| p.slug.clone())
+        .filter(|edge| !is_occluded(soc, edge, as_of))
+        .filter(|edge| !bears_quality(soc, edge, Q_SETTLES, as_of))
+        .collect()
+}
+
 /// parallelizable: not blocked AND not yet established — work that could start right now.
 pub fn parallelizable(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
     !is_blocked(soc, row, as_of) && !is_established(soc, row, as_of)
@@ -1381,10 +1397,11 @@ pub fn distance_to_hea(soc: &Society, frame_once: &str, end: Option<&str>) -> He
 mod q_settles_tripwire {
     use super::*;
 
-    /// TRIPWIRE, not a blessing: pins Q_SETTLES as unwired (fence: Q_SETTLES doc
-    /// above). Goes red on purpose the day the never-closes guard reads it.
+    /// TRIPWIRE, not a blessing: pins that `lay_p`'s sublime-never-closes guard does not
+    /// count Q_SETTLES as a closing. Q_SETTLES IS live elsewhere — `unsettled_blocking_edges`
+    /// reads it and the close door refuses on it; this guard is the part still unwired.
     #[test]
-    fn q_settles_is_not_yet_wired_into_the_never_closes_guard() {
+    fn q_settles_is_not_a_closing_for_the_sublime_guard() {
         let mut soc = Society::new();
         soc.lay(EventRow::node("star", "a sublime"));
         soc.lay(EventRow::node("now", "a now"));

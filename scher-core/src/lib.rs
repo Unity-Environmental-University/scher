@@ -31,7 +31,7 @@ pub use poles::{
     reached_sublimes_of, service_chain_of, sublimes_charged_from, story_now,
     voltage_toward_sublime,
 };
-use poles::{closing_edges_from, is_designated_end_pole, is_now_pole};
+use poles::{grounding_edges_from, grounding_edges_onto, is_designated_end_pole, is_now_pole};
 
 // the contraction plugin seam (merged sitting 2026-07-03): consumer-owned contraction rules
 // over the because-grammar. scher ships the trait, the collision-refusing registry, and the
@@ -475,9 +475,9 @@ impl Society {
     /// take caller-supplied slugs come here instead.
     ///
     /// ONE-CLOSING LAW: a closing is a bare edge from a designated End onto a designated Now
-    /// (`closing_edges_from`). Re-laying the SAME closing stays inert; a second, different one
-    /// is refused. Read and guard share `is_designated_end_pole`/`is_now_pole` so they cannot
-    /// drift. (law: one-closing)
+    /// (one arm of `grounding_edges_from`). Re-laying the SAME closing is inert; a second,
+    /// different one is refused. Read and guard share `is_designated_end_pole`/`is_now_pole`
+    /// so they cannot drift. (law: one-closing)
     pub fn lay_bare_p(
         &mut self,
         slug: &str,
@@ -487,7 +487,7 @@ impl Society {
     ) -> Result<bool, String> {
         let would_close = is_designated_end_pole(self, subject, None) && is_now_pole(self, object, None);
         if would_close && self.get(slug).is_none() {
-            if let Some(existing) = closing_edges_from(self, subject, None).first() {
+            if let Some(existing) = grounding_edges_from(self, subject, None).first() {
                 return Err(format!(
                     "[ONE-CLOSING LAW] '{slug}' lays a SECOND closing out of the End-pole \
                      '{subject}', which '{}' already closed. Exactly one closing ever leaves \
@@ -784,11 +784,14 @@ pub fn is_occluded(soc: &Society, target: &str, as_of: Option<u64>) -> bool {
 /// trends toward true for every authored event once authorship-establishment lands; its
 /// honest use is occlusion-sensitive display, not doneness. For doneness, read
 /// `established_to` (frame-relative reachability, below). Mirrors society.ts.
+///
+/// Reads `grounding_edges_onto` — the object-indexed twin of the walk's
+/// `grounding_edges_from` — so this one-step adjacency read and the walk share one statement
+/// of what a grounding IS (`is_grounding_edge`'s three arms: legacy q-grounding, bare out of
+/// a designated Now, bare End→Now closing). Scanning for the quality alone went blind to the
+/// bare arms the moment the doors stopped writing q-grounding.
 pub fn grounded_for_any_frame(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
-    prehensions_onto(soc, row, Q_GROUNDING, as_of)
-        .iter()
-        // TODO(socratic): the read asks "is any grounding edge itself non-occluded" — but shouldn't it also check "is the GROUNDED beat (row) itself non-occluded", or is establishment defined by the prehension's shadow, not the beat's?
-        .any(|p| !is_occluded(soc, &p.slug, as_of))
+    !grounding_edges_onto(soc, row, as_of).is_empty()
 }
 
 /// DEPRECATED alias of `grounded_for_any_frame` — same behavior, dishonest name (it reads
@@ -812,11 +815,9 @@ pub fn is_established(soc: &Society, row: &str, as_of: Option<u64>) -> bool {
 /// (`interval_of`'s private walk here, `done_to` in gen4-policy) held once — the Now-pole
 /// minutes' gift-channel extraction, landed. `from == to` reaches trivially.
 ///
-/// BARE-CLOSING RULING (2026-07-15, ported 2026-07-16 — mirrors `reaches` in society.ts):
-/// when walking Q_GROUNDING specifically, a node that is a designated End-pole may leave
-/// it via a BARE edge (the closing — see closing_edges_from's own doc) as well as the
-/// legacy quality-carrying spelling. Scoped to that quality only — an ordinary lateral
-/// quality's walk is untouched, exactly as before.
+/// The Q_GROUNDING walk is the exception: grounding is carried by BARE edges, so it defers
+/// to `grounding_edges_from` (whose doc holds the arms, legacy q-grounding among them).
+/// Every other quality walks its own edges, untouched.
 pub fn reaches(soc: &Society, from: &str, to: &str, quality: &str, as_of: Option<u64>) -> bool {
     if from == to {
         return true;
@@ -826,7 +827,7 @@ pub fn reaches(soc: &Society, from: &str, to: &str, quality: &str, as_of: Option
     let mut stack = vec![from.to_string()];
     while let Some(n) = stack.pop() {
         let edges = if quality == Q_GROUNDING {
-            closing_edges_from(soc, &n, as_of)
+            grounding_edges_from(soc, &n, as_of)
         } else {
             prehensions_from(soc, &n, quality, as_of)
         };
@@ -850,15 +851,15 @@ pub fn reaches(soc: &Society, from: &str, to: &str, quality: &str, as_of: Option
 /// `quality` (subject→object), as of a moment — `reaches` run to exhaustion instead of
 /// early-exit. Includes `from` itself (mirroring `reaches`'s trivial from==to case). For a
 /// caller asking `reaches(from, X)` for many X against one frontier, one set beats N walks.
-/// Carries the same bare-closing union on the Q_GROUNDING walk as `reaches` (above) — the
-/// two walks must agree or a fan-out establishment read would diverge from the pairwise one.
+/// Defers to `grounding_edges_from` on Q_GROUNDING exactly as `reaches` does — the two walks
+/// must agree or a fan-out establishment read would diverge from the pairwise one.
 pub fn reaches_set(soc: &Society, from: &str, quality: &str, as_of: Option<u64>) -> std::collections::HashSet<String> {
     let mut seen = std::collections::HashSet::new();
     seen.insert(from.to_string());
     let mut stack = vec![from.to_string()];
     while let Some(n) = stack.pop() {
         let edges = if quality == Q_GROUNDING {
-            closing_edges_from(soc, &n, as_of)
+            grounding_edges_from(soc, &n, as_of)
         } else {
             prehensions_from(soc, &n, quality, as_of)
         };
@@ -1314,8 +1315,8 @@ pub fn voltage_of(soc: &Society, story: &str, ground: Option<&str>, as_of: Optio
     let mut v = 0;
     for p in poles {
         let Some(end) = p.object.as_deref() else { continue };
-        // bare or legacy q-grounding — the union lives in closing_edges_from (its own doc)
-        let closings: Vec<EventRow> = closing_edges_from(soc, end, as_of)
+        // the arms live in grounding_edges_from (its own doc)
+        let closings: Vec<EventRow> = grounding_edges_from(soc, end, as_of)
             .into_iter()
             .cloned()
             .collect();

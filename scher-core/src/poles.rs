@@ -9,9 +9,10 @@
 //
 // WHAT LIVES HERE: is a node a designated End/Now/Sublime pole (structural
 // designation reads, never slug-parsed); what counts as a CLOSING vs a CHARGE
-// out of an End (closing_edges_from/end_actual/charges_on — the address-law
-// disambiguation the naked-pole guard depends on); and THE LURE LAW itself
-// (sublimes_charged_from, is_sublime_pole) plus the sublime-bearing reads
+// out of an End, and what grounds out of a Now (grounding_edges_from/end_actual/
+// charges_on — the address-law disambiguation the naked-pole guard depends on);
+// and THE LURE LAW itself (sublimes_charged_from, is_sublime_pole) plus the
+// sublime-bearing reads
 // (bearings_of, voltage_toward_sublime, service_chain_of, reached_sublimes_of).
 // This is the SAME order of claim throughout: what a pole IS and how it behaves
 // — metaphysics, not the penelope-level bucket/taxonomy epistemology that lives
@@ -22,7 +23,7 @@
 // the voltage/algedonic-channel reads (voltage_of, floating_charge, overload,
 // distance_to_hea) — those read ACROSS a story's differentials using these
 // pole facts as ingredients, but are not themselves pole-designation reads.
-// They call back into this module's pub fns (is_now_pole, closing_edges_from,
+// They call back into this module's pub fns (is_now_pole, grounding_edges_from,
 // end_actual, story_now, is_sublime_pole, sublimes_charged_from) same as any
 // other caller — no special-casing across the boundary.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -49,10 +50,10 @@ pub(crate) fn is_designated_end_pole(soc: &Society, node: &str, as_of: Option<u6
 /// is_now_pole: is `node` the object of an un-occluded Q_NOW_POLE designation — structural
 /// Now-hood (story-designate-now-poles ruling, Hallie, 2026-07-20 second sitting). Mirrors
 /// is_designated_end_pole/is_sublime_pole exactly: designation lives on an edge, never
-/// parsed from the node's slug (opaque-slug law). This is the disambiguator
-/// closing_edges_from and charges_on now both depend on to tell a closing from a charge —
-/// both are bare edges FROM a designated End; only the OBJECT's now-pole-hood tells them
-/// apart.
+/// parsed from the node's slug (opaque-slug law). Read two ways: as an OBJECT test it is the
+/// disambiguator grounding_edges_from and charges_on depend on to tell a closing from a
+/// charge (both are bare edges FROM a designated End; only the object tells them apart); as
+/// a SUBJECT test it is what makes a bare edge LEAVING a Now a grounding.
 pub(crate) fn is_now_pole(soc: &Society, node: &str, as_of: Option<u64>) -> bool {
     soc.edges_onto_object(node).any(|b| {
         b.subject.is_some()
@@ -61,45 +62,60 @@ pub(crate) fn is_now_pole(soc: &Society, node: &str, as_of: Option<u64>) -> bool
     })
 }
 
-/// closing_edges_from: the edges that CLOSE this End-pole — un-occluded, as of a moment.
-/// BARE-CLOSING RULING, MECHANIZED (Hallie, 2026-07-15: "yes its edge direction"; "schedule
-/// it and feel free to act on it" — landed in the TS twin 2026-07-15, ported here
-/// 2026-07-16): a closing is EITHER a legacy quality-carrying Q_GROUNDING edge FROM `end`
-/// (the migration-era spelling — honored forever, append-only) OR a bare edge (no quality
-/// at all) FROM `end` — recognized as a closing SOLELY because `end` is a designated
-/// End-pole (is_designated_end_pole) and the edge left it: no quality-marker is read; per
-/// the address law, edge-direction alone carries the meaning. This is the one place that
-/// structural fact gets turned into a read — every caller that needs "is this End closed"
-/// or "walk through a closing" goes through here, so the bare/legacy union lives in ONE
-/// place, not re-derived at each call site. Mirrors `closingEdgesFrom` in society.ts
-/// (the bare scan is adjacency-indexed here, same rows the twin's full scan yields).
+/// grounding_edges_from: the un-occluded edges that GROUND out of `node`, as of a moment —
+/// the one place the bare/legacy union lives, and the whole of the Q_GROUNDING walk
+/// (`reaches`/`reaches_set` route that quality through here). Two bare shapes qualify, plus
+/// the legacy one:
 ///
-/// NOW-POLE SPLIT (Hallie, 2026-07-20 second sitting, story-designate-now-poles): since
-/// the end-prehends-the-capture ruling (same day, first sitting) made charges ALSO bare
-/// edges FROM a designated End, a bare edge leaving `end` is no longer unambiguously a
-/// closing — it could be either. Nows are now designated poles (Q_NOW_POLE, mirroring
-/// Q_END_POLE/Q_SUBLIME_POLE), so a BARE closing is narrowed to: a bare edge FROM `end`
-/// whose OBJECT IS a designated now-pole (is_now_pole). Legacy Q_GROUNDING closings are
-/// unaffected — that union member was never ambiguous, it carries its own quality marker.
-pub(crate) fn closing_edges_from<'a>(soc: &'a Society, end: &str, as_of: Option<u64>) -> Vec<&'a EventRow> {
-    let quality = prehensions_from(soc, end, Q_GROUNDING, as_of);
-    if !is_designated_end_pole(soc, end, as_of) {
-        return quality
-            .into_iter()
-            .filter(|p| !is_occluded(soc, &p.slug, as_of))
-            .collect();
-    }
-    let bare = soc.edges_from_subject(end).filter(|b| {
-        b.object.is_some()
-            && visible_at(b, as_of)
-            && !has_any_quality(soc, &b.slug, as_of)
-            && is_now_pole(soc, b.object.as_deref().unwrap(), as_of)
-    });
-    quality
-        .into_iter()
-        .chain(bare)
-        .filter(|p| !is_occluded(soc, &p.slug, as_of))
+/// - a bare edge FROM a designated End-pole ONTO a designated Now-pole — a CLOSING
+///   (bare-closing ruling, Hallie 2026-07-15: "yes its edge direction"). Narrowed to
+///   Now-pole objects by the NOW-POLE SPLIT (2026-07-20 second sitting): since the End
+///   prehends its capture, a bare edge leaving an End is otherwise ambiguous with a CHARGE,
+///   and only the object's now-pole-hood tells them apart (see `charges_on`).
+/// - a bare edge FROM a designated Now-pole onto anything — a GROUNDING proper (the
+///   `{story}~now ~because~ {story}` shape open_story lays, and mark_done's
+///   `now-{frame} ~because~ {closing}`). Unambiguous: Now is what grounds, and nothing
+///   else leaves a Now — charges land ON Ends, bearings leave sublimes.
+/// - a quality-carrying Q_GROUNDING edge FROM `node` — the migration-era spelling, still
+///   under 4,392 kalpa rows. Honored forever, append-only; never ambiguous, it carries its
+///   own marker.
+///
+/// No quality-marker is read on the bare arms: per the address law, edge-direction alone
+/// carries the meaning. Mirrors `closingEdgesFrom` in society.ts (the bare scan is
+/// adjacency-indexed here, same rows the twin's full scan yields). The three arms are stated
+/// once, in `is_grounding_edge`; this is that predicate filtered over the subject index.
+pub(crate) fn grounding_edges_from<'a>(soc: &'a Society, node: &str, as_of: Option<u64>) -> Vec<&'a EventRow> {
+    soc.edges_from_subject(node)
+        .filter(|b| is_grounding_edge(soc, b, as_of))
         .collect()
+}
+
+/// grounding_edges_onto: the un-occluded edges that GROUND `node` — `grounding_edges_from`
+/// read from the object end. Same predicate, opposite index, so the walk and the adjacency
+/// read (`grounded_for_any_frame`) can never disagree about what a grounding IS.
+pub(crate) fn grounding_edges_onto<'a>(soc: &'a Society, node: &str, as_of: Option<u64>) -> Vec<&'a EventRow> {
+    soc.edges_onto_object(node)
+        .filter(|b| is_grounding_edge(soc, b, as_of))
+        .collect()
+}
+
+/// is_grounding_edge: is THIS un-occluded edge a grounding, under any of the three arms the
+/// doc above states? The single statement of the law; both indexed reads are filters over it.
+fn is_grounding_edge(soc: &Society, b: &EventRow, as_of: Option<u64>) -> bool {
+    let (Some(subject), Some(object)) = (b.subject.as_deref(), b.object.as_deref()) else {
+        return false;
+    };
+    if !visible_at(b, as_of) || is_occluded(soc, &b.slug, as_of) {
+        return false;
+    }
+    if prehends_as(soc, &b.slug, Q_GROUNDING, as_of) {
+        return true;
+    }
+    if has_any_quality(soc, &b.slug, as_of) {
+        return false;
+    }
+    is_now_pole(soc, subject, as_of)
+        || (is_designated_end_pole(soc, subject, as_of) && is_now_pole(soc, object, as_of))
 }
 
 /// end_actual: is this End-pole ACTUAL — is it because something (per the pole law, the
@@ -108,7 +124,7 @@ pub(crate) fn closing_edges_from<'a>(soc: &'a Society, end: &str, as_of: Option<
 /// quality-carrying Q_GROUNDING edge out (both-spellings window, same law as the
 /// dependency rename: the ink stays). Mirrors `endActual` in society.ts.
 pub fn end_actual(soc: &Society, end: &str, as_of: Option<u64>) -> bool {
-    !closing_edges_from(soc, end, as_of).is_empty()
+    !grounding_edges_from(soc, end, as_of).is_empty()
 }
 
 /// story_now: the story's own frame's Now — the `{story}~now` constructor convention (an
@@ -189,7 +205,7 @@ pub fn sublimes_charged_from(soc: &Society, node: &str, as_of: Option<u64>) -> V
 /// charge edges are subject=End-pole, object=charged event.
 ///
 /// NOW-POLE SPLIT (Hallie, 2026-07-20 second sitting, story-designate-now-poles): a bare
-/// edge FROM `end` is ALSO the shape a closing takes (closing_edges_from) now that Nows
+/// edge FROM `end` is ALSO the shape a closing takes (grounding_edges_from) now that Nows
 /// are designated poles (Q_NOW_POLE). The two bare-edge laws share a subject and disagree
 /// only on the object: a closing's object is a designated now-pole, a charge's is not.
 /// So a charge is a bare edge with subject==end AND whose object is NOT a now-pole.

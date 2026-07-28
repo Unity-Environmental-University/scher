@@ -1143,9 +1143,51 @@ pub fn grounded_by(soc: &Society, row: &str) -> Vec<String> {
 /// membership edge. Mirrors society.ts's intervalContext fix; conformance twin:
 /// interval-occlusion.json (replayed by both suites).
 pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
+    interval_of_with(soc, &interval_context(soc, None), once, end)
+}
+
+// The hoist is a claim about HOW MANY TIMES the prepass runs, so a test must be able to
+// count it. A timing test would flake; this cannot.
+#[cfg(test)]
+thread_local! {
+    static INTERVAL_CONTEXT_BUILDS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+pub fn interval_context_builds_reset() {
+    INTERVAL_CONTEXT_BUILDS.with(|c| c.set(0));
+}
+
+#[cfg(test)]
+pub fn interval_context_builds() -> usize {
+    INTERVAL_CONTEXT_BUILDS.with(|c| c.get())
+}
+
+/// IntervalContext: interval_of's plain-edge prepasses, hoisted so a caller doing many
+/// interval reads over ONE unchanged Society builds them once. The board's cold rebuild
+/// read 81 intervals per paint and rebuilt this identically 81 times — 99.6% of the paint.
+///
+/// Owned `String`s, not borrows: the wasm crate cannot carry a lifetime, and `reach`
+/// already allocates per node, so a borrow buys nothing.
+///
+/// Mirrors `IntervalContext` in society.ts, which hoisted the same prepasses first.
+pub struct IntervalContext {
+    /// The `rev` of the Society this was derived from. A context is valid ONLY for that
+    /// exact state; `interval_of_with` checks this rather than trusting the caller. Private
+    /// so no caller can forge one — the only way to get a context is `interval_context`.
+    derived_from_rev: u64,
+    as_of: Option<u64>,
+    fwd_adj: std::collections::HashMap<String, Vec<String>>,
+    bwd_adj: std::collections::HashMap<String, Vec<String>>,
+}
+
+/// Build the IntervalContext for `soc` — identical to what `interval_of` builds internally.
+pub fn interval_context(soc: &Society, as_of: Option<u64>) -> IntervalContext {
+    #[cfg(test)]
+    INTERVAL_CONTEXT_BUILDS.with(|c| c.set(c.get() + 1));
     let quality_tokens: std::collections::HashSet<&str> = soc
         .all()
-        .filter(|b| b.slug.ends_with("~q") && visible_at(b, None))
+        .filter(|b| b.slug.ends_with("~q") && visible_at(b, as_of))
         .filter_map(|b| b.object.as_deref())
         .collect();
     let edges: Vec<&EventRow> = soc
@@ -1165,8 +1207,8 @@ pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
                 // address law reads them as charges. Mirrors intervalOf in society.ts.
                 && !quality_tokens.contains(b.object.as_deref().unwrap_or(""))
                 && !b.slug.ends_with("~q")
-                && visible_at(b, None)
-                && !is_occluded(soc, &b.slug, None)
+                && visible_at(b, as_of)
+                && !is_occluded(soc, &b.slug, as_of)
         })
         .collect();
 
@@ -1176,47 +1218,60 @@ pub fn interval_of(soc: &Society, once: &str, end: &str) -> Vec<String> {
     // TODO(socratic): fwd=true walks forward (subject→object), fwd=false walks backward (object→subject) — but does "forward-reachable from once" mean subject→object or object→subject, and which direction is the story's "natural" flow?
     // ANSWERED(walk 2026-07-02): fwd steps subject→object, bwd the reverse; the interval is the fwd(once) ∩ bwd(end) intersection, so the read is order-free set reachability between the poles — the poles ARE the story, the interior is read, never stored. — see event-is-the-bounding-sphere.md (R3)
     //
-    // END-SUBJECT MEMBERSHIP (gen4-policy day-fabric fix, 2026-07-20): the end-prehends-the-
-    // capture ruling made membership/charge edges run subject=End, object=event — physically
-    // OUT of the End. But the pole law's meaning is unchanged: that event is still BETWEEN
-    // once and end, i.e. reachable walking backward FROM end. So when the edge's subject is
-    // a designated End-pole, this walk treats it as the pole law intends — as reaching INTO
-    // the interval from the End — by adding it to both adjacency maps in the sense that
-    // keeps `end` able to walk backward through it (bwd_adj[s] gets o, matching a normal
-    // object→subject edge) alongside its literal forward sense (fwd_adj[s] gets o, unchanged
-    // — an End can still forward-reach through its own bare edges same as any subject can).
-    // This is the one place this structural fact is read; kept slug-opaque throughout.
-    let mut fwd_adj: std::collections::HashMap<&str, Vec<&str>> = std::collections::HashMap::new();
-    let mut bwd_adj: std::collections::HashMap<&str, Vec<&str>> = std::collections::HashMap::new();
+    // END-SUBJECT MEMBERSHIP (2026-07-20): membership/charge edges run subject=End,
+    // object=event — physically out of the End, but the event is still BETWEEN the poles,
+    // so a backward walk from `end` must step through it. Mirroring into bwd_adj under the
+    // End's OWN slug is what makes that step exist. Per-edge here, not precomputed:
+    // edges_onto_object indexes this (see Society.by_object) — society.ts precomputes an
+    // endPoles set because its isDesignatedEndPole is a full scan. Same result, different
+    // cost model. Fixture: conformance/end-subject-membership.json.
+    let mut fwd_adj: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
+    let mut bwd_adj: std::collections::HashMap<String, Vec<String>> = std::collections::HashMap::new();
     for e in &edges {
         let (s, o) = (e.subject.as_deref().unwrap(), e.object.as_deref().unwrap());
-        fwd_adj.entry(s).or_default().push(o);
-        bwd_adj.entry(o).or_default().push(s);
-        if is_designated_end_pole(soc, s, None) {
-            // the End reaching an event is still "the event reaching backward into the
-            // End's interval" — mirror the edge into bwd_adj under its OWN subject so a
-            // backward walk starting AT end can step to o directly.
-            bwd_adj.entry(s).or_default().push(o);
+        fwd_adj.entry(s.to_string()).or_default().push(o.to_string());
+        bwd_adj.entry(o.to_string()).or_default().push(s.to_string());
+        if is_designated_end_pole(soc, s, as_of) {
+            bwd_adj.entry(s.to_string()).or_default().push(o.to_string());
         }
     }
+    IntervalContext { derived_from_rev: soc.rev(), as_of, fwd_adj, bwd_adj }
+}
 
-    fn reach(adj: &std::collections::HashMap<&str, Vec<&str>>, from: &str) -> std::collections::HashSet<String> {
-        let mut seen = std::collections::HashSet::new();
-        seen.insert(from.to_string());
-        let mut stack = vec![from.to_string()];
-        while let Some(n) = stack.pop() {
-            for next in adj.get(n.as_str()).into_iter().flatten() {
-                // TODO(socratic): seen.insert() returns false if `next` was already in the set — so the stack skips revisiting; is the reachability graph acyclic, or does loop-avoidance silently hide cycles?
-                if seen.insert(next.to_string()) {
-                    stack.push(next.to_string());
-                }
+fn reach(adj: &std::collections::HashMap<String, Vec<String>>, from: &str) -> std::collections::HashSet<String> {
+    let mut seen = std::collections::HashSet::new();
+    seen.insert(from.to_string());
+    let mut stack = vec![from.to_string()];
+    while let Some(n) = stack.pop() {
+        for next in adj.get(n.as_str()).into_iter().flatten() {
+            // TODO(socratic): seen.insert() returns false if `next` was already in the set — so the stack skips revisiting; is the reachability graph acyclic, or does loop-avoidance silently hide cycles?
+            if seen.insert(next.to_string()) {
+                stack.push(next.to_string());
             }
         }
-        seen
     }
+    seen
+}
 
-    let fwd = reach(&fwd_adj, once);
-    let bwd = reach(&bwd_adj, end);
+/// Read one interval against a prebuilt context. A stale context is a caller bug, so it
+/// fails loudly in debug — and is silently, safely corrected in release, because a wrong
+/// interval is worse than a slow one. The rebuild terminates: the fresh context carries
+/// `soc.rev()` by construction.
+pub fn interval_of_with(soc: &Society, ctx: &IntervalContext, once: &str, end: &str) -> Vec<String> {
+    debug_assert_eq!(
+        ctx.derived_from_rev,
+        soc.rev(),
+        "IntervalContext built at rev {} used against rev {} — its adjacency and occlusion are \
+         frozen at build time, so this would read a moment that no longer exists. \
+         Fix: rebuild with interval_context(soc, as_of).",
+        ctx.derived_from_rev,
+        soc.rev()
+    );
+    if ctx.derived_from_rev != soc.rev() {
+        return interval_of_with(soc, &interval_context(soc, ctx.as_of), once, end);
+    }
+    let fwd = reach(&ctx.fwd_adj, once);
+    let bwd = reach(&ctx.bwd_adj, end);
     // TODO(socratic): intersection of forward-reachable and backward-reachable sets gives the interval — but is this symmetric, or could a beat be reachable fwd from `once` but not bwd from `end` (unreachable end), and should the interval include `once` and `end` themselves?
     // ANSWERED(walk 2026-07-02): a beat reachable from once but not reaching end lies outside the sphere — betweenness IS the intersection, by design. Both seed sets include their own start, so the poles appear here; readers that want only the interior (canon_of) filter them out — poles are boundary, interior is read. — see event-is-the-bounding-sphere.md (R3)
     fwd.into_iter().filter(|n| bwd.contains(n)).collect()
@@ -1414,5 +1469,97 @@ mod q_settles_tripwire {
             "the guard now refuses Q_SETTLES — the fence is crossed; re-point this \
              tripwire at the refusal and verify done_to_frame first"
         );
+    }
+}
+
+#[cfg(test)]
+mod interval_hoist {
+    use super::*;
+    use std::collections::HashSet;
+
+    /// Two stories sharing a canon, so the hoisted context serves several reads.
+    fn canon() -> (Society, Vec<(String, String)>) {
+        let mut soc = Society::new();
+        for (story, end) in [("s1", "s1-end"), ("s2", "s2-end")] {
+            soc.lay(EventRow::node(story, story));
+            soc.lay(EventRow::node(end, end));
+            let tag = format!("{story}-pole");
+            soc.lay(EventRow::edge(&tag, "pole", story, end));
+            soc.lay(EventRow::edge(&format!("{tag}~q"), "[q-end-pole]", &tag, Q_END_POLE));
+        }
+        for i in 0..12 {
+            let ev = format!("ev{i}");
+            soc.lay(EventRow::node(&ev, &ev));
+            let story = if i % 2 == 0 { "s1" } else { "s2" };
+            let m = format!("m{i}");
+            soc.lay(EventRow::edge(&m, "membership", story, &ev));
+            soc.lay(EventRow::edge(&format!("{m}~q"), "[q-grounding]", &m, Q_GROUNDING));
+            // the End prehends the capture (2026-07-20) — subject=End, object=event.
+            let end = if i % 2 == 0 { "s1-end" } else { "s2-end" };
+            soc.lay(EventRow::edge(&format!("cap{i}"), "capture", end, &ev));
+        }
+        let pairs = vec![
+            ("s1".to_string(), "s1-end".to_string()),
+            ("s2".to_string(), "s2-end".to_string()),
+        ];
+        (soc, pairs)
+    }
+
+    /// The hoist must not change a single read. Compared as SETS, both sides: the interval
+    /// is collected from a HashSet, so Vec order was never a promise and an assert_eq! on
+    /// Vec would flake.
+    #[test]
+    fn hoisted_reads_match_the_unhoisted_ones_exactly() {
+        let (soc, pairs) = canon();
+        let ctx = interval_context(&soc, None);
+        for (once, end) in &pairs {
+            let plain: HashSet<String> = interval_of(&soc, once, end).into_iter().collect();
+            let hoisted: HashSet<String> =
+                interval_of_with(&soc, &ctx, once, end).into_iter().collect();
+            assert_eq!(plain, hoisted, "hoisted read diverged for {once}..{end}");
+            assert!(!plain.is_empty(), "fixture is inert — it would prove nothing");
+        }
+    }
+
+    /// The point of the hoist, asserted structurally rather than by a stopwatch.
+    #[test]
+    fn many_reads_build_the_prepass_once() {
+        let (soc, pairs) = canon();
+        let ctx = interval_context(&soc, None);
+
+        interval_context_builds_reset();
+        for (once, end) in &pairs {
+            interval_of_with(&soc, &ctx, once, end);
+        }
+        assert_eq!(interval_context_builds(), 0, "a hoisted read rebuilt the prepass");
+
+        interval_context_builds_reset();
+        for (once, end) in &pairs {
+            interval_of(&soc, once, end);
+        }
+        assert_eq!(
+            interval_context_builds(),
+            pairs.len(),
+            "the un-hoisted path should still build one prepass per read"
+        );
+    }
+
+    /// The staleness fallback is a real correction, not just a debug_assert. In release the
+    /// context silently rebuilds; this pins that the ANSWER is right either way.
+    #[test]
+    fn a_stale_context_still_reads_correctly() {
+        let (mut soc, _) = canon();
+        let stale = interval_context(&soc, None);
+        soc.lay(EventRow::node("ev-late", "a beat laid after the context"));
+        soc.lay(EventRow::edge("cap-late", "capture", "s1-end", "ev-late"));
+
+        let fresh: HashSet<String> = interval_of(&soc, "s1", "s1-end").into_iter().collect();
+        assert!(fresh.contains("ev-late"), "the fresh read should see the new beat");
+
+        if cfg!(not(debug_assertions)) {
+            let recovered: HashSet<String> =
+                interval_of_with(&soc, &stale, "s1", "s1-end").into_iter().collect();
+            assert_eq!(recovered, fresh, "the stale context did not safely rebuild");
+        }
     }
 }

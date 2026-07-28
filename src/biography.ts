@@ -7,7 +7,7 @@
 // only the file boundary is new.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { type Society, contentBeats, isOccluded, establishedTo, prehensionsFrom, prehensionsOnto, endOf, chargesOn } from "./society.js";
+import { type Society, contentBeats, isOccluded, establishedTo, prehensionsFrom, prehensionsOnto, endOf, chargesOn, LAID_PREFIX } from "./society.js";
 
 /** author_of: the subject of a q-utterance prehension onto `beat` (who said it). */
 export function authorOf(soc: Society, beat: string): string | null {
@@ -90,7 +90,7 @@ export function biographyOf(soc: Society, author: string, ground?: string): Biog
   // populated laid_by always wins and this parse never overrides or double-counts it.
   soc.all().forEach((beat) => {
     // Look for authorship nodes: laid-{event}-by-{layer}, subject/object null (nodes, not edges)
-    if (beat.slug.startsWith("laid-") && beat.subject === null && beat.object === null) {
+    if (beat.slug.startsWith(LAID_PREFIX) && beat.subject === null && beat.object === null) {
       // Parse the slug to extract event and layer
       const match = beat.slug.match(/^laid-(.+?)-by-(.+)$/);
       if (match) {

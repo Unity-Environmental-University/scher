@@ -6,6 +6,14 @@
 
 import { Cell, type Read } from "./cell.js";
 
+/** The authorship node prefix — mirrors `gen4_policy::LAID_PREFIX` (gen4-policy/src/lib.rs).
+ *  ONE HOME for the string every layer used to agree on independently: this file's own
+ *  `stories.ts::layReactionAuthorship` node-builder and `biography.ts`'s legacy-fallback
+ *  parser both used to spell "laid-" out by hand, same string, no shared const, until this
+ *  decoupling pass (2026-07-28). Renaming the prefix is now a one-line change here plus its
+ *  Rust mirror, not an edit repeated at every site that used to spell it out independently. */
+export const LAID_PREFIX = "laid-";
+
 /** A beat. With subject+object it is an edge. A quality beat (slug ending '~q',
  *  object is the quality) carries mode. Its spelling is never read — see hasAnyQuality. */
 export interface EventRow {

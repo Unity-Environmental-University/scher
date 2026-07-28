@@ -24,6 +24,7 @@ import {
   assertSublimeNeverCloses,
   assertSublimeAcyclic,
   assertNotMembershipContainment,
+  LAID_PREFIX,
 } from "./society.js";
 // reactionsOn: cut from society.ts into pathos.ts (2026-07-15, separation-of-
 // concerns pass, society.ts's own advocate) — same name, new source file.
@@ -707,7 +708,7 @@ function layReactionFeel(soc: Society, slug: string, content: string, subject: s
  *  (gen4-policy/src/lib.rs:797-804). Deliberately redundant with the inline laid_by
  *  above — ruling 13: "both the column and the entry." */
 function layReactionAuthorship(soc: Society, event: string, layer: string): void {
-  const node = `laid-${event}-by-${layer}`;
+  const node = `${LAID_PREFIX}${event}-by-${layer}`;
   soc.lay({ slug: node, content: `${layer} laid ${event}`, subject: null, object: null });
   soc.layP(`${node}~lays~${event}`, "authorship", node, event, "q-authorship");
 }

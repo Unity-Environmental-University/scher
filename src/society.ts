@@ -668,6 +668,10 @@ export function contentBeats(soc: Society): EventRow[] {
 export interface IntervalContext {
   /** objects of visible ~q mode-beats — the quality tokens classified OUT of the walk. */
   qualityTokens: Set<string>;
+  /** nodes designated as End-poles by an un-occluded q-end-pole edge. Precomputed here
+   *  because isDesignatedEndPole is a full soc.all() scan; scher-core calls it per-edge
+   *  because by_object indexes it. Same result, different cost model. */
+  endPoles: Set<string>;
   /** plain-edge adjacency, subject→objects. */
   fwdAdj: Map<string, string[]>;
   /** plain-edge adjacency, object→subjects. */
@@ -701,14 +705,30 @@ export function intervalContext(soc: Society): IntervalContext {
   // cost here, worse than the two soc.all() prepasses above). Same edges, same steps: fwd
   // walks subject→object, bwd the reverse. Mirrors lib.rs's fwd_adj/bwd_adj (interval_of,
   // scher-core/src/lib.rs ~837-848), which solved this exact gap first.
+  // END-SUBJECT MEMBERSHIP (2026-07-20): membership/charge edges run subject=End,
+  // object=event — physically out of the End, but the event is still BETWEEN the poles,
+  // so a backward walk from `end` must step through it. Mirroring into bwdAdj under the
+  // End's OWN slug is what makes that step exist. Only DESIGNATED poles mirror; doing it
+  // for every subject would make the interval swallow the graph.
+  // Twin: scher-core/src/lib.rs interval_of. Fixture: conformance/end-subject-membership.json.
+  const endPoles = new Set<string>();
+  for (const b of soc.all()) {
+    if (b.subject !== null && b.object !== null && visibleAt(b) &&
+        prehendsAs(soc, b.slug, "q-end-pole") && !isOccluded(soc, b.slug)) {
+      endPoles.add(b.object);
+    }
+  }
   const fwdAdj = new Map<string, string[]>();
   const bwdAdj = new Map<string, string[]>();
   for (const e of edges) {
     const s = e.subject!, o = e.object!;
     const fl = fwdAdj.get(s); if (fl) fl.push(o); else fwdAdj.set(s, [o]);
     const bl = bwdAdj.get(o); if (bl) bl.push(s); else bwdAdj.set(o, [s]);
+    if (endPoles.has(s)) {
+      const el = bwdAdj.get(s); if (el) el.push(o); else bwdAdj.set(s, [o]);
+    }
   }
-  return { qualityTokens, fwdAdj, bwdAdj };
+  return { qualityTokens, endPoles, fwdAdj, bwdAdj };
 }
 
 /** intervalOf: the causal diamond between a Once and an End — forward-cone of `once`

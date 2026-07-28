@@ -1,0 +1,20 @@
+{
+  "name": "end-subject-membership",
+  "note": "Fourth fixture of the twin conformance corpus (2026-07-28). NEUTRAL GROUND: belongs to neither twin. Pins the 2026-07-20 ruling ('The End prehends the capture') where interval-occlusion.json could not: that fixture has NO edge whose subject is a designated End-pole, so it silently blessed a divergence for eight days. Membership/charge edges now run subject=End, object=event — physically out of the End, but the event is still BETWEEN once and end, so a backward walk from `end` must step through it. scher-core/src/lib.rs mirrored these into bwd_adj on the day of the ruling; scher/src/society.ts never received the step. The 'stray' rows are the fence against the lazy fix: mirroring EVERY subject into bwd_adj would swallow the graph, so an edge from an UNDESIGNATED node must not carry the walk. One fixture, one law — occlusion stays interval-occlusion.json's axis.",
+  "rows": [
+    { "slug": "story", "content": "the story", "witnessed": 1 },
+    { "slug": "story-end", "content": "the story's End-pole", "witnessed": 1 },
+    { "slug": "pole", "content": "End-pole designation (frame: story)", "subject": "story", "object": "story-end", "witnessed": 1 },
+    { "slug": "pole~q", "content": "End-pole designation (frame: story) [q-end-pole]", "subject": "pole", "object": "q-end-pole", "witnessed": 1 },
+
+    { "slug": "ev-captured", "content": "the captured event — reachable ONLY through the End", "witnessed": 2 },
+    { "slug": "cap", "content": "the End prehends the capture", "subject": "story-end", "object": "ev-captured", "witnessed": 3 },
+
+    { "slug": "ev-outside", "content": "an event no designated pole reaches", "witnessed": 4 },
+    { "slug": "other-end", "content": "a node that is NOT a designated End-pole", "witnessed": 5 },
+    { "slug": "stray", "content": "bare edge from an undesignated node", "subject": "other-end", "object": "ev-outside", "witnessed": 6 }
+  ],
+  "expect": [
+    { "read": "intervalOf", "once": "story", "end": "story-end", "contains": ["ev-captured"], "excludes": ["ev-outside"] }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "scher-game",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "The game layer over a scher Society. Boards, moves and cascades as folds — nothing stored, everything read.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "peerDependencies": { "scher": "*" },
+  "scripts": { "build": "tsc", "check": "tsc --noEmit" },
+  "files": ["dist", "src", "README.md"]
+}

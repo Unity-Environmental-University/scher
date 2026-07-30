@@ -20,11 +20,11 @@
 // a finger. Both are honest; only one is free.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { Society, isOccluded } from "scher/society";
-import { cell, type Read } from "scher/cell";
-import { reading } from "scher/stories";
-import { el, esc } from "scher/dom";
-import { project } from "scher/projection";
+import { Society, isOccluded } from "scher/society.js";
+import { cell, type Read } from "scher/cell.js";
+import { reading } from "scher/stories.js";
+import { el, esc } from "scher/dom.js";
+import { project } from "scher/projection.js";
 
 export interface MenuItem {
   id: string;

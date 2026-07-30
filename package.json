@@ -41,6 +41,34 @@
       "types": "./dist/fisheye.d.ts",
       "default": "./dist/fisheye.js"
     },
+    "./society.js": {
+      "types": "./dist/society.d.ts",
+      "default": "./dist/society.js"
+    },
+    "./stories.js": {
+      "types": "./dist/stories.d.ts",
+      "default": "./dist/stories.js"
+    },
+    "./cell.js": {
+      "types": "./dist/cell.d.ts",
+      "default": "./dist/cell.js"
+    },
+    "./dom.js": {
+      "types": "./dist/dom.d.ts",
+      "default": "./dist/dom.js"
+    },
+    "./frames.js": {
+      "types": "./dist/frames.d.ts",
+      "default": "./dist/frames.js"
+    },
+    "./projection.js": {
+      "types": "./dist/projection.d.ts",
+      "default": "./dist/projection.js"
+    },
+    "./fisheye.js": {
+      "types": "./dist/fisheye.d.ts",
+      "default": "./dist/fisheye.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

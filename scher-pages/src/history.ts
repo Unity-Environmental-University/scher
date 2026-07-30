@@ -11,11 +11,11 @@
 // Neither wants a bespoke one.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { Society, isOccluded, isIngressionNode, type EventRow } from "scher/society";
-import { reading } from "scher/stories";
-import { el, esc } from "scher/dom";
-import { project } from "scher/projection";
-import type { Read } from "scher/cell";
+import { Society, isOccluded, isIngressionNode, type EventRow } from "scher/society.js";
+import { reading } from "scher/stories.js";
+import { el, esc } from "scher/dom.js";
+import { project } from "scher/projection.js";
+import type { Read } from "scher/cell.js";
 
 /** One row of the history: a beat as it reads from HERE. */
 export interface HistoryEntry {

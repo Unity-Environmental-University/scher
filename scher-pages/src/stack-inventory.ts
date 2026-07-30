@@ -22,10 +22,10 @@
 // stored value that can drift from the events that produced it.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { Society, isOccluded } from "scher/society";
-import { reading } from "scher/stories";
-import { el, esc } from "scher/dom";
-import { project } from "scher/projection";
+import { Society, isOccluded } from "scher/society.js";
+import { reading } from "scher/stories.js";
+import { el, esc } from "scher/dom.js";
+import { project } from "scher/projection.js";
 
 /** A stack: one kind of thing, and how many of it are held. */
 export interface Stack {

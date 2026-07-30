@@ -429,9 +429,14 @@ export interface Card {
    *  Derivable from `effect` for the built-in kinds (see `rulesTextOf`), but
    *  overridable, because a designer will always word it better. */
   rules?: string;
-  /** FLAVOR: the fictional trigger, PbtA shape, same as an interview move.
-   *  Goes in italics at the bottom of a card where flavor goes, and never
-   *  where a player looks to find out what happens. */
+  /** The PbtA trigger — WHEN this applies, not decoration.
+   *
+   *  NOTE (Hallie, 2026-07-30: "can you kill the flavor text"): there is no
+   *  separate flavour field, deliberately. Flavour is English prose, and
+   *  Simlish retires English except where it is load-bearing
+   *  (career-rpg/muslins/09-language/LANGUAGE.md). A trigger is load-bearing —
+   *  it says when the card is live — so it stays; atmosphere goes. If a card
+   *  wants mood, the mood is the art and the glyphs. */
   trigger: string;
   /** what playing it does to the board. A READ-and-lay, like every other move:
    *  returns the cells to clear, or null if the card does not apply here. */
@@ -678,6 +683,120 @@ export const FOREMAN = (question: Gem = 5, glass: Gem = 2, heart: Gem = 1): Play
   hand: [INVESTIGATE(question, glass)],
 });
 
+// ── JOB CARDS: what the WORK needs, not what a person wants ─────────────────
+//
+// Hallie, 2026-07-30: "THERE should also be Job Cards — things that the job
+// needs to happen to finish, you're working towards a completed job."
+//
+// The missing half. Until now a board had personal victory conditions and no
+// ENDING: you could chase "most 🌙" forever and the work was never done. A job
+// card is the work itself — requirements, SHARED, that everyone's clears count
+// toward.
+//
+// And it makes the coopetition real rather than a mood, because two reads come
+// apart:
+//
+//   DID THE JOB GET DONE?   a shared read over everyone's clears
+//   WHO CARRIED IT?         a personal read over yours
+//
+// A crew can finish while you got nothing you wanted. You can hit your own
+// condition on a job that failed. Both happen at work, and neither needed
+// writing into dialogue.
+
+export interface Requirement {
+  /** what the work needs, in a gem. */
+  gem: Gem;
+  /** how many, across EVERYONE. */
+  need: number;
+  /** legible: "log the finds". English, because it is load-bearing. */
+  says: string;
+}
+
+export interface JobCard {
+  id: string;
+  name: string;
+  /** what the client actually asked for. */
+  brief: string;
+  /** every requirement must be met for the job to be done. */
+  requires: Requirement[];
+  /** optional deadline in turns. A job that cannot fail is a chore. */
+  turns?: number;
+  /** a gem that works AGAINST the job. */
+  hazard?: Gem;
+}
+
+/** Progress on one requirement — summed across the whole crew. */
+export function requirementProgress(
+  r: Requirement, rec: MatchRecord,
+): { done: number; need: number; met: boolean; by: Record<string, number> } {
+  const by: Record<string, number> = {};
+  let done = 0;
+  for (const [pid, cleared] of Object.entries(rec.cleared)) {
+    const n = cleared[r.gem] ?? 0;
+    by[pid] = n;
+    done += n;
+  }
+  return { done, need: r.need, met: done >= r.need, by };
+}
+
+/** Is the job finished? A read over the shared record — no counter anywhere. */
+export const jobDone = (j: JobCard, rec: MatchRecord): boolean =>
+  j.requires.every((r) => requirementProgress(r, rec).met);
+
+/** Out of time? */
+export const jobFailed = (j: JobCard, rec: MatchRecord): boolean =>
+  j.turns !== undefined && rec.turns >= j.turns && !jobDone(j, rec);
+
+/** 0..1 across all requirements. */
+export function jobProgress(j: JobCard, rec: MatchRecord): number {
+  if (!j.requires.length) return 1;
+  const each = j.requires.map((r) => {
+    const p = requirementProgress(r, rec);
+    return Math.min(1, p.done / Math.max(1, p.need));
+  });
+  return each.reduce((a, b) => a + b, 0) / each.length;
+}
+
+/**
+ * WHO CARRIED IT — each player's share of the job's requirements.
+ *
+ * Deliberately separate from `jobDone`. A crew can finish a job in which one
+ * person did almost none of it, and the game should be able to say so without
+ * that changing whether the work is done.
+ */
+export function contribution(j: JobCard, rec: MatchRecord): Record<string, number> {
+  const total: Record<string, number> = {};
+  let all = 0;
+  for (const req of j.requires) {
+    const p = requirementProgress(req, rec);
+    for (const [pid, n] of Object.entries(p.by)) {
+      const counted = Math.min(n, req.need);      // work past the ask is not credit
+      total[pid] = (total[pid] ?? 0) + counted;
+      all += counted;
+    }
+  }
+  if (!all) return total;
+  for (const k of Object.keys(total)) total[k] = total[k] / all;
+  return total;
+}
+
+/** The job's gems, so gemsFor includes what the WORK needs. */
+export const gemsJobNeeds = (j: JobCard): Gem[] =>
+  [...j.requires.map((r) => r.gem), ...(j.hazard !== undefined ? [j.hazard] : [])];
+
+/** The worked example: the job the reclamation foreman would post. */
+export const CLEAR_THE_LOT = (glass: Gem, heart: Gem, hazard: Gem): JobCard => ({
+  id: "clear-the-lot",
+  name: "Clear The Lot",
+  brief: "Log what is worth keeping. Mind the neighbours.",
+  requires: [
+    { gem: glass, need: 12, says: "log the finds" },
+    { gem: heart, need: 8,  says: "mind the neighbours" },
+  ],
+  turns: 24,
+  hazard,
+});
+
 /** Whoever has met a victory condition. Plural on purpose: a cooperative or
  *  coopetitive board can have several winners, and forcing one is a design
  *  choice nobody asked for. */
@@ -794,7 +913,7 @@ export interface JobDemand {
  * depending on Set iteration — a board that reshuffles its own palette
  * between reads would break replay.
  */
-export function gemsFor(m: Match, job?: JobDemand): Gem[] {
+export function gemsFor(m: Match, job?: JobDemand | JobCard): Gem[] {
   const seen = new Set<Gem>();
   for (const p of m.players) {
     // what they REACH FOR
@@ -814,7 +933,8 @@ export function gemsFor(m: Match, job?: JobDemand): Gem[] {
       for (const k of gemsCardNeeds(c)) seen.add(k);
     }
   }
-  for (const k of job?.keys ?? []) seen.add(k);
+  if (job && "requires" in job) for (const k of gemsJobNeeds(job)) seen.add(k);
+  else for (const k of (job as JobDemand | undefined)?.keys ?? []) seen.add(k);
   if (job?.hazard !== undefined) seen.add(job.hazard);
   return [...seen].sort((a, b) => a - b);
 }
@@ -856,7 +976,7 @@ export function gemsCardNeeds(c: Card): Gem[] {
 }
 
 /** How many kinds this board has — derived, not configured. */
-export const kindsFor = (m: Match, job?: JobDemand): number =>
+export const kindsFor = (m: Match, job?: JobDemand | JobCard): number =>
   Math.max(3, gemsFor(m, job).length);
 
 /**
@@ -868,13 +988,13 @@ export const kindsFor = (m: Match, job?: JobDemand): number =>
  * character's stars stay stated in the game's own vocabulary no matter which
  * job they walk into.
  */
-export function paletteGlyphs(all: readonly string[], m: Match, job?: JobDemand): string[] {
+export function paletteGlyphs(all: readonly string[], m: Match, job?: JobDemand | JobCard): string[] {
   return gemsFor(m, job).map((g) => all[g] ?? "❔");
 }
 
 /** Map a game-vocabulary gem to this board's index, or -1 if it is not in
  *  play. "Is my star even on this board?" is a real and answerable question. */
-export const boardIndexOf = (m: Match, gem: Gem, job?: JobDemand): number =>
+export const boardIndexOf = (m: Match, gem: Gem, job?: JobDemand | JobCard): number =>
   gemsFor(m, job).indexOf(gem);
 
 /** A key the job demands that NOBODY on the crew is reaching for. The honest

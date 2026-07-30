@@ -74,8 +74,8 @@
      flavor text on those cards.") */
   .card .rules{padding:6px 7px 4px;font-size:10.5px;line-height:1.35;flex:1;color:#e8e4da}
   .card .v{color:var(--good);display:block;margin-top:4px;font-size:9.5px}
-  .card .flavor{padding:0 7px 5px;font-style:italic;color:#7e7694;font-size:9px;
-                line-height:1.3;border-top:1px dotted #3b3350;margin-top:auto;padding-top:5px}
+  /* no flavor row — killed (Hallie). English prose is what Simlish retires;
+     what a card says is its RULE, and the mood is the art and the glyphs. */
   .card .foot{border-top:1px solid #3b3350;background:#15111e;padding:4px 7px;
               font-size:9.5px;color:var(--dim);display:flex;justify-content:space-between;
               align-items:center;gap:4px}
@@ -94,6 +94,8 @@
   .strip{text-align:center;font-size:11px;color:var(--dim);padding:5px;
          border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin:6px 0}
   .strip b{color:var(--gold)}
+  .jobbar{height:6px;background:var(--line);margin:5px auto;max-width:340px}
+  .jobbar i{display:block;height:100%;background:#8fd3a0}
   .log{font-size:10px;color:var(--dim);max-height:110px;overflow:auto;
        border:1px solid var(--line);padding:6px;margin-top:8px}
 </style>
@@ -138,14 +140,17 @@
 </script>
 <script type="module">
 import { Society } from "/dist/society.js";
-import { openBoard, boardNow, swap, moveCount } from "/scher-game/dist/match3.js";
+import { openBoard, boardNow, swap, moveCount, playCardOnBoard }
+  from "/scher-game/dist/match3.js";
 import { match3Canvas, GLYPHS, GEM } from "/scher-game/dist/match3-canvas.js";
 import { planProbabilistic } from "/scher-game/dist/match3-superposition.js";
 import { MOON_MOTH, FLY_ME_TO_THE_MOON, INVESTIGATE, starIn,
          playerAt, stanceBetween, affinityOf, distribution, emptyRecord,
          chargesOf, cooldownProgress, canPlay, winners, applyCard, lonelyCells,
          rulesTextOf,
-         gemsFor, kindsFor, paletteGlyphs, unmetDemands, boardIndexOf }
+         gemsFor, kindsFor, paletteGlyphs, boardIndexOf,
+         CLEAR_THE_LOT, jobDone, jobFailed, jobProgress, contribution,
+         requirementProgress }
   from "/scher-game/dist/match3-players.js";
 
 // ONE vocabulary; the board takes the subset this crew and job need. Named
@@ -157,7 +162,9 @@ const { ROCKET, MOON, HEART, GLASS, QUESTION } = GEM;
 /** THE JOB asks for its own keys — reclamation wants hands-on work and care,
  *  and it carries a hazard. The board's palette is the union of this and
  *  whoever showed up. */
-const JOB = { id: "clear-the-lot", keys: [GLASS, HEART], hazard: QUESTION };
+// THE JOB CARD — what the WORK needs, shared. Everyone's clears count toward
+// it, so the job finishing and who got credit are two different reads.
+const JOB = CLEAR_THE_LOT(GLASS, HEART, QUESTION);
 
 /** YOU. No name and barely any art — you are the viewpoint. Your stars are
  *  whatever the character you built is reaching for; this demo seeds two so
@@ -222,7 +229,6 @@ const cardHtml = (c, p, i) => {
     <div class="rules">${rulesTextOf(c, g => ALL[g])}
       <span class="v">★ ${c.victory?.says ?? "—"}</span>
     </div>
-    <div class="flavor">${c.trigger}</div>
     <div class="bar"><i style="width:${(prog*100).toFixed(0)}%"></i></div>
     <div class="foot">
       <span class="pips">${pips}</span>
@@ -263,12 +269,21 @@ function render() {
   document.getElementById("themSide").classList.toggle("turnhere", up.id === them.id);
   document.getElementById("youSide").classList.toggle("turnhere", up.id === you.id);
 
-  const unmet = unmetDemands(match, JOB).map(g => ALL[g]);
+  const reqs = JOB.requires.map(r => {
+    const p = requirementProgress(r, rec);
+    return `<span style="color:${p.met ? "#8fd3a0" : "var(--dim)"}">` +
+           `${ALL[r.gem]} ${r.says} ${p.done}/${p.need}${p.met ? " ✓" : ""}</span>`;
+  }).join(" · ");
+  const share = contribution(JOB, rec);
+  const credit = match.players.map(p =>
+    `${p.name} ${Math.round((share[p.id] ?? 0) * 100)}%`).join(" · ");
+  const done = jobDone(JOB, rec), failed = jobFailed(JOB, rec);
   document.getElementById("job").innerHTML =
-    `THE JOB <b>clear the lot</b> · asks for ${JOB.keys.map(g=>ALL[g]).join(" ")}` +
-    ` · hazard ${ALL[JOB.hazard]} · board is <b>${glyphs.join(" ")}</b>` +
-    (unmet.length ? ` · <span style="color:#d38f8f">nobody here pulls ${unmet.join(" ")}</span>` : "") +
-    `<br><i>the gems come from who is on the job</i>`;
+    `<b>${JOB.name}</b> — ${JOB.brief}<br>${reqs}` +
+    `<div class="jobbar"><i style="width:${(jobProgress(JOB, rec)*100).toFixed(0)}%"></i></div>` +
+    `<span style="font-size:10px">turn ${rec.turns}/${JOB.turns} · who carried it: ${credit}</span>` +
+    (done ? ` <b style="color:#8fd3a0">JOB DONE</b>`
+          : failed ? ` <b style="color:#d38f8f">OUT OF TIME</b>` : "");
 
   const st = stanceBetween(them, you, ALL.length);   // GAME vocabulary, not board
   const word = st.ally > .55 ? "COOPERATIVE — you want the same thing"
@@ -318,12 +333,21 @@ function playCard(who, idx=0) {
     return log(`<b>${c.name}</b> makes ${ALL[c.effect.into]}, which is not on this board — it does nothing here`);
   const eff = { ...c, effect: { ...c.effect, into } };
   const after = applyCard(spec, before, eff);
-  const changed = after.filter((g,i)=>g!==before[i]).length;
+  const changedAt = after.map((g,i)=>g!==before[i] ? i : -1).filter(i=>i>=0);
+  if (!changedAt.length) return log(`<b>${c.name}</b> would change nothing here`);
+
+  // LAY IT. This was the bug: the effect was computed and thrown away, so the
+  // fold over swaps replayed a board on which the card had never happened.
+  playCardOnBoard(soc, spec, changedAt.map(i => [i, after[i]]), who.id);
+
+  credit(who, before, boardNow(soc, spec).cells);   // the cascade it caused counts
   rec.played[who.id][c.id] = (rec.played[who.id][c.id]||0)+1;
-  log(`<b>${who.name} plays ${c.name}</b> — ${changed} cells changed` +
+  log(`<b>${who.name} plays ${c.name}</b> — ${changedAt.length} cells → ${glyphs[into]}` +
       (c.effect.kind==="convert-lonely"
-        ? ` (${lonelyCells(spec, before).length} lonely cells)` : ""));
-  rec.turns = ++turn; render(); view?.redraw();
+        ? ` (${lonelyCells(spec, before).length} lonely)` : ""));
+  rec.turns = ++turn; render();
+  // particles at the changed cells, then the match check the card created
+  view?.cardFired(before, changedAt, glyphs[into]);
 }
 
 window.J = {

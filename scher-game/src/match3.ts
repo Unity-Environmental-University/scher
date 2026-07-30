@@ -93,6 +93,41 @@ const gemAt = (spec: BoardSpec, move: number, nonce: number): Gem =>
 
 const idx = (spec: BoardSpec, x: number, y: number) => y * spec.w + x;
 
+/**
+ * Lay a CARD PLAY. The other write besides swap().
+ *
+ * `sets` is (cellIndex → gem) for every cell the card changed, computed by the
+ * caller's own effect read. Stored as the beat's content so the fold is
+ * self-describing and never has to know what a "card" is.
+ */
+export function playCardOnBoard(
+  soc: Society, spec: BoardSpec, sets: Array<[number, Gem]>, by?: string,
+): string | null {
+  if (!sets.length) return null;
+  const n = cardBeats(soc, spec).length;
+  const slug = `${cardPrefix(spec.id)}${n}`;
+  soc.lay({
+    slug,
+    content: JSON.stringify(sets),
+    title: null, subject: null, object: null,
+    laid_by: by ?? null,
+  });
+  soc.layP(`${slug}~m`, `card sets ${sets.length} cells`, slug, spec.id, "q-move");
+  return slug;
+}
+
+function cardBeats(soc: Society, spec: BoardSpec, asOf?: number) {
+  const p = cardPrefix(spec.id);
+  return soc.all()
+    .filter((r) => r.subject !== null && r.object === spec.id &&
+                   (r.subject as string).startsWith(p))
+    .map((r) => soc.get(r.subject as string)!)
+    .filter(Boolean)
+    .filter((b) => asOf === undefined || (b.witnessed ?? 0) <= asOf)
+    .filter((b) => !isOccluded(soc, b.slug, asOf))
+    .sort((a, b) => (a.witnessed ?? 0) - (b.witnessed ?? 0));
+}
+
 /** The opening board: filled deterministically, then settled so it never
  *  starts already-matched (a start with free matches is the classic bug). */
 function initialCells(spec: BoardSpec): Gem[] {
@@ -203,6 +238,19 @@ export function settle(spec: BoardSpec, cells: Gem[], move: number): {
 // ── the log ─────────────────────────────────────────────────────────────────
 
 const swapPrefix = (id: string) => `swap-${id}-`;
+const cardPrefix = (id: string) => `card-${id}-`;
+
+/** A laid card play: which cells it set, and to what.
+ *  THE BUG THIS FIXES (Hallie, 2026-07-30: "I dont think the cards are
+ *  actually doing anything?"): the demo computed a card's new board with
+ *  applyCard() and then threw it away. The board is a FOLD OVER LAID EVENTS,
+ *  so an effect that is not laid does not exist — the next boardAt() replayed
+ *  swaps only and the card's work vanished.
+ *
+ *  A card play is therefore an event on the SAME chain as a swap, carrying
+ *  the cells it changed, and boardAt applies it in order like everything else.
+ *  Which also means card plays get undo, as-of and replay for free. */
+export interface CardPlay { at: number[]; to: Gem }
 
 /** Lay a swap. THE ONLY WRITE in the whole game. */
 export function swap(soc: Society, spec: BoardSpec,
@@ -267,11 +315,22 @@ export function boardAt(soc: Society, spec: BoardSpec, asOf?: number): Board {
   const opened = settle(spec, cells, 0);
   cells = opened.cells;
 
-  const swaps = swapBeats(soc, spec, asOf);
-  swaps.forEach((b, i) => {
-    const [a, z] = b.content.split(",").map(Number);
-    if (!Number.isInteger(a) || !Number.isInteger(z)) return;
-    [cells[a], cells[z]] = [cells[z], cells[a]];
+  // Replay EVERY move on the chain — swaps and card plays — in witnessing
+  // order. Interleaving matters: a card played between two swaps changed the
+  // board those swaps saw.
+  const moves = [...swapBeats(soc, spec, asOf), ...cardBeats(soc, spec, asOf)]
+    .sort((a, b) => (a.witnessed ?? 0) - (b.witnessed ?? 0));
+
+  moves.forEach((b, i) => {
+    if (b.slug.startsWith(cardPrefix(spec.id))) {
+      let sets: Array<[number, Gem]>;
+      try { sets = JSON.parse(b.content); } catch { return; }
+      for (const [at, to] of sets) if (at >= 0 && at < cells.length) cells[at] = to;
+    } else {
+      const [a, z] = b.content.split(",").map(Number);
+      if (!Number.isInteger(a) || !Number.isInteger(z)) return;
+      [cells[a], cells[z]] = [cells[z], cells[a]];
+    }
     const s = settle(spec, cells, i + 1);
     cells = s.cells; score += s.score; chain = s.chain; steps = s.steps;
   });
@@ -295,7 +354,7 @@ export function undoLastSwap(soc: Society, spec: BoardSpec, by?: string): string
 
 /** How many moves have been made (live ones only). */
 export const moveCount = (soc: Society, spec: BoardSpec, asOf?: number) =>
-  swapBeats(soc, spec, asOf).length;
+  swapBeats(soc, spec, asOf).length + cardBeats(soc, spec, asOf).length;
 
 /** Every legal move on the current board — the hint read, and the thing that
  *  tells you a board is dead. */

@@ -23,3 +23,9 @@ export { planProbabilistic, playProbabilistic, settleBelief, expectation,
          observe, beliefNow, UNRESOLVED,
          type ProbPlan, type ProbParams, type Belief, type Expectation }
   from "./match3-superposition.js";
+export { Particles, Shake, Juice, shakeForClear, SHAKE_EVENT,
+         type Particle, type BurstOptions } from "./juice.js";
+export { playCardOnBoard, type CardPlay } from "./match3.js";
+export { CLEAR_THE_LOT, jobDone, jobFailed, jobProgress, contribution,
+         requirementProgress, gemsJobNeeds, rulesTextOf, cooldownProgress,
+         type JobCard, type Requirement } from "./match3-players.js";

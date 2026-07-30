@@ -27,6 +27,10 @@ import { Society } from "scher/society.js";
 import {
   type BoardSpec, type SettleStep, boardNow, swap, legalMoves, adjacent,
 } from "./match3.js";
+// JUICE AS SYSTEMS (Hallie, 2026-07-30) — particles and shake were written
+// inline here, which meant the next game would rewrite them. Nothing about a
+// burst of glyphs or a decaying shake is match-3 shaped.
+import { Juice, shakeForClear, SHAKE_EVENT } from "./juice.js";
 
 /** Gem sets. `kinds` in the BoardSpec must match the set's length. */
 // ONE VOCABULARY, not two palettes.
@@ -108,6 +112,7 @@ export function match3Canvas(soc: Society, params: CanvasParams) {
 
   let picked: number | null = null;
   let anim: Anim | null = null;
+  const juice = new Juice();
   let raf = 0;
   let running = true;
 
@@ -140,6 +145,13 @@ export function match3Canvas(soc: Society, params: CanvasParams) {
 
   /** ease-out for the fall: gems arrive fast and settle, which reads as weight. */
   const ease = (t: number) => 1 - Math.pow(1 - t, 3);
+
+  /** Burst at a cell — the gem breaking apart. */
+  function burst(cell: number, glyph: string, n = 7, speed = 1) {
+    const [x, y] = xy(cell);
+    juice.particles.burst(x + CELL / 2, y + CELL / 2, glyph,
+      { count: n, speed: 0.07 * speed, size: CELL * 0.26 });
+  }
 
   function draw() {
     drawGrid();
@@ -202,7 +214,14 @@ export function match3Canvas(soc: Society, params: CanvasParams) {
     const dt = last ? now - last : 16;
     last = now;
     if (anim) {
+      const wasClearing = anim.t < CLEAR / (CLEAR + FALL);
       anim.t += dt / (CLEAR + FALL);
+      // burst exactly once per step, at the moment the clear-flash ends
+      if (wasClearing && anim.t >= CLEAR / (CLEAR + FALL)) {
+        const step = anim.steps[anim.i];
+        for (const i of step.cleared) burst(i, set[anim.before[i] % set.length] ?? "✦");
+        juice.shake.add(shakeForClear(step.cleared.length, anim.i));
+      }
       if (anim.t >= 1) {
         // apply this step to the local `before` and move on
         const step = anim.steps[anim.i];
@@ -215,7 +234,8 @@ export function match3Canvas(soc: Society, params: CanvasParams) {
         if (anim.i >= anim.steps.length) anim = null;
       }
     }
-    draw();
+    juice.step(dt);
+    juice.render(ctx, draw);         // world inside the shake, particles on top
     raf = requestAnimationFrame(frame);
   }
 
@@ -275,9 +295,30 @@ export function match3Canvas(soc: Society, params: CanvasParams) {
       anim = { steps: after.steps, i: 0, t: 0, before: swapped };
       draw();
     },
+    /** the juice systems, exposed so a caller can add its own bursts/shake. */
+    juice,
     /** true while a cascade is playing — so a caller can wait rather than
      *  stacking turns on top of each other. */
     get busy() { return anim !== null; },
+
+    /**
+     * A CARD FIRED: burst at the cells it changed, then run the cascade its
+     * change created.
+     *
+     * Hallie: "that needs to be a particle effect and then a match check too."
+     * The match check is the important half — a card that transmutes cells can
+     * CREATE a match, and before this the board just sat there holding a
+     * three-in-a-row that nothing resolved.
+     */
+    cardFired(beforeCells: number[], changed: number[], glyph: string) {
+      for (const c of changed) burst(c, glyph, 5, 1.5);
+      juice.shake.add(SHAKE_EVENT);
+      const after = boardNow(soc, spec);
+      // the settle that the card's own change produced — derived, not laid
+      const post = [...beforeCells];
+      anim = { steps: after.steps, i: 0, t: 0, before: post };
+      draw();
+    },
     /** stop the loop — a VN scene that leaves the minigame stops measuring. */
     stop() { running = false; cancelAnimationFrame(raf); },
     resume() { if (!running) { running = true; last = 0; raf = requestAnimationFrame(frame); } },

@@ -1,0 +1,12 @@
+{
+  "name": "scher-pages",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Shared page furniture for apps over a scher Society — history list, state editor, menu, modal. Wanted by Penelope AND by a game; that is the bar for living here.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "peerDependencies": { "scher": "*" },
+  "scripts": { "build": "tsc", "check": "tsc --noEmit" },
+  "files": ["dist", "src", "README.md"]
+}

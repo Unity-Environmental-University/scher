@@ -33,6 +33,14 @@
       "types": "./dist/frames.d.ts",
       "default": "./dist/frames.js"
     },
+    "./projection": {
+      "types": "./dist/projection.d.ts",
+      "default": "./dist/projection.js"
+    },
+    "./fisheye": {
+      "types": "./dist/fisheye.d.ts",
+      "default": "./dist/fisheye.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

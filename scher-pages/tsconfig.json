@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "declaration": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "skipLibCheck": true,
+    "lib": ["ES2022", "DOM"],
+    // Resolve `scher` against the BUILT package, not its source tree. Pointing
+    // paths at ../src/*.ts drags all of scher into this program and trips
+    // rootDir — scher is a peer dependency here, consumed the way any other
+    // consumer consumes it. Which also means this package typechecks against
+    // the same public surface everyone else gets.
+    "paths": { "scher": ["../dist/index.d.ts"], "scher/*": ["../dist/*.d.ts"] }
+  },
+  "include": ["src"]
+}

@@ -35,15 +35,33 @@
   .tally{font-size:15px;margin-top:6px;letter-spacing:.06em}
   .turnhere{outline:2px solid var(--gold);outline-offset:2px}
 
-  /* the card reads ACROSS: who/what on the left, stakes on the right */
-  .card{display:grid;grid-template-columns:1fr 1fr;gap:8px;border:2px solid #4a4256;
-        background:#1b1724;padding:7px;margin-top:7px}
-  .card .l b{color:var(--gold);font-size:13px}
-  .card .t{font-style:italic;color:var(--dim);font-size:11px;margin-top:2px}
-  .card .r{border-left:1px solid var(--line);padding-left:8px;font-size:11px}
-  .card .v{color:var(--good)}
-  .card .fuel{color:var(--dim);font-size:10px;margin-top:3px}
-  .bar{height:5px;background:var(--line);margin-top:4px}
+  /* ── ACTUAL CARDS ──────────────────────────────────────────────────
+     They were rendering as info panels. A card should read as a card:
+     portrait aspect, a titled header band, art, rules text in the middle,
+     and the cost/fuel down in the corner where a card keeps it. */
+  .hand{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .card{
+    width:158px;min-height:214px;display:flex;flex-direction:column;
+    background:linear-gradient(#221c2e,#191424);
+    border:2px solid #6b5f86;border-radius:9px;
+    box-shadow:0 2px 0 #0a0810, inset 0 0 0 1px #3b3350;
+    overflow:hidden;position:relative;
+  }
+  .card.spent{filter:grayscale(.75) brightness(.7)}
+  .card .hdr{background:linear-gradient(#3a3152,#2b2440);border-bottom:1px solid #6b5f86;
+             padding:5px 7px;font-size:11px;font-weight:700;color:var(--gold);
+             letter-spacing:.02em;line-height:1.25}
+  .card .frame{margin:6px 6px 0;height:52px;border:1px solid #4a4256;border-radius:4px;
+               background:#141019;display:flex;align-items:center;justify-content:center;
+               font-size:26px;letter-spacing:2px}
+  .card .rules{padding:6px 7px;font-size:10px;line-height:1.35;flex:1}
+  .card .t{font-style:italic;color:#9d94b5;display:block;margin-bottom:4px}
+  .card .v{color:var(--good);display:block}
+  .card .foot{border-top:1px solid #3b3350;background:#15111e;padding:4px 7px;
+              font-size:9.5px;color:var(--dim);display:flex;justify-content:space-between;
+              align-items:center;gap:4px}
+  .card .pips{letter-spacing:1px;color:var(--gold)}
+  .bar{height:4px;background:var(--line);margin:4px 7px 0}
   .bar i{display:block;height:100%;background:var(--gold)}
   .chg{color:var(--gold);font-weight:700}
 
@@ -138,6 +156,8 @@ const log = (m) => { const d=document.getElementById("log");
   d.innerHTML = m + "<br>" + d.innerHTML; };
 
 function reset() {
+  view?.stop(); view = null;
+  document.getElementById("board").textContent = "";
   match = { players: [MOON_MOTH(ROCKET, MOON, HEART), YOU()] };
   // THE GEMS ARE DERIVED — from who is here plus what the job wants.
   glyphs = paletteGlyphs(ALL, match, JOB);
@@ -155,15 +175,25 @@ const onBoard = (gem) => boardIndexOf(match, gem, JOB);
 const cardHtml = (c, p) => {
   const ch = chargesOf(c, rec, p);
   const prog = c.victory?.progress?.(rec, p) ?? 0;
-  const fuelIdx = c.recharge ? onBoard(c.recharge.gem) : -1;
-  return `<div class="card">
-    <div class="l"><b>${c.name}</b><div class="t">${c.trigger}</div></div>
-    <div class="r"><div class="v">★ ${c.victory?.says ?? "—"}</div>
-      <div class="bar"><i style="width:${(prog*100).toFixed(0)}%"></i></div>
-      <div class="fuel">charges <span class="chg">${ch===Infinity?"∞":ch}</span>${
-        c.recharge ? ` · reloads on ${fuelIdx<0 ? "(not on this board)" :
-          glyphs[fuelIdx]}×${c.recharge.per}` : ""}</div>
-    </div></div>`;
+  const spent = ch !== Infinity && ch <= 0;
+  // the card's "art" is Simlish too: the glyphs it works in, big.
+  const art = c.effect.kind === "convert-lonely" ? `${ALL[GEM.QUESTION]}`
+            : c.effect.kind === "transmute" ? `${ALL[c.effect.into]}×${c.effect.count}`
+            : "◆";
+  const pips = ch === Infinity ? "∞" : "●".repeat(Math.max(0, Math.min(5, ch))) || "○";
+  return `<div class="card${spent ? " spent" : ""}">
+    <div class="hdr">${c.name}</div>
+    <div class="frame">${art}</div>
+    <div class="rules">
+      <span class="t">${c.trigger}</span>
+      <span class="v">★ ${c.victory?.says ?? "—"}</span>
+    </div>
+    <div class="bar"><i style="width:${(prog*100).toFixed(0)}%"></i></div>
+    <div class="foot">
+      <span class="pips">${pips}</span>
+      <span>${c.recharge ? `${ALL[c.recharge.gem]}×${c.recharge.per}` : "always"}</span>
+    </div>
+  </div>`;
 };
 
 function sideHtml(p) {
@@ -175,7 +205,7 @@ function sideHtml(p) {
     <div class="star">${p.stars.map(s=>s.wish).join("<br>")}</div>
     <div class="pull">pulls ${pull}</div>
     <div class="tally">${tally}</div>
-    ${(p.hand??[]).map(c=>cardHtml(c,p)).join("")}`;
+    <div class="hand">${(p.hand??[]).map(c=>cardHtml(c,p)).join("")}</div>`;
 }
 
 function render() {
@@ -215,10 +245,16 @@ function render() {
   document.getElementById("moves").textContent = moveCount(soc, spec);
   document.getElementById("beats").textContent = soc.all().length;
 
+  // MOUNT ONCE. Re-creating the canvas each render killed any in-flight
+  // cascade, which is why another player's turn used to snap instead of
+  // animating. Panels repaint freely; the board persists.
   const host = document.getElementById("board");
-  host.textContent = ""; view?.stop();
-  view = match3Canvas(soc, { spec, gems: glyphs, cell: 54, by: "job" });
-  host.appendChild(view.node);
+  if (!view) {
+    view = match3Canvas(soc, { spec, gems: glyphs, cell: 54, by: "job" });
+    host.appendChild(view.node);
+  } else {
+    view.redraw();
+  }
 
   const w = winners(match, rec);
   if (w.length) log(`<b style="color:#8fd3a0">${w.map(p=>p.name).join(" & ")} met a victory condition</b>`);
@@ -251,11 +287,12 @@ function playCard(who, idx=0) {
   log(`<b>${who.name} plays ${c.name}</b> — ${changed} cells changed` +
       (c.effect.kind==="convert-lonely"
         ? ` (${lonelyCells(spec, before).length} lonely cells)` : ""));
-  rec.turns = ++turn; render();
+  rec.turns = ++turn; render(); view?.redraw();
 }
 
 window.J = {
   step(){
+    if (view?.busy) return;              // let the current cascade finish
     const who = playerAt(match, turn);
     const before = boardNow(soc, spec).cells;
     const p = planProbabilistic(soc, spec, { samples: 16 });
@@ -265,8 +302,21 @@ window.J = {
     rec.moves[who.id]++; rec.turns = ++turn;
     log(`<b>${who.name}</b> ${p.because.slice(0,110)}…`);
     render();
+    // ANIMATE IT — whoever took it. Watching her work is the point of a
+    // shared board.
+    view?.animateMove(before, p.move[0], p.move[1]);
   },
-  run(n){ for(let i=0;i<n;i++) J.step(); },
+  /** turns play in sequence, each waiting for the last cascade to land, so a
+   *  run reads as work happening rather than a jump cut. */
+  run(n){
+    let left = n;
+    const tick = () => {
+      if (left <= 0) return;
+      if (view?.busy) return setTimeout(tick, 60);
+      left--; J.step(); setTimeout(tick, 120);
+    };
+    tick();
+  },
   card(){ playCard(match.players[1], 0); },
   theirCard(){ playCard(match.players[0], 0); },
   reset,

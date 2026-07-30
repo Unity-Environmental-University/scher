@@ -256,6 +256,28 @@ export function match3Canvas(soc: Society, params: CanvasParams) {
 
   return {
     node: canvas,
+    /**
+     * ANIMATE A MOVE THAT SOMEONE ELSE MADE.
+     *
+     * Hallie, 2026-07-30: "we need to animate turns happening no matter who's
+     * taking them." Before this, only the player's own pointer-driven swap
+     * animated — an AI or opponent move re-mounted the canvas and the board
+     * just snapped to its new state, which loses the whole reason to watch a
+     * coopetitive board: seeing what your colleague actually did.
+     *
+     * Takes the cells as they were BEFORE the swap; everything else is
+     * derived, exactly as for a local move. Nothing extra is laid.
+     */
+    animateMove(beforeCells: number[], a: number, b: number) {
+      const after = boardNow(soc, spec);
+      const swapped = [...beforeCells];
+      [swapped[a], swapped[b]] = [swapped[b], swapped[a]];
+      anim = { steps: after.steps, i: 0, t: 0, before: swapped };
+      draw();
+    },
+    /** true while a cascade is playing — so a caller can wait rather than
+     *  stacking turns on top of each other. */
+    get busy() { return anim !== null; },
     /** stop the loop — a VN scene that leaves the minigame stops measuring. */
     stop() { running = false; cancelAnimationFrame(raf); },
     resume() { if (!running) { running = true; last = 0; raf = requestAnimationFrame(frame); } },

@@ -52,10 +52,21 @@ export interface Belief {
 
 /** Settle a board that may contain UNRESOLVED cells.
  *
- *  The rule that makes this coherent: an UNRESOLVED cell NEVER MATCHES. It
- *  cannot — it has no value. So a run through a superposed cell is not a run
- *  yet, and the cascade stops there rather than guessing. That is the honest
- *  reading: you do not know, so you do not clear.
+ *  An UNRESOLVED cell does not CLEAR here — it has no value, so nothing can be
+ *  removed on its account. But note what that does NOT mean, per Hallie's
+ *  correction (2026-07-30): "the unresolved cell might match — probabilistically."
+ *
+ *  A cell between two 🧠 completes that run with p = 1/kinds. Treating it as a
+ *  definite non-match is not conservative, it is WRONG — it systematically
+ *  undervalues every move that sets up a near-run. The certainty lives here
+ *  (this is what clears no matter what); the probability lives in
+ *  `matchPotential` and in the sampling, where an unresolved cell is collapsed
+ *  and genuinely does complete runs at its true rate.
+ *
+ *  "This does not matter as much now, but if we give access to powers…"
+ *  (Hallie) — and that is the real stake. A bomb, a row-clear, a colour-
+ *  detonate are all evaluated on near-runs. An AI that cannot see a probable
+ *  cascade will undervalue every power in the game.
  */
 export function settleBelief(spec: BoardSpec, cells: Gem[]): {
   cells: Gem[]; steps: SettleStep[]; chain: number; score: number; unresolved: number;
@@ -103,6 +114,61 @@ export function settleBelief(spec: BoardSpec, cells: Gem[]): {
  *  reaches for Math.random on its own. */
 export function observe(spec: BoardSpec, cells: Gem[], roll: () => number): Gem[] {
   return cells.map((g) => (g === UNRESOLVED ? Math.floor(roll() * spec.kinds) % spec.kinds : g));
+}
+
+/** A run that is one UNRESOLVED cell away from completing. */
+export interface NearRun {
+  /** the cells that would clear if the gap resolved favourably. */
+  cells: number[];
+  /** the gap(s) still in superposition. */
+  gaps: number[];
+  /** the gem that would complete it. */
+  gem: Gem;
+  /** probability the gap resolves to that gem: (1/kinds)^gaps. */
+  p: number;
+}
+
+/**
+ * ANALYTIC near-run detection: where would a run complete if the unresolved
+ * cells landed right, and how likely is that?
+ *
+ * This is the read sampling approximates, computed exactly for the ONE-STEP
+ * case. Cheap, deterministic, and it is what a power-evaluator wants: "this
+ * bomb sits on three near-runs at p=1/6 each" is a real number, available
+ * without simulating anything.
+ */
+export function matchPotential(spec: BoardSpec, cells: Gem[]): NearRun[] {
+  const out: NearRun[] = [];
+  const at = (x: number, y: number) => cells[y * spec.w + x];
+  const ix = (x: number, y: number) => y * spec.w + x;
+
+  const scan = (len: number, get: (i: number) => [number, number]) => {
+    for (let i = 0; i + 2 < len; i++) {
+      const trio = [get(i), get(i + 1), get(i + 2)];
+      const vals = trio.map(([x, y]) => at(x, y));
+      const gaps = trio.filter((_, k) => vals[k] === UNRESOLVED).map(([x, y]) => ix(x, y));
+      if (!gaps.length) continue;                       // already resolved
+      const known = vals.filter((v) => v >= 0);
+      if (known.length === 0) continue;                 // all unknown: no signal
+      if (!known.every((v) => v === known[0])) continue; // known ones disagree
+      out.push({
+        cells: trio.map(([x, y]) => ix(x, y)),
+        gaps,
+        gem: known[0],
+        p: Math.pow(1 / spec.kinds, gaps.length),
+      });
+    }
+  };
+
+  for (let y = 0; y < spec.h; y++) scan(spec.w, (i) => [i, y]);
+  for (let x = 0; x < spec.w; x++) scan(spec.h, (i) => [x, i]);
+  return out;
+}
+
+/** Expected score sitting in the near-runs — the value an all-or-nothing
+ *  "unresolved never matches" reading throws away. */
+export function potentialValue(spec: BoardSpec, cells: Gem[]): number {
+  return matchPotential(spec, cells).reduce((sum, r) => sum + r.p * r.cells.length * 10, 0);
 }
 
 export interface Expectation {
@@ -187,6 +253,9 @@ export interface ProbPlan {
   mobility: number;
   /** how many futures were sampled to decide. */
   futures: number;
+  /** analytic expected score sitting in near-runs — what an unresolved cell
+   *  might complete. Computed, not sampled. */
+  potential: number;
   because: string;
 }
 
@@ -226,8 +295,12 @@ export function planProbabilistic(
     // move clears no matter what falls in afterwards.
     const belief = settleBelief(spec, t);
     const e = expectation(spec, belief.cells, samples, roll);
+    // the analytic near-run term: an unresolved cell BETWEEN two matching gems
+    // completes that run at 1/kinds, and pretending otherwise undervalues
+    // every setup move (and, later, every power).
+    const potential = potentialValue(spec, belief.cells);
 
-    const utility = belief.score + e.expected - risk * e.stdev + mw * e.mobility;
+    const utility = belief.score + e.expected + potential - risk * e.stdev + mw * e.mobility;
     if (utility > bestUtility) {
       bestUtility = utility;
       best = {
@@ -235,12 +308,13 @@ export function planProbabilistic(
         guaranteed: belief.score,
         expected: belief.score + e.expected,
         stdev: e.stdev, worst: belief.score + e.worst, best: belief.score + e.best,
-        mobility: e.mobility, futures: e.samples,
+        mobility: e.mobility, futures: e.samples, potential,
         because:
           `${belief.score} guaranteed (clears that do not depend on refills), ` +
           `+${e.expected.toFixed(1)} expected from ${belief.unresolved} unresolved ` +
           `cells over ${e.samples} sampled futures (σ${e.stdev.toFixed(1)}, ` +
-          `worst ${e.worst}, best ${e.best})` +
+          `worst ${e.worst}, best ${e.best}); ` +
+          `${potential.toFixed(1)} sitting in near-runs an unresolved cell might complete` +
           (risk ? `; risk posture ${risk > 0 ? "averse" : "seeking"}` : ""),
       };
     }

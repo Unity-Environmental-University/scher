@@ -1,0 +1,195 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>a job — align, deck, work</title>
+<style>
+  body{margin:0;background:#0f0d13;color:#e8e4da;font:13px ui-monospace,Menlo,monospace;
+       display:flex;gap:16px;padding:16px;flex-wrap:wrap}
+  h1{font-size:13px;letter-spacing:.1em;margin:0 0 8px;color:#ffd76a}
+  .col{min-width:300px;max-width:380px}
+  .who{display:flex;gap:10px;align-items:center;border:2px solid #2a2530;padding:8px;
+       margin-bottom:8px;background:#171320}
+  .who img{width:58px;height:58px;object-fit:contain;border:2px solid #111;background:#241f2c}
+  .who .n{flex:1}
+  .who .n b{color:#ffd76a}
+  .star{font-size:10px;color:#a99cc4}
+  .card{border:2px solid #4a4256;padding:7px;margin-bottom:6px;background:#1b1724}
+  .card b{color:#ffd76a}
+  .card .t{font-style:italic;color:#a99cc4;font-size:11px}
+  .card .v{font-size:11px;color:#8fd3a0}
+  .card .r{font-size:10px;color:#8a8296}
+  .bar{height:5px;background:#2a2530;margin-top:4px}
+  .bar i{display:block;height:100%;background:#ffd76a}
+  .stat{display:flex;justify-content:space-between;border-bottom:1px solid #2a2530;padding:3px 0;
+        font-size:12px}
+  .stat b{color:#ffd76a}
+  button{font:inherit;font-size:11px;background:#241f2c;color:#e8e4da;border:1px solid #4a4256;
+         padding:5px 9px;cursor:pointer;margin:2px 3px 2px 0}
+  button:hover{border-color:#ffd76a}
+  .log{font-size:10px;color:#8a8296;max-height:200px;overflow:auto;border:1px solid #2a2530;
+       padding:6px;margin-top:8px}
+  .align{border:2px solid #4a4256;padding:8px;background:#171320;margin-bottom:8px}
+</style>
+<div id="game"></div>
+<div class="col">
+  <h1>WHO IS ON THIS JOB</h1>
+  <div id="cast"></div>
+  <div class="align" id="align"></div>
+  <h1>THE DECK</h1>
+  <div id="deck"></div>
+</div>
+<div class="col">
+  <h1>THE JOB</h1>
+  <div class="stat"><span>turn</span><b id="turn">—</b></div>
+  <div class="stat"><span>moves</span><b id="moves">0</b></div>
+  <div class="stat"><span>beats in log</span><b id="beats">0</b></div>
+  <div id="scores"></div>
+  <div style="margin-top:8px">
+    <button onclick="J.step()">next turn</button>
+    <button onclick="J.run(12)">work 12 turns</button>
+    <button onclick="J.card()">play the card</button>
+    <button onclick="J.reset()">new job</button>
+  </div>
+  <div class="log" id="log"></div>
+</div>
+<!-- scher ships raw ES modules; a browser needs the bare specifier mapped.
+     (An app with a bundler needs none of this — see examples/vite-consumer.) -->
+<script type="importmap">
+{ "imports": { "scher": "/dist/index.js", "scher/": "/dist/" } }
+</script>
+<script type="module">
+import { Society } from "/dist/society.js";
+import { openBoard, boardNow, swap, legalMoves, moveCount, findMatches }
+  from "/scher-game/dist/match3.js";
+import { match3Canvas, GEMS } from "/scher-game/dist/match3-canvas.js";
+import { planProbabilistic } from "/scher-game/dist/match3-superposition.js";
+import { MOON_MOTH, ROCKET_DAN_WITH_CARD, playerAt, stanceBetween, affinityOf,
+         distribution, emptyRecord, chargesOf, canPlay, winners, applyCard,
+         lonelyCells, edgeOn }
+  from "/scher-game/dist/match3-players.js";
+
+const SPEC = { id: "job-1", w: 8, h: 8, kinds: 6, seed: 2026 };
+const NAMES = GEMS.career;                       // 🧠 ❤️ 🔍 😎 🚀 🐛
+// scher-game ships no art — the portraits belong to the game consuming it.
+// A caller passes real images in; the demo uses emoji so this file stays
+// dependency-free.
+const FACE = { "moon-moth": "🦋", "rocket-dan": "🐝" };
+
+let soc, view, rec, match, turn = 0;
+const log = (m) => { const d = document.getElementById("log");
+  d.innerHTML = m + "<br>" + d.innerHTML; };
+
+function reset() {
+  soc = new Society();
+  openBoard(soc, SPEC, "job");
+  // she uses career gems here: 🔍 is her fuel, 🐛 her ?'s, ❤️/🚀 in play
+  match = { players: [MOON_MOTH(3, 1, 5, 2), ROCKET_DAN_WITH_CARD(4, 3)] };
+  rec = emptyRecord(match, SPEC.kinds);
+  turn = 0;
+  render();
+}
+
+function castHtml() {
+  return match.players.map((p) => {
+    const dist = distribution(affinityOf(p, SPEC.kinds));
+    const pulls = dist.map((d, i) => [NAMES[i], d]).sort((a, b) => b[1] - a[1])
+      .slice(0, 2).map(([g, d]) => `${g}${(d * SPEC.kinds).toFixed(1)}x`).join(" ");
+    return `<div class="who">
+      <div style="width:58px;height:58px;border:2px solid #111;background:#241f2c;
+        display:flex;align-items:center;justify-content:center;font-size:30px">${FACE[p.id] ?? "🐛"}</div>
+      <div class="n"><b>${p.name}</b><br>
+        <span class="star">${p.stars.map((s) => s.wish).join("<br>")}</span><br>
+        <span class="star">pulls ${pulls}</span></div>
+    </div>`;
+  }).join("");
+}
+
+function deckHtml() {
+  return match.players.flatMap((p) => (p.hand ?? []).map((c) => {
+    const ch = chargesOf(c, rec, p);
+    const prog = c.victory?.progress?.(rec, p) ?? 0;
+    return `<div class="card">
+      <b>${c.name}</b> <span class="r">— ${p.name}</span>
+      <div class="t">${c.trigger}</div>
+      <div class="v">★ ${c.victory?.says ?? "—"}</div>
+      <div class="bar"><i style="width:${(prog * 100).toFixed(0)}%"></i></div>
+      <div class="r">charges <b>${ch === Infinity ? "∞" : ch}</b>${
+        c.recharge ? ` · reloads on ${NAMES[c.recharge.gem]} ×${c.recharge.per}` : ""}</div>
+    </div>`;
+  })).join("");
+}
+
+function render() {
+  document.getElementById("cast").innerHTML = castHtml();
+  document.getElementById("deck").innerHTML = deckHtml();
+
+  const [a, b] = match.players;
+  const st = stanceBetween(a, b, SPEC.kinds);
+  const word = st.ally > .55 ? "COOPERATIVE — same star" :
+               st.ally > .15 ? "COOPETITIVE — partial overlap" :
+               st.ally < -.15 ? "OPPOSED" : "INDIFFERENT — different stars";
+  document.getElementById("align").innerHTML =
+    `<b>ALIGNMENT</b> ${(st.ally).toFixed(2)}<br><span class="star">${word}</span><br>` +
+    `<span class="star">read from shared stars, not chosen from a menu</span>`;
+
+  document.getElementById("turn").textContent =
+    `${playerAt(match, turn).name} (${turn})`;
+  document.getElementById("moves").textContent = moveCount(soc, SPEC);
+  document.getElementById("beats").textContent = soc.all().length;
+  document.getElementById("scores").innerHTML = match.players.map((p) =>
+    `<div class="stat"><span>${p.name}</span><b>${
+      rec.cleared[p.id].map((n, i) => n ? `${NAMES[i]}${n}` : "").filter(Boolean).join(" ") || "—"
+    }</b></div>`).join("");
+
+  const host = document.getElementById("game");
+  host.textContent = ""; view?.stop();
+  view = match3Canvas(soc, { spec: SPEC, gems: "career", cell: 56, by: "job" });
+  host.appendChild(view.node);
+
+  const w = winners(match, rec);
+  if (w.length) log(`<b style="color:#8fd3a0">${w.map(p=>p.name).join(" & ")} met a victory condition</b>`);
+}
+
+function credit(who, before, after) {
+  // who cleared what: diff the boards by gem
+  const b = {}, a = {};
+  before.forEach((g) => g >= 0 && (b[g] = (b[g] || 0) + 1));
+  after.forEach((g) => g >= 0 && (a[g] = (a[g] || 0) + 1));
+  for (let g = 0; g < SPEC.kinds; g++) {
+    const gone = (b[g] || 0) - (a[g] || 0);
+    if (gone > 0) rec.cleared[who.id][g] += gone;
+  }
+}
+
+window.J = {
+  step() {
+    const who = playerAt(match, turn);
+    const before = boardNow(soc, SPEC).cells;
+    const p = planProbabilistic(soc, SPEC, { samples: 16 });
+    if (!p) return log("board is dead");
+    swap(soc, SPEC, p.move[0], p.move[1], who.id);
+    credit(who, before, boardNow(soc, SPEC).cells);
+    rec.moves[who.id]++; rec.turns = ++turn;
+    log(`<b>${who.name}</b> ${p.because.slice(0, 110)}…`);
+    render();
+  },
+  run(n) { for (let i = 0; i < n; i++) J.step(); },
+  card() {
+    const who = playerAt(match, turn);
+    const c = (who.hand ?? [])[0];
+    if (!c) return log(`${who.name} has no card`);
+    if (!canPlay(c, rec, who))
+      return log(`<b>${c.name}</b> has no charges — needs ${NAMES[c.recharge.gem]}`);
+    const before = boardNow(soc, SPEC).cells;
+    const after = applyCard(SPEC, before, c);
+    const changed = after.filter((g, i) => g !== before[i]).length;
+    rec.played[who.id][c.id] = (rec.played[who.id][c.id] || 0) + 1;
+    log(`<b>${who.name} plays ${c.name}</b> — ${changed} cells changed` +
+        (c.effect.kind === "convert-lonely"
+          ? ` (${lonelyCells(SPEC, before).length} lonely cells → ${NAMES[c.effect.into]})` : ""));
+    rec.turns = ++turn;
+    render();
+  },
+  reset,
+};
+reset();
+</script>

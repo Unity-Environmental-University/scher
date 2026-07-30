@@ -274,16 +274,16 @@ function render() {
     return `<span style="color:${p.met ? "#8fd3a0" : "var(--dim)"}">` +
            `${ALL[r.gem]} ${r.says} ${p.done}/${p.need}${p.met ? " ✓" : ""}</span>`;
   }).join(" · ");
-  const share = contribution(JOB, rec);
-  const credit = match.players.map(p =>
-    `${p.name} ${Math.round((share[p.id] ?? 0) * 100)}%`).join(" · ");
-  const done = jobDone(JOB, rec), failed = jobFailed(JOB, rec);
+  // No credit split and no countdown (Hallie's call). Both were reads the
+  // library still supports — contribution() and jobFailed() — but on screen
+  // they turned a shared job into a scoreboard and a clock, which is the
+  // opposite of what a coopetitive board is for. The work either gets done or
+  // it does not; who carried it is a thing the fiction can raise if it wants.
+  const done = jobDone(JOB, rec);
   document.getElementById("job").innerHTML =
     `<b>${JOB.name}</b> — ${JOB.brief}<br>${reqs}` +
     `<div class="jobbar"><i style="width:${(jobProgress(JOB, rec)*100).toFixed(0)}%"></i></div>` +
-    `<span style="font-size:10px">turn ${rec.turns}/${JOB.turns} · who carried it: ${credit}</span>` +
-    (done ? ` <b style="color:#8fd3a0">JOB DONE</b>`
-          : failed ? ` <b style="color:#d38f8f">OUT OF TIME</b>` : "");
+    (done ? `<b style="color:#8fd3a0">JOB DONE</b>` : "");
 
   const st = stanceBetween(them, you, ALL.length);   // GAME vocabulary, not board
   const word = st.ally > .55 ? "COOPERATIVE — you want the same thing"

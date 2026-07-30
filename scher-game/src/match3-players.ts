@@ -719,7 +719,10 @@ export interface JobCard {
   brief: string;
   /** every requirement must be met for the job to be done. */
   requires: Requirement[];
-  /** optional deadline in turns. A job that cannot fail is a chore. */
+  /** optional deadline in turns. Left in the model but NOT shown by default
+   *  (Hallie, 2026-07-30) — a visible countdown turns work into a timed test,
+   *  and this game is about doing a job with someone, not beating a clock. A
+   *  design that wants pressure can surface it; the default does not. */
   turns?: number;
   /** a gem that works AGAINST the job. */
   hazard?: Gem;
@@ -764,6 +767,13 @@ export function jobProgress(j: JobCard, rec: MatchRecord): number {
  * person did almost none of it, and the game should be able to say so without
  * that changing whether the work is done.
  */
+/**
+ * WHO CARRIED IT. Available, and deliberately NOT displayed by default
+ * (Hallie, 2026-07-30: "kill the credits") — a live credit split turns a
+ * shared job into a scoreboard, which is the opposite of what a coopetitive
+ * board is for. Keep the read for a post-job scene or a performance review
+ * where it MEANS something; do not put it on the wall while people work.
+ */
 export function contribution(j: JobCard, rec: MatchRecord): Record<string, number> {
   const total: Record<string, number> = {};
   let all = 0;
@@ -793,7 +803,6 @@ export const CLEAR_THE_LOT = (glass: Gem, heart: Gem, hazard: Gem): JobCard => (
     { gem: glass, need: 12, says: "log the finds" },
     { gem: heart, need: 8,  says: "mind the neighbours" },
   ],
-  turns: 24,
   hazard,
 });
 

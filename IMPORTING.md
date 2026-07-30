@@ -79,9 +79,18 @@ alone likely outweighs both arguments in `ARCHITECTURE.md`.
 
 The two arguments there, evaluated honestly rather than repeated:
 
-- *"Honesty about what runs — the source IS the artifact."* Real for a library
-  whose pitch is legibility. Weak for an app; nobody reads your bundle. Largely
-  aesthetic.
+- *"Honesty about what runs — the source IS the artifact."* **Sourcemaps already
+  buy this.** A bundle that ships sourcemaps is readable: open devtools and you
+  are looking at the original TypeScript, breakpoints land on real lines, stack
+  traces name real files. So "legibility" is not a reason to avoid bundling —
+  it is a reason to `build.sourcemap: true`.
+
+  What survives is narrower and still real: raw ES modules are readable *with no
+  build having happened at all*. `curl` one file and read it; vendor the folder
+  and run it. That is a genuine property for a library people may want to adopt
+  without tooling — and it is a much smaller claim than "the source is the
+  artifact."
+
 - *"AST/crawler friendliness — no resolver to reimplement."* Has teeth **if**
   something actually crawls the import graph. If nothing does, it is a cost paid
   against a hypothetical.

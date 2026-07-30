@@ -18,3 +18,11 @@ export { menuStory, dialogStory, CHROME_INLINE_CSS,
 export { acquire, spend, stackOf, inventoryOf, carriedCount, stackInventoryStory,
          Q_HOLDS, INVENTORY_INLINE_CSS,
          type Stack, type InventoryParams, type InventoryStoryParams } from "./stack-inventory.js";
+export { ingress, egress, rehydrate, ingressWrapper, Q_INGRESSED,
+         type Shape, type Field, type IngressParams, type Ingression,
+         type Egress } from "./ingress.js";
+export { count, valueOf, place, sectionOf, countedOf, keysOf, readCounted,
+         bySection, totalOf, undo, moveBetween, Q_COUNTS, Q_IN_SECTION,
+         type Counted, type CountedSpec, type CountedRead } from "./counted.js";
+export { bagStory, addToBag, putInSlot, slotOf, firstFreeSlot, isFull,
+         BAG_INLINE_CSS, type BagSpec, type BagViewParams } from "./bag.js";

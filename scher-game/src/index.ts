@@ -16,3 +16,10 @@ export {
 } from "./match3.js";
 
 export { match3Canvas, GEMS, type GemSet, type CanvasParams } from "./match3-canvas.js";
+
+export { plan, planGreedy, playBest, hint, legalOn,
+         type Plan, type AiParams } from "./match3-ai.js";
+export { planProbabilistic, playProbabilistic, settleBelief, expectation,
+         observe, beliefNow, UNRESOLVED,
+         type ProbPlan, type ProbParams, type Belief, type Expectation }
+  from "./match3-superposition.js";

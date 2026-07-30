@@ -30,6 +30,15 @@
     <button onclick="G.auto(25)">auto-play 25</button>
     <button onclick="G.bench()">bench 200 moves</button>
   </div>
+  <h1 style="margin-top:14px">AI PLAYERS</h1>
+  <div>
+    <button onclick="G.hint()">hint</button>
+    <button onclick="G.ai(1)">search ×1</button>
+    <button onclick="G.ai(10)">search ×10</button>
+    <button onclick="G.prob(1)">probabilistic ×1</button>
+    <button onclick="G.prob(10)">probabilistic ×10</button>
+    <button onclick="G.duel()">duel: search vs greedy</button>
+  </div>
   <div class="note">
     A move lays <b>3 beats</b> no matter how long the cascade. The falling gems are
     <b>derived</b> — <code>settle()</code> returns an animation script nothing ever
@@ -45,6 +54,9 @@ import { Society } from "/dist/society.js";
 import { openBoard, boardNow, undoLastSwap, moveCount, legalMoves, swap }
   from "/scher-game/dist/match3.js";
 import { match3Canvas, GEMS } from "/scher-game/dist/match3-canvas.js";
+import { plan, planGreedy, playBest } from "/scher-game/dist/match3-ai.js";
+import { planProbabilistic, playProbabilistic }
+  from "/scher-game/dist/match3-superposition.js";
 
 const SPEC = { id: "board-1", w: 8, h: 8, kinds: 6, seed: 42 };
 const soc = new Society();
@@ -91,6 +103,30 @@ window.G = {
         `full re-fold ${(r1-r0).toFixed(1)}ms · ${soc.all().length} beats`);
     mount();
   },
+  hint(){ const p = plan(soc, SPEC, { depth: 2, width: 8 });
+    if (!p) return log("no legal moves");
+    log(`<b>HINT</b> ${p.move[0]}↔${p.move[1]} — ${p.because}`); },
+  ai(n){ const t0=performance.now(); let boards=0;
+    for (let i=0;i<n;i++){ const p = playBest(soc, SPEC, { depth: 3, width: 6 }, "frame-ai");
+      if (!p) { log("no legal moves"); break; } boards += p.boardsSearched;
+      if (n===1) log(`<b>SEARCH</b> ${p.because}`); }
+    if (n>1) log(`<b>SEARCH ×${n}</b> ${boards} boards predicted in ${(performance.now()-t0).toFixed(0)}ms`);
+    mount(); },
+  prob(n){ const t0=performance.now();
+    for (let i=0;i<n;i++){ const p = playProbabilistic(soc, SPEC, { samples: 24 }, "frame-ai-prob");
+      if (!p) { log("no legal moves"); break; }
+      if (n===1) log(`<b>PROB</b> ${p.because}`); }
+    if (n>1) log(`<b>PROB ×${n}</b> in ${(performance.now()-t0).toFixed(0)}ms`);
+    mount(); },
+  duel(){
+    const run = (which) => { const s2 = new Society(); openBoard(s2, SPEC, "duel");
+      for (let i=0;i<30;i++){ const p = which==="search" ? plan(s2,SPEC,{depth:3,width:6})
+                                                        : planGreedy(s2,SPEC);
+        if (!p) break; swap(s2, SPEC, p.move[0], p.move[1], which); }
+      return boardNow(s2, SPEC).score; };
+    const a = run("search"), b = run("greedy");
+    log(`<b>DUEL</b> 30 moves — search <b>${a}</b> vs greedy <b>${b}</b> → ` +
+        (a>b?"search wins":a<b?"greedy wins":"tie")); },
 };
 mount();
 </script>

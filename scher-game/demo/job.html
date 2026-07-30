@@ -46,8 +46,23 @@
     border:2px solid #6b5f86;border-radius:9px;
     box-shadow:0 2px 0 #0a0810, inset 0 0 0 1px #3b3350;
     overflow:hidden;position:relative;
+    /* a card is a THING you pick up, not a paragraph you select */
+    user-select:none;-webkit-user-select:none;
+    transition:transform .09s, box-shadow .09s, border-color .09s;
   }
-  .card.spent{filter:grayscale(.75) brightness(.7)}
+  /* PLAYABLE: lifts, glows, and says so. */
+  .card.playable{cursor:pointer;border-color:var(--gold)}
+  .card.playable:hover{transform:translateY(-4px);
+    box-shadow:0 6px 0 #0a0810, 0 0 14px rgba(255,215,106,.28), inset 0 0 0 1px #6b5f86}
+  .card.playable:active{transform:translateY(-1px)}
+  /* NOT PLAYABLE: dimmed, and the footer says why. */
+  .card.spent{filter:grayscale(.7) brightness(.62);cursor:not-allowed}
+  .card.theirs{cursor:default;opacity:.92}
+  .card .why{position:absolute;inset:auto 0 0 0;background:#2a1420;color:#e0a0a0;
+             font-size:9px;text-align:center;padding:2px;border-top:1px solid #5a2a3a}
+  .card .playnow{position:absolute;top:4px;right:5px;background:var(--gold);color:#1a1520;
+                 font-size:8px;font-weight:700;padding:1px 5px;border-radius:8px;
+                 letter-spacing:.04em}
   .card .hdr{background:linear-gradient(#3a3152,#2b2440);border-bottom:1px solid #6b5f86;
              padding:5px 7px;font-size:11px;font-weight:700;color:var(--gold);
              letter-spacing:.02em;line-height:1.25}
@@ -172,16 +187,28 @@ function reset() {
 /** a player's gem index on THIS board (their star keys are in game vocabulary) */
 const onBoard = (gem) => boardIndexOf(match, gem, JOB);
 
-const cardHtml = (c, p) => {
+const cardHtml = (c, p, i) => {
   const ch = chargesOf(c, rec, p);
   const prog = c.victory?.progress?.(rec, p) ?? 0;
   const spent = ch !== Infinity && ch <= 0;
+  const mine = p.id === "you";
+  const myTurn = playerAt(match, turn).id === p.id;
+  const offBoard = onBoard(c.effect.into ?? 0) < 0;
+  // ONE place decides playability, and the card SHOWS the answer.
+  const playable = mine && myTurn && !spent && !offBoard && !view?.busy;
+  const why = !mine ? "" : spent ? `needs ${ALL[c.recharge.gem]}`
+            : offBoard ? "not on this board"
+            : !myTurn ? "not your turn" : "";
   // the card's "art" is Simlish too: the glyphs it works in, big.
   const art = c.effect.kind === "convert-lonely" ? `${ALL[GEM.QUESTION]}`
             : c.effect.kind === "transmute" ? `${ALL[c.effect.into]}×${c.effect.count}`
             : "◆";
   const pips = ch === Infinity ? "∞" : "●".repeat(Math.max(0, Math.min(5, ch))) || "○";
-  return `<div class="card${spent ? " spent" : ""}">
+  return `<div class="card${spent ? " spent" : ""}${playable ? " playable" : ""}${
+      mine ? "" : " theirs"}"
+      ${playable ? `onclick="J.play('${p.id}',${i})"` : ""}
+      title="${playable ? "click to play" : (why || "")}">
+    ${playable ? '<span class="playnow">PLAY</span>' : ""}
     <div class="hdr">${c.name}</div>
     <div class="frame">${art}</div>
     <div class="rules">
@@ -193,6 +220,7 @@ const cardHtml = (c, p) => {
       <span class="pips">${pips}</span>
       <span>${c.recharge ? `${ALL[c.recharge.gem]}×${c.recharge.per}` : "always"}</span>
     </div>
+    ${why ? `<div class="why">${why}</div>` : ""}
   </div>`;
 };
 
@@ -205,7 +233,7 @@ function sideHtml(p) {
     <div class="star">${p.stars.map(s=>s.wish).join("<br>")}</div>
     <div class="pull">pulls ${pull}</div>
     <div class="tally">${tally}</div>
-    <div class="hand">${(p.hand??[]).map(c=>cardHtml(c,p)).join("")}</div>`;
+    <div class="hand">${(p.hand??[]).map((c,i)=>cardHtml(c,p,i)).join("")}</div>`;
 }
 
 function render() {
@@ -317,6 +345,8 @@ window.J = {
     };
     tick();
   },
+  /** clicking a card plays it — the buttons below are now just shortcuts. */
+  play(pid, i){ playCard(match.players.find(p => p.id === pid), i); },
   card(){ playCard(match.players[1], 0); },
   theirCard(){ playCard(match.players[0], 0); },
   reset,

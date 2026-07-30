@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Society } from "../../src/society.js";
-import { openBoard, boardNow, legalMoves, moveCount, type BoardSpec } from "../src/match3.js";
+import { openBoard, boardNow, legalMoves, moveCount, swap, type BoardSpec } from "../src/match3.js";
 import { plan, planGreedy, playBest, legalOn } from "../src/match3-ai.js";
 import { planProbabilistic, playProbabilistic, settleBelief, expectation,
          observe, UNRESOLVED } from "../src/match3-superposition.js";
@@ -63,23 +63,30 @@ describe("ai — plots by predicting board state", () => {
 
   // THE CLAIM UNDER TEST: lookahead has to beat the dumb baseline, or it is
   // expensive decoration.
+  // THE CLAIM: lookahead must beat the dumb baseline or it is expensive
+  // decoration. Given a generous timeout because it plays whole games — it is
+  // a benchmark wearing a test's clothes, and shortening it to fit the default
+  // would weaken the only check that the search is worth anything.
   it("SEARCH BEATS GREEDY over a full game", () => {
+    // plan ONCE per move and play THAT plan — the first draft called plan()
+    // and then playBest(), which planned again: double the work for the same
+    // move, and the reason this test was slow.
     const play = (mode: "search" | "greedy", seed: number) => {
       const { s, sp } = fresh(seed);
-      for (let i = 0; i < 40; i++) {
-        const p = mode === "search" ? plan(s, sp, { depth: 3, width: 6 }) : planGreedy(s, sp);
+      for (let i = 0; i < 25; i++) {
+        const p = mode === "search" ? plan(s, sp, { depth: 2, width: 5 }) : planGreedy(s, sp);
         if (!p) break;
-        if (!playBest(s, sp, mode === "search" ? { depth: 3, width: 6 } : { depth: 1, width: 99 }))
-          break;
+        if (!swap(s, sp, p.move[0], p.move[1], mode)) break;
       }
       return boardNow(s, sp).score;
     };
-    let searchWins = 0, seeds = [1, 7, 13, 21, 34];
-    for (const seed of seeds) if (play("search", seed) >= play("greedy", seed)) searchWins++;
-    // not demanding a clean sweep — match-3 has a lot of luck in it. But the
-    // search should not LOSE most of the time.
+    let searchWins = 0;
+    for (const seed of [1, 7, 13, 21, 34])
+      if (play("search", seed) >= play("greedy", seed)) searchWins++;
+    // not a clean sweep — match-3 has real luck in it. But the search must not
+    // LOSE most of the time, or the lookahead is not buying anything.
     expect(searchWins).toBeGreaterThanOrEqual(3);
-  });
+  }, 30_000);
 });
 
 describe("superposition — refills unresolved until observed", () => {

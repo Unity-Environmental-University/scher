@@ -29,11 +29,38 @@ import {
 } from "./match3.js";
 
 /** Gem sets. `kinds` in the BoardSpec must match the set's length. */
+// ONE VOCABULARY, not two palettes.
+//
+// A first version had a `career` set and a `world` set, and a board picked
+// one. That broke the moment a character's star named something outside the
+// chosen set: the moon moth was constructed with moon=3 against the career
+// palette, so her card rendered "reloads on 😎" while her star said "the
+// moon." The fiction and the gems drifted and nothing caught it.
+//
+// Since the palette is now DERIVED from who is on the job (match3-players.ts,
+// `gemsFor`), the right shape is ONE table of every glyph the game speaks,
+// with a board using whichever subset its crew and job actually need. A star
+// can then name anything and always render as itself.
+export const GLYPHS = [
+  "🧠", "❤️", "🔍", "😎", "🚀", "🐛",     // 0-5  the resume keys
+  "🌙", "☀️", "🌸", "🐜", "🐝", "🪲",     // 6-11 the planet
+  "🔧", "❔",                             // 12-13 the work, the unknown
+] as const;
+
+/** Named indices, so callers never hardcode a number and drift from the
+ *  glyph it means. This is the fix for the bug above. */
+export const GEM = {
+  BRAIN: 0, HEART: 1, GLASS: 2, COOL: 3, ROCKET: 4, BUG: 5,
+  MOON: 6, SUN: 7, FLOWER: 8, ANT: 9, BEE: 10, BEETLE: 11,
+  WRENCH: 12, QUESTION: 13,
+} as const;
+
+/** Kept as convenience SUBSETS for a board that wants a themed palette
+ *  without deriving one — but note they are now views on the one vocabulary,
+ *  so index 6 is 🌙 everywhere, in every set. */
 export const GEMS = {
-  /** the resume keys — playable, and thematically the career game. */
-  career: ["🧠", "❤️", "🔍", "😎", "🚀", "🐛"],
-  /** the planet — playable, and thematically the world. */
-  world: ["🐜", "🐝", "🪲", "🌙", "☀️", "🌸"],
+  career: [GLYPHS[0], GLYPHS[1], GLYPHS[2], GLYPHS[3], GLYPHS[4], GLYPHS[5]],
+  world: [GLYPHS[9], GLYPHS[10], GLYPHS[11], GLYPHS[6], GLYPHS[7], GLYPHS[8]],
 } as const;
 
 export type GemSet = keyof typeof GEMS;

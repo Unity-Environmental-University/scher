@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { type BoardSpec } from "../src/match3.js";
 import {
-  ROCKET_DAN, SEARCHER_GREG, GENERALIST_MAB, ROCKET_DAN_WITH_CARD,
+  ROCKET_DAN, SEARCHER_GREG, GENERALIST_MAB, MOON_MOTH,
   FLY_ME_TO_THE_MOON, affinityOf, pGem, edgeOn, drawFor, distribution,
   playerAt, pCompletes, stanceBetween, regard, nearRunValue, teamValue,
   bestConverter, chargesOf, canPlay, emptyRecord, winners, mostOf, starIn,
@@ -123,7 +123,9 @@ describe("competitive / cooperative / coopetitive", () => {
 });
 
 describe("cards: moves plus victory conditions", () => {
-  const dan = ROCKET_DAN_WITH_CARD(ROCKET, MOON);
+  // the card is the MOTH's (Hallie: "rocket dan and moon moth have the same
+  // card") — Dan was the example of its shape, not a second holder.
+  const dan = MOON_MOTH(ROCKET, MOON);
   const m: Match = { players: [dan, SEARCHER_GREG()] };
   const fresh = () => emptyRecord(m, K);
 
@@ -164,17 +166,23 @@ describe("cards: moves plus victory conditions", () => {
   it("'get the MOST' cannot be met alone — it is comparative", () => {
     const r = fresh();
     r.cleared[dan.id][ROCKET] = 5;
-    expect(winners(m, r).map((p) => p.id)).toContain("rocket-dan");
+    expect(winners(m, r).map((p) => p.id)).toContain("moon-moth");
     r.cleared["searcher-greg"][ROCKET] = 99;              // Greg surges
     expect(winners(m, r)).toHaveLength(0);
   });
 
-  it("victory and star point the same way — a coherent character", () => {
+  // A REAL FINDING the first version of this test hid: the moth's stars are
+  // 🌙 and ❤️, but her card scores 🌙 AND 🚀 — and she has no rocket star.
+  // That is not incoherence, it is the character: rockets are her MEANS, not
+  // her want. She is not a person who loves rockets, she is a person who wants
+  // the moon badly enough to build them.
+  it("her star names the WANT; the card's other gem is the MEANS", () => {
     const c = dan.hand![0];
     const starKeys = dan.stars.flatMap((s) => s.keys);
-    expect(starKeys).toContain(ROCKET);
-    expect(starKeys).toContain(MOON);
+    expect(starKeys).toContain(MOON);          // what she is reaching for
+    expect(starKeys).not.toContain(ROCKET);    // …and rockets are only how
     expect(c.victory!.id).toContain(String(MOON));
+    expect(c.effect).toMatchObject({ into: ROCKET });
   });
 
   it("progress is readable for a bar", () => {

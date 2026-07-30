@@ -261,7 +261,34 @@ export function regard(st: Stance, me: Player, other: Player): number {
  * cannot explain malice, and pretending otherwise would be the stat mistake
  * again in a different costume.
  */
+/**
+ * SCAR (2026-07-30, caught in the browser, not by a test): call this with the
+ * BOARD's kind-count and it silently lies.
+ *
+ * Star keys are in the GAME's vocabulary (moon = 6 in GLYPHS), while a derived
+ * board may only have 4 kinds. `affinityOf` bounds-checks `k < kinds`, so every
+ * key at or above the board size is dropped — and two characters who both say
+ * "To get to the moon" read as INDIFFERENT, 0.00, because their shared star
+ * was silently discarded.
+ *
+ * The rule: pass the size of the GAME'S GLYPH TABLE here, never the board's.
+ * Alignment is between people; it does not change because they walked into a
+ * smaller job. Guarded below rather than left as a comment, since the failure
+ * is invisible — a wrong number, not an error.
+ */
 export function stanceBetween(a: Player, b: Player, kinds: number): Stance {
+  const highest = Math.max(0, ...[...a.stars, ...b.stars].flatMap((s) => s.keys));
+  if (highest >= kinds)
+    throw new RangeError(
+      `stanceBetween: a star names key ${highest} but kinds=${kinds}. Pass the ` +
+      `GAME's glyph-table size, not the board's palette size — otherwise shared ` +
+      `stars above the board size are dropped and two aligned people read as ` +
+      `indifferent.`,
+    );
+  return stanceUnchecked(a, b, kinds);
+}
+
+function stanceUnchecked(a: Player, b: Player, kinds: number): Stance {
   const wa = affinityOf(a, kinds).weights;
   const wb = affinityOf(b, kinds).weights;
   // cosine similarity on the star-derived pulls, with the uniform base removed
@@ -543,15 +570,19 @@ export const FLY_ME_TO_THE_MOON = (rocket: Gem = 4, moon: Gem = 3): Card => ({
   startingCharges: 1,
 });
 
-/** Dan, holding his card. The star and the victory point the same way — which
- *  is the check that a character is coherent: you cannot hand someone a goal
- *  their stars do not support. */
-export const ROCKET_DAN_WITH_CARD = (rocket: Gem = 4, moon: Gem = 3): Player => ({
-  ...ROCKET_DAN(),
-  stars: [starIn(rocket, "To get off this planet.", 1),
-          starIn(moon, "To get to the moon.", 0.5)],
-  hand: [FLY_ME_TO_THE_MOON(rocket, moon)],
-});
+// CORRECTION (Hallie, 2026-07-30): "rocket dan and moon moth have the same
+// card." Fly Me To The Moon is the MOTH's card — Rocket Dan was the worked
+// example of the card's SHAPE, and I split one character into two by treating
+// the example as a second person.
+//
+// It was always hers, and it reads better as hers: she wants the moon, she
+// makes rockets to get there, and she reloads on moons. The card's fuel/points
+// gap is her whole situation — the thing she wants is also the thing that lets
+// her keep trying for it.
+//
+// ROCKET_DAN stays as a bare affinity example (a player who pulls rockets, no
+// card), because the affinity demo is still worth having and deleting him
+// would take the "two players pull differently" test with it.
 
 /**
  * INVESTIGATE — Hallie's second card, and it introduces a new effect shape.
@@ -579,15 +610,31 @@ export const INVESTIGATE = (question: Gem = 5, glass: Gem = 2): Card => ({
   startingCharges: 1,
 });
 
-/** THE MOON MOTH — the interviewer from the wireframe, at a board.
- *  Her stars are the ones from the character work: the moon, and not leaving
- *  anyone alone. Which makes her affinity pull 🌙 and ❤️, and her card is
- *  Investigate because a moth at a desk with moon charts IS an investigator. */
-export const MOON_MOTH = (moon: Gem = 3, heart: Gem = 1,
-                          question: Gem = 5, glass: Gem = 2): Player => ({
+/**
+ * THE MOON MOTH — the one from the drawing: glasses, feathered antennae, a
+ * moon nameplate on her desk and a rocket poster on the wall behind her.
+ *
+ * Her stars are the character work's: the moon, and never letting anyone be
+ * alone. FLY ME TO THE MOON is HER card (Hallie's correction) — and the fit is
+ * exact once you see it. She wants the moon; the card makes rockets, which is
+ * how you get there; and it reloads on moons, so the thing she is reaching for
+ * is also the thing that lets her keep reaching. That is a whole character in
+ * one card, and the poster on her wall says it before she does.
+ */
+export const MOON_MOTH = (rocket: Gem = 4, moon: Gem = 3, heart: Gem = 1): Player => ({
   id: "moon-moth", name: "the moth at the desk",
   stars: [starIn(moon, "To get to the moon.", 1),
           starIn(heart, "To never let anyone be alone.", 0.5)],
+  hand: [FLY_ME_TO_THE_MOON(rocket, moon)],
+});
+
+/** The reclamation foreman — the hard-hat bug, the other drawn character.
+ *  She INVESTIGATES: makes ?'s out of what nobody else could use, and reloads
+ *  on the looking itself. */
+export const FOREMAN = (question: Gem = 5, glass: Gem = 2, heart: Gem = 1): Player => ({
+  id: "foreman", name: "the reclamation foreman",
+  stars: [starIn(glass, "To find the thing nobody else found.", 1),
+          starIn(heart, "To leave the block better than I found it.", 0.5)],
   hand: [INVESTIGATE(question, glass)],
 });
 
@@ -664,4 +711,86 @@ export function applyCard(
     default:
       return out;
   }
+}
+
+// ── THE GEMS COME FROM WHO IS ON THE JOB ────────────────────────────────────
+//
+// Hallie, 2026-07-30: "the characters and job involved should determine the
+// gems."
+//
+// Which retires the last fixed thing in this file. A hardcoded 6-gem palette
+// says every job is the same job — but a reclamation crew and an admissions
+// interview are not played in the same currency, and two different crews on
+// the same job should not be either.
+//
+// So the palette is a READ: the union of what the people involved are
+// reaching for (their star keys) plus what the job itself demands. Which
+// means:
+//
+//   * a board's gems TELL YOU who is on it and what is being asked
+//   * bringing a different colleague literally changes what falls
+//   * a job that demands a key nobody has is a visibly hard job — the gem is
+//     on the board and nobody pulls it
+//
+// The kind-count follows from the same read, so `kinds` stops being a magic
+// number too. A two-person job with narrow stars is a small, focused board; a
+// crowded one with a demanding client is a noisy board. That difficulty comes
+// from the fiction rather than from a slider.
+
+/** What a job asks for, in keys. */
+export interface JobDemand {
+  id: string;
+  /** the keys the WORK needs, whoever shows up. */
+  keys: Gem[];
+  /** optional: a key the job punishes — noise, distraction, the 🐛 in the
+   *  machine. Included in the palette so it can show up and be dealt with. */
+  hazard?: Gem;
+}
+
+/**
+ * THE PALETTE READ: which gems are on this board, given who is here.
+ *
+ * Ordered so the result is stable (same crew, same board) rather than
+ * depending on Set iteration — a board that reshuffles its own palette
+ * between reads would break replay.
+ */
+export function gemsFor(m: Match, job?: JobDemand): Gem[] {
+  const seen = new Set<Gem>();
+  for (const p of m.players)
+    for (const s of p.stars)
+      for (const k of s.keys) seen.add(k);
+  for (const k of job?.keys ?? []) seen.add(k);
+  if (job?.hazard !== undefined) seen.add(job.hazard);
+  return [...seen].sort((a, b) => a - b);
+}
+
+/** How many kinds this board has — derived, not configured. */
+export const kindsFor = (m: Match, job?: JobDemand): number =>
+  Math.max(3, gemsFor(m, job).length);
+
+/**
+ * A board's palette as DISPLAY GLYPHS, given a full glyph table.
+ *
+ * The board's internal gem indices are 0..n-1 over the derived palette, so a
+ * renderer needs this mapping to know that "gem 2 on this board" means 🔍.
+ * Keeping it a read (rather than renumbering the players' star keys) means a
+ * character's stars stay stated in the game's own vocabulary no matter which
+ * job they walk into.
+ */
+export function paletteGlyphs(all: readonly string[], m: Match, job?: JobDemand): string[] {
+  return gemsFor(m, job).map((g) => all[g] ?? "❔");
+}
+
+/** Map a game-vocabulary gem to this board's index, or -1 if it is not in
+ *  play. "Is my star even on this board?" is a real and answerable question. */
+export const boardIndexOf = (m: Match, gem: Gem, job?: JobDemand): number =>
+  gemsFor(m, job).indexOf(gem);
+
+/** A key the job demands that NOBODY on the crew is reaching for. The honest
+ *  read of an understaffed job, and a good thing for a UI to say out loud. */
+export function unmetDemands(m: Match, job: JobDemand): Gem[] {
+  const wanted = new Set<Gem>();
+  for (const p of m.players)
+    for (const s of p.stars) for (const k of s.keys) wanted.add(k);
+  return job.keys.filter((k) => !wanted.has(k));
 }

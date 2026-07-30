@@ -13,9 +13,19 @@
        font:13px ui-monospace,Menlo,monospace;display:flex;justify-content:center;padding:14px}
   .table{width:min(700px,100%)}
 
-  .side{display:flex;gap:12px;border:2px solid var(--line);background:var(--panel);padding:10px}
+  .side{display:flex;gap:12px;border:2px solid var(--line);background:var(--panel);
+        padding:16px 10px 10px}   /* headroom for the thought bubble */
   .side.you{border-color:#3a3446;padding:8px 10px}
   .portrait{width:96px;height:124px;object-fit:cover;border:3px solid #111;flex:0 0 auto}
+  /* SIMLISH: bugs think in emoji, and the emoji ARE the stats. A bubble is not
+     flavour text — it is the key she is reaching for, in the same notation the
+     board uses. (career-rpg/muslins/09-language/LANGUAGE.md) */
+  .portwrap{position:relative;flex:0 0 auto}
+  .bubble{position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:#f4f1e8;color:#111;
+          border:2px solid #111;border-radius:14px;padding:3px 8px;font-size:17px;
+          white-space:nowrap;line-height:1.2}
+  .bubble:after{content:"";position:absolute;left:8px;bottom:-8px;width:0;height:0;
+                border:6px solid transparent;border-top-color:#111}
   .whoBox{flex:1;min-width:0}
   .whoBox h2{margin:0 0 3px;font-size:14px;color:var(--gold);letter-spacing:.04em}
   /* you get a thin rule, not a portrait */
@@ -53,7 +63,11 @@
 
 <div class="table">
   <div class="side" id="themSide">
-    <img class="portrait" src="art/moth-desk.jpg" alt="the moth at the desk">
+    <div class="portwrap">
+      <img class="portrait" src="art/moth-desk.jpg" alt="the moth at the desk">
+      <div class="bubble" id="themThink" title="what she is thinking — and it is
+        the same glyph as her star, and as the gem on the board">…</div>
+    </div>
     <div class="whoBox" id="them"></div>
   </div>
 
@@ -168,6 +182,16 @@ function render() {
   const [them, you] = match.players;
   document.getElementById("them").innerHTML = sideHtml(them);
   document.getElementById("you").innerHTML = sideHtml(you);
+
+  // THE BUBBLE IS A READ, not written dialogue: her brightest star, plus a ?
+  // when the board is thin on it. Nothing here is authored, which is the whole
+  // point — no voice can drift because there is no voice.
+  const brightest = [...them.stars].sort((a,b)=>b.magnitude-a.magnitude)[0];
+  const wantIdx = onBoard(brightest.keys[0]);
+  const onBoardCount = wantIdx < 0 ? 0
+    : boardNow(soc, spec).cells.filter(g => g === wantIdx).length;
+  document.getElementById("themThink").textContent =
+    ALL[brightest.keys[0]] + (onBoardCount < 6 ? "?" : onBoardCount > 12 ? "!" : "");
 
   const up = playerAt(match, turn);
   document.getElementById("themSide").classList.toggle("turnhere", up.id === them.id);

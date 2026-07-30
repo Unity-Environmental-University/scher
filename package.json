@@ -12,7 +12,28 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    }
+    },
+    "./society": {
+      "types": "./dist/society.d.ts",
+      "default": "./dist/society.js"
+    },
+    "./stories": {
+      "types": "./dist/stories.d.ts",
+      "default": "./dist/stories.js"
+    },
+    "./cell": {
+      "types": "./dist/cell.d.ts",
+      "default": "./dist/cell.js"
+    },
+    "./dom": {
+      "types": "./dist/dom.d.ts",
+      "default": "./dist/dom.js"
+    },
+    "./frames": {
+      "types": "./dist/frames.d.ts",
+      "default": "./dist/frames.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
     "dist",

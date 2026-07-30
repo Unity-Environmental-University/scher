@@ -1,0 +1,7 @@
+{
+  "_comment": "Drop into a <script type=\"importmap\"> — adjust the paths to where scher lives relative to your page. See IMPORTING.md.",
+  "imports": {
+    "scher": "../scher/dist/index.js",
+    "scher/": "../scher/dist/"
+  }
+}

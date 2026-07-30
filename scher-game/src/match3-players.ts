@@ -421,7 +421,17 @@ export const teamValue = (
 export interface Card {
   id: string;
   name: string;
-  /** the fictional trigger — PbtA shape, same as an interview move. */
+  /** RULES TEXT: what the card actually does, plainly. Hallie caught the demo
+   *  showing flavor where rules belong (2026-07-30) — "Turn 5 non-ships into
+   *  Rockets" is the rule; the trigger is atmosphere. A player has to be able
+   *  to read what a card does without inferring it from a mood.
+   *
+   *  Derivable from `effect` for the built-in kinds (see `rulesTextOf`), but
+   *  overridable, because a designer will always word it better. */
+  rules?: string;
+  /** FLAVOR: the fictional trigger, PbtA shape, same as an interview move.
+   *  Goes in italics at the bottom of a card where flavor goes, and never
+   *  where a player looks to find out what happens. */
   trigger: string;
   /** what playing it does to the board. A READ-and-lay, like every other move:
    *  returns the cells to clear, or null if the card does not apply here. */
@@ -434,15 +444,39 @@ export interface Card {
   startingCharges?: number;
 }
 
-/** How many times this card can be played right now — FOLDED from what the
- *  player has cleared, minus what they have spent. Never stored. */
+/**
+ * How many charges this card has RIGHT NOW — folded, never stored.
+ *
+ * RECHARGE IS A COOLDOWN, NOT A PURCHASE (Hallie, 2026-07-30: "they should
+ * RECHARGE. that should be a cooldown, not an initial cost").
+ *
+ * The first version had you EARN charges from zero: clear 3 moons, gain a use.
+ * That makes an early-game card dead weight and turns the fuel gem into a
+ * price. Wrong shape. "Recharges with Moons" means the card comes to the job
+ * READY, you spend it, and clearing moons brings it back — so the fuel
+ * controls PACE, not access, and a card is never useless, only cooling.
+ *
+ * Which also fixes the moth: her ability is what she does, not something she
+ * has to save up for.
+ */
 export function chargesOf(c: Card, r: MatchRecord, me: Player): number {
-  const start = c.startingCharges ?? 0;
   if (!c.recharge) return Infinity;
-  const fuel = r.cleared[me.id]?.[c.recharge.gem] ?? 0;
-  const earned = Math.floor(fuel / c.recharge.per);
+  const capacity = c.startingCharges ?? 1;        // it arrives FULL
   const spent = r.played?.[me.id]?.[c.id] ?? 0;
-  return start + earned - spent;
+  const fuel = r.cleared[me.id]?.[c.recharge.gem] ?? 0;
+  const restored = Math.floor(fuel / c.recharge.per);
+  // never above capacity: fuel banked while full is not saved up, it is spent
+  // keeping the card topped off — which is what a cooldown does.
+  return Math.max(0, Math.min(capacity, capacity - spent + restored));
+}
+
+/** How close the cooldown is to giving back a charge, 0..1. For a UI that
+ *  wants to show a filling ring rather than a number that jumps. */
+export function cooldownProgress(c: Card, r: MatchRecord, me: Player): number {
+  if (!c.recharge) return 1;
+  if (chargesOf(c, r, me) >= (c.startingCharges ?? 1)) return 1;
+  const fuel = r.cleared[me.id]?.[c.recharge.gem] ?? 0;
+  return (fuel % c.recharge.per) / c.recharge.per;
 }
 
 export const canPlay = (c: Card, r: MatchRecord, me: Player): boolean =>
@@ -475,7 +509,7 @@ export type CardEffect =
 export interface Recharge {
   /** which gem reloads it. */
   gem: Gem;
-  /** how many of that gem per use. */
+  /** how many of that gem to restore one charge. */
   per: number;
 }
 
@@ -485,6 +519,10 @@ export interface VictoryCondition {
   id: string;
   /** legible, so a player can be told what they are chasing. */
   says: string;
+  /** which gems this condition is scored in. Declared rather than parsed out
+   *  of `id`, because the palette read depends on it — a victory whose gems
+   *  are invisible to gemsFor produces a board you cannot win on. */
+  gems?: Gem[];
   /** evaluated against the match record. */
   met: (r: MatchRecord, me: Player) => boolean;
   /** 0..1, for a progress bar. */
@@ -516,6 +554,7 @@ export const emptyRecord = (m: Match, kinds: number): MatchRecord => ({
 export const mostOf = (gems: Gem[], label: string): VictoryCondition => ({
   id: `most-${gems.join("-")}`,
   says: label,
+  gems,
   met: (r, me) => {
     const mine = gems.reduce((n, g) => n + (r.cleared[me.id]?.[g] ?? 0), 0);
     return Object.entries(r.cleared).every(([id, cs]) =>
@@ -535,6 +574,7 @@ export const mostOf = (gems: Gem[], label: string): VictoryCondition => ({
 export const clearN = (gem: Gem, n: number, label: string): VictoryCondition => ({
   id: `clear-${gem}-${n}`,
   says: label,
+  gems: [gem],
   met: (r, me) => (r.cleared[me.id]?.[gem] ?? 0) >= n,
   progress: (r, me) => Math.min(1, (r.cleared[me.id]?.[gem] ?? 0) / n),
 });
@@ -756,12 +796,63 @@ export interface JobDemand {
  */
 export function gemsFor(m: Match, job?: JobDemand): Gem[] {
   const seen = new Set<Gem>();
-  for (const p of m.players)
+  for (const p of m.players) {
+    // what they REACH FOR
     for (const s of p.stars)
       for (const k of s.keys) seen.add(k);
+    // …and what their CARDS NEED. This was the bug (Hallie, 2026-07-30:
+    // "There are no rocketships on this board"): the moth's card makes 🚀 and
+    // her victory says "most Moons and Rocket Ships", but the palette read
+    // only looked at STARS — and rockets are her MEANS, not her want. So a
+    // card she holds, whose whole job is making rockets, had no rockets to
+    // make, and the UI called it "not on this board" as though that were a
+    // design outcome rather than a broken read.
+    //
+    // A gem is in play if ANYONE here needs it — to want it, to make it, or
+    // to fuel with it.
+    for (const c of p.hand ?? []) {
+      for (const k of gemsCardNeeds(c)) seen.add(k);
+    }
+  }
   for (const k of job?.keys ?? []) seen.add(k);
   if (job?.hazard !== undefined) seen.add(job.hazard);
   return [...seen].sort((a, b) => a - b);
+}
+
+/** RULES TEXT, derived from the effect — so a card cannot ship with rules that
+ *  disagree with what it does. `card.rules` overrides when a designer has a
+ *  better sentence, and that override is the only place the two can drift. */
+export function rulesTextOf(c: Card, glyph: (g: Gem) => string): string {
+  if (c.rules) return c.rules;
+  switch (c.effect.kind) {
+    case "transmute":
+      return `Turn ${c.effect.count} non-${glyph(c.effect.into)} into ${glyph(c.effect.into)}.`;
+    case "convert-lonely":
+      return `Turn every space with no matching neighbour into ${glyph(c.effect.into)}.`;
+    case "detonate-gem":
+      return `Clear every ${glyph(c.effect.gem)} on the board.`;
+    case "clear-row":  return "Clear a row.";
+    case "clear-col":  return "Clear a column.";
+    case "swap-any":   return "Swap any two spaces, adjacent or not.";
+    case "reroll-cell":return "Reroll one space.";
+    default:           return "—";
+  }
+}
+
+/** Every gem a card touches: what it makes, what fuels it, what it scores on.
+ *  Kept beside gemsFor so a new CardEffect cannot quietly go unrepresented —
+ *  if you add an effect kind, this switch is where the palette learns about it. */
+export function gemsCardNeeds(c: Card): Gem[] {
+  const out: Gem[] = [];
+  switch (c.effect.kind) {
+    case "transmute": out.push(c.effect.into); break;
+    case "convert-lonely": out.push(c.effect.into); break;
+    case "detonate-gem": out.push(c.effect.gem); break;
+    default: break;                        // row/col/swap/reroll are gem-blind
+  }
+  if (c.recharge) out.push(c.recharge.gem); // the fuel has to be gettable
+  out.push(...(c.victory?.gems ?? []));     // and you must be able to score it
+  return out;
 }
 
 /** How many kinds this board has — derived, not configured. */

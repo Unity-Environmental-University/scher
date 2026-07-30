@@ -4,7 +4,7 @@ import {
   ROCKET_DAN, SEARCHER_GREG, GENERALIST_MAB, MOON_MOTH,
   FLY_ME_TO_THE_MOON, affinityOf, pGem, edgeOn, drawFor, distribution,
   playerAt, pCompletes, stanceBetween, regard, nearRunValue, teamValue,
-  bestConverter, chargesOf, canPlay, emptyRecord, winners, mostOf, starIn,
+  bestConverter, chargesOf, cooldownProgress, canPlay, emptyRecord, winners, mostOf, starIn,
   COMPETITIVE, COOPERATIVE, COOPETITIVE, type Match, type MatchRecord,
 } from "../src/match3-players.js";
 
@@ -144,14 +144,38 @@ describe("cards: moves plus victory conditions", () => {
     expect(c.recharge!.gem).not.toBe(ROCKET);             // …which are not the points
   });
 
-  it("charge is FOLDED from what you cleared, minus what you spent", () => {
+  // RECHARGE IS A COOLDOWN, NOT A PURCHASE (Hallie's correction). The card
+  // arrives full; spending empties it; fuel refills it — never past capacity.
+  it("arrives READY, not empty", () => {
+    const c = dan.hand![0];
+    expect(chargesOf(c, fresh(), dan)).toBe(1);
+  });
+
+  it("spending empties it; fuel refills it", () => {
     const r = fresh();
     const c = dan.hand![0];
-    expect(chargesOf(c, r, dan)).toBe(1);                 // one free use
-    r.cleared[dan.id][MOON] = 9;                          // three moons per charge
-    expect(chargesOf(c, r, dan)).toBe(1 + 3);
-    r.played![dan.id][c.id] = 2;                          // spent two
-    expect(chargesOf(c, r, dan)).toBe(2);
+    r.played![dan.id][c.id] = 1;
+    expect(chargesOf(c, r, dan)).toBe(0);                 // on cooldown
+    r.cleared[dan.id][MOON] = 3;                          // three moons per charge
+    expect(chargesOf(c, r, dan)).toBe(1);                 // back up
+  });
+
+  it("does NOT bank fuel above capacity — a cooldown, not a stockpile", () => {
+    const r = fresh();
+    const c = dan.hand![0];
+    r.cleared[dan.id][MOON] = 30;                         // ten charges' worth
+    expect(chargesOf(c, r, dan)).toBe(1);                 // still just full
+    r.played![dan.id][c.id] = 1;
+    expect(chargesOf(c, r, dan)).toBe(1);                 // and refills instantly
+  });
+
+  it("cooldown progress fills toward the next charge", () => {
+    const r = fresh();
+    const c = dan.hand![0];
+    r.played![dan.id][c.id] = 1;                          // empty
+    expect(cooldownProgress(c, r, dan)).toBe(0);
+    r.cleared[dan.id][MOON] = 2;                          // 2 of 3
+    expect(cooldownProgress(c, r, dan)).toBeCloseTo(2/3, 5);
   });
 
   it("an empty card cannot be played", () => {

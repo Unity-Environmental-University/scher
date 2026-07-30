@@ -69,9 +69,13 @@
   .card .frame{margin:6px 6px 0;height:52px;border:1px solid #4a4256;border-radius:4px;
                background:#141019;display:flex;align-items:center;justify-content:center;
                font-size:26px;letter-spacing:2px}
-  .card .rules{padding:6px 7px;font-size:10px;line-height:1.35;flex:1}
-  .card .t{font-style:italic;color:#9d94b5;display:block;margin-bottom:4px}
-  .card .v{color:var(--good);display:block}
+  /* RULES up top where a player looks for what it does; FLAVOR at the bottom
+     in italics where flavour goes. (Hallie: "you have rules text and not
+     flavor text on those cards.") */
+  .card .rules{padding:6px 7px 4px;font-size:10.5px;line-height:1.35;flex:1;color:#e8e4da}
+  .card .v{color:var(--good);display:block;margin-top:4px;font-size:9.5px}
+  .card .flavor{padding:0 7px 5px;font-style:italic;color:#7e7694;font-size:9px;
+                line-height:1.3;border-top:1px dotted #3b3350;margin-top:auto;padding-top:5px}
   .card .foot{border-top:1px solid #3b3350;background:#15111e;padding:4px 7px;
               font-size:9.5px;color:var(--dim);display:flex;justify-content:space-between;
               align-items:center;gap:4px}
@@ -139,7 +143,8 @@ import { match3Canvas, GLYPHS, GEM } from "/scher-game/dist/match3-canvas.js";
 import { planProbabilistic } from "/scher-game/dist/match3-superposition.js";
 import { MOON_MOTH, FLY_ME_TO_THE_MOON, INVESTIGATE, starIn,
          playerAt, stanceBetween, affinityOf, distribution, emptyRecord,
-         chargesOf, canPlay, winners, applyCard, lonelyCells,
+         chargesOf, cooldownProgress, canPlay, winners, applyCard, lonelyCells,
+         rulesTextOf,
          gemsFor, kindsFor, paletteGlyphs, unmetDemands, boardIndexOf }
   from "/scher-game/dist/match3-players.js";
 
@@ -203,7 +208,10 @@ const cardHtml = (c, p, i) => {
   const art = c.effect.kind === "convert-lonely" ? `${ALL[GEM.QUESTION]}`
             : c.effect.kind === "transmute" ? `${ALL[c.effect.into]}×${c.effect.count}`
             : "◆";
-  const pips = ch === Infinity ? "∞" : "●".repeat(Math.max(0, Math.min(5, ch))) || "○";
+  const cd = cooldownProgress(c, rec, p);
+  const pips = ch === Infinity ? "∞"
+    : ch > 0 ? "●".repeat(Math.min(5, ch))
+    : `○ ${Math.round(cd*100)}%`;      // empty: show the cooldown filling
   return `<div class="card${spent ? " spent" : ""}${playable ? " playable" : ""}${
       mine ? "" : " theirs"}"
       ${playable ? `onclick="J.play('${p.id}',${i})"` : ""}
@@ -211,10 +219,10 @@ const cardHtml = (c, p, i) => {
     ${playable ? '<span class="playnow">PLAY</span>' : ""}
     <div class="hdr">${c.name}</div>
     <div class="frame">${art}</div>
-    <div class="rules">
-      <span class="t">${c.trigger}</span>
+    <div class="rules">${rulesTextOf(c, g => ALL[g])}
       <span class="v">★ ${c.victory?.says ?? "—"}</span>
     </div>
+    <div class="flavor">${c.trigger}</div>
     <div class="bar"><i style="width:${(prog*100).toFixed(0)}%"></i></div>
     <div class="foot">
       <span class="pips">${pips}</span>

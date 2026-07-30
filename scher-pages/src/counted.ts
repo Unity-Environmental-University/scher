@@ -45,10 +45,13 @@ import { Society, isOccluded } from "scher/society";
  *  on slugs; that is the discipline scher's CLAUDE.md names explicitly). */
 export type Key = string;
 
-/** The quality marking a delta beat. */
-export const Q_COUNTS = "q-counts";
-/** The quality marking a section placement. */
-export const Q_IN_SECTION = "q-in-section";
+// Constants and slug schemes are GENERATED from the Rust kernel — the parts
+// that drift silently (a renamed quality or a changed scheme does not throw,
+// it just makes the fold read nothing, which looks like "you have zero").
+// Regenerate: node scripts/generate-from-rust.mjs · CI check: --check
+export { Q_COUNTS, Q_IN_SECTION } from "./counted.generated.js";
+import { deltaPrefix, placePrefix, Q_COUNTS as Q_COUNTS_V,
+         Q_IN_SECTION as Q_IN_SECTION_V } from "./counted.generated.js";
 
 export interface CountedSpec {
   /** namespace: whose counted is this. Two holders never share by accident. */
@@ -82,9 +85,6 @@ export interface Counted {
   from: Array<{ slug: string; delta: number; by: string | null; at: number }>;
 }
 
-const deltaPrefix = (holder: string, key: Key) => `count-${holder}-${key}-`;
-const placePrefix = (holder: string, key: Key) => `place-${holder}-${key}-`;
-
 const capFor = (spec: CountedSpec, key: Key): number | undefined =>
   typeof spec.cap === "function" ? spec.cap(key) : spec.cap;
 
@@ -109,7 +109,7 @@ export function count(soc: Society, spec: CountedSpec, key: Key,
     slug, content: String(delta), title: null,
     subject: null, object: null, laid_by: by ?? null,
   });
-  soc.layP(`${slug}~c`, `${delta > 0 ? "+" : ""}${delta} ${key}`, slug, key, Q_COUNTS);
+  soc.layP(`${slug}~c`, `${delta > 0 ? "+" : ""}${delta} ${key}`, slug, key, Q_COUNTS_V);
 
   // first sighting of a key lands it in the default section, as an append.
   if (spec.defaultSection && sectionOf(soc, spec, key) === null)
@@ -126,7 +126,7 @@ export function place(soc: Society, spec: CountedSpec, key: Key,
   const n = placementBeats(soc, spec.holder, key).length;
   const slug = `${placePrefix(spec.holder, key)}${n}`;
   soc.lay({ slug, content: section, title: null, subject: null, object: null, laid_by: by ?? null });
-  soc.layP(`${slug}~p`, `${key} → ${section}`, slug, key, Q_IN_SECTION);
+  soc.layP(`${slug}~p`, `${key} → ${section}`, slug, key, Q_IN_SECTION_V);
   return slug;
 }
 
@@ -170,7 +170,10 @@ export function valueOf(soc: Society, spec: CountedSpec, key: Key, opts: Counted
     const beat = soc.get(e.subject as string);
     if (!beat) continue;
     if (opts.asOf !== undefined && (beat.witnessed ?? 0) > opts.asOf) continue;
-    if (isOccluded(soc, beat.slug) || isOccluded(soc, e.slug)) continue;
+    // asOf MUST be passed: occlusion is standpoint-relative, and reading it
+    // at "now" while reading deltas "as of then" makes the past change every
+    // time the present does. (Caught by conformance/counted.json, not review.)
+    if (isOccluded(soc, beat.slug, opts.asOf) || isOccluded(soc, e.slug, opts.asOf)) continue;
     v += Number(beat.content) || 0;
   }
   return v;
@@ -183,7 +186,7 @@ export function sectionOf(soc: Society, spec: CountedSpec, key: Key,
     .map((e) => soc.get(e.subject as string))
     .filter((b): b is NonNullable<typeof b> => !!b)
     .filter((b) => opts.asOf === undefined || (b.witnessed ?? 0) <= opts.asOf)
-    .filter((b) => !isOccluded(soc, b.slug));
+    .filter((b) => !isOccluded(soc, b.slug, opts.asOf));
   return live.length ? live[live.length - 1].content : null;
 }
 
@@ -198,7 +201,7 @@ export function countedOf(soc: Society, spec: CountedSpec, key: Key,
     if (!b) continue;
     const at = b.witnessed ?? 0;
     if (opts.asOf !== undefined && at > opts.asOf) continue;
-    if (isOccluded(soc, b.slug) || isOccluded(soc, e.slug)) continue;
+    if (isOccluded(soc, b.slug, opts.asOf) || isOccluded(soc, e.slug, opts.asOf)) continue;
     from.push({ slug: b.slug, delta: Number(b.content) || 0, by: b.laid_by ?? null, at });
   }
   from.reverse();

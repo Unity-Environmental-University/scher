@@ -49,6 +49,9 @@ export const GLYPHS = [
   "🧠", "❤️", "🔍", "😎", "🚀", "🐛",     // 0-5  the resume keys
   "🌙", "☀️", "🌸", "🐜", "🐝", "🪲",     // 6-11 the planet
   "🔧", "❔",                             // 12-13 the work, the unknown
+  "🤓", "➕", "➖",                        // 14-16 the calculating job
+  "🌧", "💤",                             // 17-18 rain, tiredness
+  "☁️", "⚡",                              // 19-20 cloud, lightning — the weather chain
 ] as const;
 
 /** Named indices, so callers never hardcode a number and drift from the
@@ -57,6 +60,8 @@ export const GEM = {
   BRAIN: 0, HEART: 1, GLASS: 2, COOL: 3, ROCKET: 4, BUG: 5,
   MOON: 6, SUN: 7, FLOWER: 8, ANT: 9, BEE: 10, BEETLE: 11,
   WRENCH: 12, QUESTION: 13,
+  NERD: 14, PLUS: 15, MINUS: 16,
+  RAIN: 17, SLEEP: 18, CLOUD: 19, LIGHTNING: 20,
 } as const;
 
 /** Kept as convenience SUBSETS for a board that wants a themed palette

@@ -149,7 +149,7 @@ import { MOON_MOTH, FLY_ME_TO_THE_MOON, INVESTIGATE, starIn,
          chargesOf, cooldownProgress, canPlay, winners, applyCard, lonelyCells,
          rulesTextOf,
          gemsFor, kindsFor, paletteGlyphs, boardIndexOf,
-         CLEAR_THE_LOT, jobDone, jobFailed, jobProgress, contribution,
+         DO_THE_CALCULATIONS, WEATHER, phaseAt, jobDone, jobProgress,
          requirementProgress }
   from "/scher-game/dist/match3-players.js";
 
@@ -157,14 +157,19 @@ import { MOON_MOTH, FLY_ME_TO_THE_MOON, INVESTIGATE, starIn,
 // indices so "moon" is 🌙 and cannot silently become 😎 (which is exactly the
 // bug the first version of this demo shipped).
 const ALL = GLYPHS;
-const { ROCKET, MOON, HEART, GLASS, QUESTION } = GEM;
+const { ROCKET, MOON, HEART, GLASS, QUESTION,
+        NERD, PLUS, MINUS, SUN, CLOUD, RAIN, LIGHTNING } = GEM;
 
 /** THE JOB asks for its own keys — reclamation wants hands-on work and care,
  *  and it carries a hazard. The board's palette is the union of this and
  *  whoever showed up. */
 // THE JOB CARD — what the WORK needs, shared. Everyone's clears count toward
 // it, so the job finishing and who got credit are two different reads.
-const JOB = CLEAR_THE_LOT(GLASS, HEART, QUESTION);
+// DO THE CALCULATIONS — the job contributes 4 gems (🤓➕➖🚀), the moth 3
+// (🚀🌙❤️), you 3 (😎❤️🔍). Overlap is visible in the board itself.
+const JOB = DO_THE_CALCULATIONS(NERD, PLUS, MINUS, ROCKET);
+// THE WEATHER: a chained event whose pull moves through phases, then clears.
+const WX = WEATHER(0, SUN, CLOUD, RAIN, LIGHTNING);
 
 /** YOU. No name and barely any art — you are the viewpoint. Your stars are
  *  whatever the character you built is reaching for; this demo seeds two so
@@ -187,8 +192,8 @@ function reset() {
   document.getElementById("board").textContent = "";
   match = { players: [MOON_MOTH(ROCKET, MOON, HEART), YOU()] };
   // THE GEMS ARE DERIVED — from who is here plus what the job wants.
-  glyphs = paletteGlyphs(ALL, match, JOB);
-  spec = { id: "job-1", w: 8, h: 8, kinds: kindsFor(match, JOB), seed: 2026 };
+  glyphs = paletteGlyphs(ALL, match, JOB, [WX]);
+  spec = { id: "job-1", w: 8, h: 8, kinds: kindsFor(match, JOB, [WX]), seed: 2026 };
   soc = new Society();
   openBoard(soc, spec, "job");
   rec = emptyRecord(match, spec.kinds);
@@ -197,7 +202,7 @@ function reset() {
 }
 
 /** a player's gem index on THIS board (their star keys are in game vocabulary) */
-const onBoard = (gem) => boardIndexOf(match, gem, JOB);
+const onBoard = (gem) => boardIndexOf(match, gem, JOB, [WX]);
 
 const cardHtml = (c, p, i) => {
   const ch = chargesOf(c, rec, p);
@@ -269,11 +274,12 @@ function render() {
   document.getElementById("themSide").classList.toggle("turnhere", up.id === them.id);
   document.getElementById("youSide").classList.toggle("turnhere", up.id === you.id);
 
+  // requirements read as GEMS AND NUMBERS — the glyph is the description.
   const reqs = JOB.requires.map(r => {
     const p = requirementProgress(r, rec);
     return `<span style="color:${p.met ? "#8fd3a0" : "var(--dim)"}">` +
-           `${ALL[r.gem]} ${r.says} ${p.done}/${p.need}${p.met ? " ✓" : ""}</span>`;
-  }).join(" · ");
+           `${ALL[r.gem]} ${p.done}/${p.need}${p.met ? "✓" : ""}</span>`;
+  }).join("  ");
   // No credit split and no countdown (Hallie's call). Both were reads the
   // library still supports — contribution() and jobFailed() — but on screen
   // they turned a shared job into a scoreboard and a clock, which is the
@@ -282,6 +288,9 @@ function render() {
   const done = jobDone(JOB, rec);
   document.getElementById("job").innerHTML =
     `<b>${JOB.name}</b> — ${JOB.brief}<br>${reqs}` +
+    (() => { const ph = phaseAt(WX, rec.turns);
+      return ph ? `<br><span style="font-size:15px" title="the weather">${
+        ph.pull.map(x => ALL[x.gem]).join(" ")}</span>` : ""; })() +
     `<div class="jobbar"><i style="width:${(jobProgress(JOB, rec)*100).toFixed(0)}%"></i></div>` +
     (done ? `<b style="color:#8fd3a0">JOB DONE</b>` : "");
 

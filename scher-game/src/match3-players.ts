@@ -708,8 +708,6 @@ export interface Requirement {
   gem: Gem;
   /** how many, across EVERYONE. */
   need: number;
-  /** legible: "log the finds". English, because it is load-bearing. */
-  says: string;
 }
 
 export interface JobCard {
@@ -800,10 +798,36 @@ export const CLEAR_THE_LOT = (glass: Gem, heart: Gem, hazard: Gem): JobCard => (
   name: "Clear The Lot",
   brief: "Log what is worth keeping. Mind the neighbours.",
   requires: [
-    { gem: glass, need: 12, says: "log the finds" },
-    { gem: heart, need: 8,  says: "mind the neighbours" },
+    { gem: glass, need: 12 },
+    { gem: heart, need: 8 },
   ],
   hazard,
+});
+
+/**
+ * DO THE CALCULATIONS — Hallie's worked job (2026-07-30).
+ *
+ * The job contributes FOUR gems (🤓 ➕ ➖ 🚀), the moth THREE (🚀 🌙 ❤️), the
+ * player THREE (😎 ❤️ 🔍). Which is what makes the palette read finally
+ * legible: overlap is visible in the board itself. 🚀 is on it because BOTH
+ * the job and the moth want it; ❤️ because both people do; 🤓 ➕ ➖ only
+ * because the work asks.
+ *
+ * Note ➖ as a requirement: a job that needs subtraction is a job where
+ * clearing the wrong thing is part of the work, not a mistake.
+ */
+export const DO_THE_CALCULATIONS = (
+  nerd: Gem, plus: Gem, minus: Gem, rocket: Gem,
+): JobCard => ({
+  id: "do-the-calculations",
+  name: "Do The Calculations",
+  brief: "Run the numbers for the launch window. Show your work.",
+  requires: [
+    { gem: nerd,   need: 10 },
+    { gem: plus,   need: 8 },
+    { gem: minus,  need: 6 },
+    { gem: rocket, need: 4 },
+  ],
 });
 
 /** Whoever has met a victory condition. Plural on purpose: a cooperative or
@@ -881,6 +905,191 @@ export function applyCard(
   }
 }
 
+// ── CONTRIBUTORS: everything that pulls on a board is the same kind of thing ─
+//
+// Hallie, 2026-07-30: "What we want is Events. And maybe chains. Like — The
+// Weather. Events and NPCS and Players are all — contributors. Some along the
+// same lines, some not, and the job itself has wants and needs and cards."
+//
+// Which generalises the whole file. A Player was already "stars + a hand", and
+// a JobCard was "requirements + a hazard", and those were two shapes doing one
+// job. They are both CONTRIBUTORS: things that pull the gem stream toward what
+// they are about.
+//
+//   a PLAYER contributes    what they reach for (stars) and what their cards need
+//   an NPC contributes      the same — an NPC is a player who is not you
+//   the JOB contributes     what the work requires
+//   an EVENT contributes    what it brings: 🌧 the weather, 💤 a long shift
+//
+// The weather adding 🌧 to a board is the SAME OPERATION as a moth adding 🌙.
+// That is not a metaphor — it is one function, `pullOf`, over one interface,
+// and the palette read stops caring which kind of thing something is.
+//
+// "Some along the same lines, some not" is the part that makes it interesting:
+// an event whose pull overlaps the crew's stars HELPS (rain on a job that
+// wants 🌧), and one that does not just makes the board noisier. Alignment
+// already reads that way between people; now it reads that way between people
+// and their conditions.
+
+/** Anything that pulls on the gem stream. */
+export interface Contributor {
+  id: string;
+  name: string;
+  /** what this thing is about, in gems, with weights. Weight is relative — a
+   *  star's magnitude, a requirement's size, an event's intensity. */
+  pull: Array<{ gem: Gem; weight: number }>;
+}
+
+/** Read a player as a contributor: their stars plus what their cards need. */
+export function playerAsContributor(p: Player): Contributor {
+  const pull: Array<{ gem: Gem; weight: number }> = [];
+  for (const s of p.stars)
+    for (const k of s.keys) pull.push({ gem: k, weight: s.magnitude });
+  for (const c of p.hand ?? [])
+    for (const g of gemsCardNeeds(c)) pull.push({ gem: g, weight: 0.25 });
+  return { id: p.id, name: p.name, pull };
+}
+
+/** Read a job as a contributor: what the work needs, weighted by how much. */
+export function jobAsContributor(j: JobCard): Contributor {
+  const pull = j.requires.map((r) => ({ gem: r.gem, weight: r.need / 8 }));
+  if (j.hazard !== undefined) pull.push({ gem: j.hazard, weight: 0.5 });
+  return { id: j.id, name: j.name, pull };
+}
+
+/**
+ * AN EVENT — a condition on the board that is nobody's want.
+ *
+ * The weather. A long shift. A deadline mood. It contributes gems like anyone
+ * else, which is the point: the board does not distinguish "what people want"
+ * from "what is going on," it just reads what is pulling.
+ */
+export interface GameEvent extends Contributor {
+  /** events can chain: this one makes that one likelier next. A chain is a
+   *  list of ids, not a stored graph — the fiction decides what follows what. */
+  leadsTo?: string[];
+}
+
+export const LONG_SHIFT = (sleep: Gem): GameEvent => ({
+  id: "long-shift", name: "A Long Shift",
+  pull: [{ gem: sleep, weight: 2 }],
+});
+
+// ── CHAINED EVENTS: an event that moves through phases and then clears ──────
+//
+// Hallie, 2026-07-30: "The Weather Event Starts out adding Sun, and then over
+// time changes to Clouds and Sun, then Sun, Clouds and Rain, then Clouds,
+// Rain, Lighting, Then back to just Sun and then clears."
+//
+// So a chain is not "this event triggers that one." An event has a LIFE — its
+// pull changes as it goes, and then it is over. Which is a story with beats,
+// in a system where that is already the native shape: phases are the interior,
+// `at` is the read, and nothing is stored.
+//
+// The weather is the right first one because it demonstrates the thing that
+// makes chained events worth having: the board CHANGES UNDER YOU without
+// anyone deciding to change it. You planned around sun, and now it is raining,
+// and your plan is not wrong so much as overtaken.
+
+export interface Phase {
+  /** how long this phase lasts, in turns. */
+  turns: number;
+  /** what it pulls while it lasts. THE GEMS ARE THE DESCRIPTION.
+   *
+   *  No `says` (Hallie, 2026-07-30: "No 'says'"). A first draft gave each
+   *  phase a line — "Spitting rain." — which is exactly the English prose
+   *  Simlish retires. ☁️🌧⚡ IS the weather turning; writing it out in words is
+   *  a caption on a picture that already said it, and it would drift from the
+   *  pull the moment someone tuned a weight. */
+  pull: Array<{ gem: Gem; weight: number }>;
+}
+
+export interface ChainedEvent {
+  id: string;
+  name: string;
+  phases: Phase[];
+  /** turn the chain started, so `at` is a read rather than a counter. */
+  startedAt: number;
+  /** loop instead of clearing. Weather clears; a season would not. */
+  loops?: boolean;
+}
+
+/** Which phase a chain is in at `turn` — or null once it has cleared. */
+export function phaseAt(c: ChainedEvent, turn: number): Phase | null {
+  const total = c.phases.reduce((n, p) => n + p.turns, 0);
+  let t = turn - c.startedAt;
+  if (t < 0) return null;                    // has not started
+  if (t >= total) {
+    if (!c.loops) return null;               // cleared
+    t = t % total;
+  }
+  for (const p of c.phases) {
+    if (t < p.turns) return p;
+    t -= p.turns;
+  }
+  return null;
+}
+
+/** A chain read AS A CONTRIBUTOR at this turn — so the palette does not care
+ *  that it is a chain. Same interface, same read. */
+export function chainAsContributor(c: ChainedEvent, turn: number): GameEvent | null {
+  const p = phaseAt(c, turn);
+  if (!p) return null;
+  return { id: c.id, name: c.name, pull: p.pull };
+}
+
+/** Has it run its course? */
+export const chainOver = (c: ChainedEvent, turn: number): boolean =>
+  !c.loops && phaseAt(c, turn) === null && turn >= c.startedAt;
+
+/**
+ * THE WEATHER, exactly as specified: sun → clouds+sun → sun+clouds+rain →
+ * clouds+rain+lightning → sun → clear.
+ *
+ * Note the arc is not symmetrical: it builds through four phases and drops
+ * back to sun in one, which is what weather actually does — it takes all
+ * afternoon to come on and it is gone in ten minutes.
+ */
+export const WEATHER = (
+  startedAt: number,
+  sun: Gem, cloud: Gem, rain: Gem, lightning: Gem,
+): ChainedEvent => ({
+  id: "weather", name: "The Weather", startedAt,
+  phases: [
+    { turns: 4,
+      pull: [{ gem: sun, weight: 2 }] },
+    { turns: 4,
+      pull: [{ gem: cloud, weight: 1.5 }, { gem: sun, weight: 1 }] },
+    { turns: 4,
+      pull: [{ gem: sun, weight: 0.5 }, { gem: cloud, weight: 1.5 },
+             { gem: rain, weight: 1.5 }] },
+    { turns: 3,
+      pull: [{ gem: cloud, weight: 1.5 }, { gem: rain, weight: 2 },
+             { gem: lightning, weight: 1 }] },
+    { turns: 4,
+      pull: [{ gem: sun, weight: 2 }] },
+  ],
+});
+
+/** Everything pulling on a board right now. The one list the palette reads. */
+export function contributorsOf(
+  m: Match, job?: JobCard, events: GameEvent[] = [],
+  chains: ChainedEvent[] = [], turn = 0,
+): Contributor[] {
+  return [
+    ...m.players.map(playerAsContributor),
+    ...(job ? [jobAsContributor(job)] : []),
+    ...events,
+    // a chain contributes whatever phase it is in — or nothing, once cleared
+    ...chains.map((c) => chainAsContributor(c, turn)).filter((x): x is GameEvent => !!x),
+  ];
+}
+
+/** How much a set of contributors, together, pull toward a gem. */
+export const pullOn = (cs: Contributor[], gem: Gem): number =>
+  cs.reduce((n, c) => n + c.pull.filter((p) => p.gem === gem)
+    .reduce((m, p) => m + p.weight, 0), 0);
+
 // ── THE GEMS COME FROM WHO IS ON THE JOB ────────────────────────────────────
 //
 // Hallie, 2026-07-30: "the characters and job involved should determine the
@@ -922,7 +1131,7 @@ export interface JobDemand {
  * depending on Set iteration — a board that reshuffles its own palette
  * between reads would break replay.
  */
-export function gemsFor(m: Match, job?: JobDemand | JobCard): Gem[] {
+export function gemsFor(m: Match, job?: JobDemand | JobCard, chains?: ChainedEvent[]): Gem[] {
   const seen = new Set<Gem>();
   for (const p of m.players) {
     // what they REACH FOR
@@ -942,6 +1151,12 @@ export function gemsFor(m: Match, job?: JobDemand | JobCard): Gem[] {
       for (const k of gemsCardNeeds(c)) seen.add(k);
     }
   }
+  // chains contribute EVERY gem they will ever pull, not just this phase's —
+  // a board cannot grow a new gem type halfway through a job without every
+  // index shifting under the renderer. The weather's lightning is on the board
+  // from the start; it just does not FALL until the storm arrives.
+  for (const c of chains ?? [])
+    for (const ph of c.phases) for (const p of ph.pull) seen.add(p.gem);
   if (job && "requires" in job) for (const k of gemsJobNeeds(job)) seen.add(k);
   else for (const k of (job as JobDemand | undefined)?.keys ?? []) seen.add(k);
   if (job?.hazard !== undefined) seen.add(job.hazard);
@@ -985,8 +1200,8 @@ export function gemsCardNeeds(c: Card): Gem[] {
 }
 
 /** How many kinds this board has — derived, not configured. */
-export const kindsFor = (m: Match, job?: JobDemand | JobCard): number =>
-  Math.max(3, gemsFor(m, job).length);
+export const kindsFor = (m: Match, job?: JobDemand | JobCard, chains?: ChainedEvent[]): number =>
+  Math.max(3, gemsFor(m, job, chains).length);
 
 /**
  * A board's palette as DISPLAY GLYPHS, given a full glyph table.
@@ -997,14 +1212,17 @@ export const kindsFor = (m: Match, job?: JobDemand | JobCard): number =>
  * character's stars stay stated in the game's own vocabulary no matter which
  * job they walk into.
  */
-export function paletteGlyphs(all: readonly string[], m: Match, job?: JobDemand | JobCard): string[] {
-  return gemsFor(m, job).map((g) => all[g] ?? "❔");
+export function paletteGlyphs(all: readonly string[], m: Match,
+                              job?: JobDemand | JobCard,
+                              chains?: ChainedEvent[]): string[] {
+  return gemsFor(m, job, chains).map((g) => all[g] ?? "❔");
 }
 
 /** Map a game-vocabulary gem to this board's index, or -1 if it is not in
  *  play. "Is my star even on this board?" is a real and answerable question. */
-export const boardIndexOf = (m: Match, gem: Gem, job?: JobDemand | JobCard): number =>
-  gemsFor(m, job).indexOf(gem);
+export const boardIndexOf = (m: Match, gem: Gem, job?: JobDemand | JobCard,
+                             chains?: ChainedEvent[]): number =>
+  gemsFor(m, job, chains).indexOf(gem);
 
 /** A key the job demands that NOBODY on the crew is reaching for. The honest
  *  read of an understaffed job, and a good thing for a UI to say out loud. */

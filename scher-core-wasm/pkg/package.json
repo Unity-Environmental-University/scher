@@ -1,0 +1,17 @@
+{
+  "name": "scher-core-wasm",
+  "type": "module",
+  "description": "MUSLIN — the wasm-bindgen boundary around scher-core: one compiled kernel instead of two hand-kept twins. This slice proves the toolchain, the package shape, and the boundary cost; it does not port the whole kernel or retire the TS twin.",
+  "version": "0.0.1",
+  "license": "MIT",
+  "files": [
+    "scher_core_wasm_bg.wasm",
+    "scher_core_wasm.js",
+    "scher_core_wasm.d.ts"
+  ],
+  "main": "scher_core_wasm.js",
+  "types": "scher_core_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}

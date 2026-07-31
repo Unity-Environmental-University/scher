@@ -33,6 +33,14 @@
       "types": "./dist/frames.d.ts",
       "default": "./dist/frames.js"
     },
+    "./projection": {
+      "types": "./dist/projection.d.ts",
+      "default": "./dist/projection.js"
+    },
+    "./fisheye": {
+      "types": "./dist/fisheye.d.ts",
+      "default": "./dist/fisheye.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -47,7 +55,9 @@
     "check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepublishOnly": "npm run check && npm run test && npm run build"
+    "prepublishOnly": "npm run gen:check && npm run check && npm run test && npm run build",
+    "gen": "node scripts/generate-from-rust.mjs",
+    "gen:check": "node scripts/generate-from-rust.mjs --check"
   },
   "devDependencies": {
     "fast-check": "^4.8.0",

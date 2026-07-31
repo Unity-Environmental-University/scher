@@ -29,6 +29,7 @@
 //   • as_of crosses as f64 (JS number), cast to u64 — witnessed clocks in canon are
 //     small integers; a fractional or negative as_of is truncated, not refused.
 
+use scher_core::counted::{read_counted, value_of, section_of, counted_of};
 use scher_core::{is_occluded, EventRow, Society};
 use scher_epistemology::{buckets_of, members_of};
 use serde::Deserialize;
@@ -108,6 +109,36 @@ impl WasmSociety {
         serde_json::to_string(&b).expect("Buckets serializes")
     }
 
+    /// readCounted — ONE call, every key this holder counts, whole structure.
+    /// The design law: cross the boundary once per READ, never once per key.
+    #[wasm_bindgen(js_name = readCounted)]
+    pub fn read_counted_js(&self, holder: &str, as_of: Option<f64>, keep_empty: bool) -> String {
+        let v = read_counted(&self.soc, holder, as_of.map(|t| t as u64), keep_empty);
+        serde_json::to_string(&v.iter().map(CountedOut::from).collect::<Vec<_>>())
+            .expect("Vec<CountedOut> serializes")
+    }
+
+    /// countedOf — one key, fully read (value + section + provenance).
+    #[wasm_bindgen(js_name = countedOf)]
+    pub fn counted_of_js(&self, holder: &str, key: &str, as_of: Option<f64>) -> String {
+        match counted_of(&self.soc, holder, key, as_of.map(|t| t as u64)) {
+            Some(c) => serde_json::to_string(&CountedOut::from(&c)).expect("serializes"),
+            None => "null".into(),
+        }
+    }
+
+    /// valueOf — the fold alone, when that is all the caller wants.
+    #[wasm_bindgen(js_name = valueOf)]
+    pub fn value_of_js(&self, holder: &str, key: &str, as_of: Option<f64>) -> f64 {
+        value_of(&self.soc, holder, key, as_of.map(|t| t as u64)) as f64
+    }
+
+    /// sectionOf — the newest live placement, read.
+    #[wasm_bindgen(js_name = sectionOf)]
+    pub fn section_of_js(&self, holder: &str, key: &str, as_of: Option<f64>) -> Option<String> {
+        section_of(&self.soc, holder, key, as_of.map(|t| t as u64))
+    }
+
     // ── CAUTIONARY PROBES — benchmark instrumentation, NOT the API ────────────────
     // These exist so bench/bench.mjs can measure the per-call boundary tax of a
     // chatty design honestly. If you find yourself calling these in a loop from app
@@ -122,5 +153,44 @@ impl WasmSociety {
     #[wasm_bindgen(js_name = isOccluded)]
     pub fn is_occluded(&self, target: &str, as_of: Option<f64>) -> bool {
         is_occluded(&self.soc, target, as_of.map(|t| t as u64))
+    }
+}
+
+
+// ── serialization mirrors ───────────────────────────────────────────────────
+// scher-core carries no serde dependency, so the boundary owns the wire shape.
+// Field names here are the TS twin's spelling (`title`, not `name`) — the
+// boundary is where the two vocabularies are reconciled, deliberately and in
+// one place, rather than by renaming a field in either kernel.
+
+#[derive(serde::Serialize)]
+struct ContributionOut {
+    slug: String,
+    delta: i64,
+    by: Option<String>,
+    at: u64,
+}
+
+#[derive(serde::Serialize)]
+struct CountedOut {
+    key: String,
+    label: String,
+    value: i64,
+    section: Option<String>,
+    from: Vec<ContributionOut>,
+}
+
+impl From<&scher_core::counted::Counted> for CountedOut {
+    fn from(c: &scher_core::counted::Counted) -> Self {
+        CountedOut {
+            key: c.key.clone(),
+            label: c.label.clone(),
+            value: c.value,
+            section: c.section.clone(),
+            from: c.from.iter().map(|f| ContributionOut {
+                slug: f.slug.clone(), delta: f.delta,
+                by: f.by.clone(), at: f.at,
+            }).collect(),
+        }
     }
 }

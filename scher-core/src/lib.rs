@@ -37,6 +37,8 @@ use poles::{grounding_edges_from, grounding_edges_onto, is_designated_end_pole, 
 // over the because-grammar. scher ships the trait, the collision-refusing registry, and the
 // law-checker; the RULES stay consumer-side (Hallie's ruling) and never live here.
 pub mod contraction;
+/// The counted fold — ONE implementation, so the TS twin becomes a caller.
+pub mod counted;
 
 // Qualities are passed as `&str` — the reads only ever compare for equality, and an unknown
 // quality is simply one no read matches. This is genuinely open, with no enum to edit when the

@@ -1,0 +1,363 @@
+{
+  "name": "counted",
+  "note": "Fourth fixture of the conformance corpus (2026-07-30). NEUTRAL GROUND: belongs to neither twin's directory. Covers the COUNTED FOLD — a key's value folded from delta-beats, never stored — and its two derived reads (section placement, provenance). Laid down because scher-pages/src/counted.ts (TS) and scher-core/src/counted.rs (Rust) implement the same operation, and scher-state/src/lib.rs rasterizes a third variant of it; two hand-kept twins drift, which is the problem scher-core-wasm exists to end. Rows are laid verbatim via the one write (lay), so any harness in any language replays them with its own bare lay and gets byte-identical state. THE SHAPE: a delta beat is `count-<holder>-<key>-<n>` whose CONTENT IS THE DELTA as a decimal string (self-describing: the fold never consults a second place), with a bare edge onto the key. A placement beat is `place-<holder>-<key>-<n>` whose content is the section name. Occlusion of a delta beat is how UNDO works — there is no undo stack; the occluded delta simply stops counting, and every downstream read re-folds. NOTE A LIVE DIVERGENCE this corpus is meant to catch: the Rust EventRow calls the headline field `name`, the TS one calls it `title`. Neither was renamed; the wasm boundary reconciles them in one place (see CountedOut in scher-core-wasm/src/lib.rs). If a future port silently picks one spelling, this fixture's `label` expectations go red.",
+  "societies": [
+    {
+      "id": "simple-fold",
+      "note": "The base case: deltas fold, including negatives. Value is NEVER stored.",
+      "rows": [
+        {
+          "slug": "lamp",
+          "content": "a lamp",
+          "name": "Lamp",
+          "witnessed": 1
+        },
+        {
+          "slug": "count-moth-lamp-0",
+          "content": "3",
+          "laid_by": "gran",
+          "witnessed": 2
+        },
+        {
+          "slug": "count-moth-lamp-0~c",
+          "content": "+3 lamp",
+          "subject": "count-moth-lamp-0",
+          "object": "lamp",
+          "witnessed": 2
+        },
+        {
+          "slug": "count-moth-lamp-1",
+          "content": "-1",
+          "laid_by": "gran",
+          "witnessed": 3
+        },
+        {
+          "slug": "count-moth-lamp-1~c",
+          "content": "-1 lamp",
+          "subject": "count-moth-lamp-1",
+          "object": "lamp",
+          "witnessed": 3
+        }
+      ],
+      "expect": {
+        "valueOf": {
+          "holder": "moth",
+          "key": "lamp",
+          "value": 2
+        },
+        "label": "Lamp",
+        "contributions": 2
+      }
+    },
+    {
+      "id": "as-of",
+      "note": "The past is a READ, not a snapshot anyone kept. Same rows, two standpoints.",
+      "rows": [
+        {
+          "slug": "lamp",
+          "content": "a lamp",
+          "name": "Lamp",
+          "witnessed": 1
+        },
+        {
+          "slug": "count-moth-lamp-0",
+          "content": "1",
+          "laid_by": "gran",
+          "witnessed": 2
+        },
+        {
+          "slug": "count-moth-lamp-0~c",
+          "content": "+1 lamp",
+          "subject": "count-moth-lamp-0",
+          "object": "lamp",
+          "witnessed": 2
+        },
+        {
+          "slug": "count-moth-lamp-1",
+          "content": "9",
+          "laid_by": "gran",
+          "witnessed": 7
+        },
+        {
+          "slug": "count-moth-lamp-1~c",
+          "content": "+9 lamp",
+          "subject": "count-moth-lamp-1",
+          "object": "lamp",
+          "witnessed": 7
+        }
+      ],
+      "expect": {
+        "valueOf": {
+          "holder": "moth",
+          "key": "lamp",
+          "value": 10
+        },
+        "valueAsOf": [
+          {
+            "asOf": 2,
+            "value": 1
+          },
+          {
+            "asOf": 6,
+            "value": 1
+          },
+          {
+            "asOf": 7,
+            "value": 10
+          }
+        ]
+      }
+    },
+    {
+      "id": "undo-is-occlusion",
+      "note": "No undo stack exists. Occluding a delta beat makes it stop counting and every read re-folds. The occluded delta STAYS in the log — as-of before the occlusion still sees it counted.",
+      "rows": [
+        {
+          "slug": "lamp",
+          "content": "a lamp",
+          "name": "Lamp",
+          "witnessed": 1
+        },
+        {
+          "slug": "count-moth-lamp-0",
+          "content": "5",
+          "laid_by": "gran",
+          "witnessed": 2
+        },
+        {
+          "slug": "count-moth-lamp-0~c",
+          "content": "+5 lamp",
+          "subject": "count-moth-lamp-0",
+          "object": "lamp",
+          "witnessed": 2
+        },
+        {
+          "slug": "count-moth-lamp-1",
+          "content": "2",
+          "laid_by": "gran",
+          "witnessed": 3
+        },
+        {
+          "slug": "count-moth-lamp-1~c",
+          "content": "+2 lamp",
+          "subject": "count-moth-lamp-1",
+          "object": "lamp",
+          "witnessed": 3
+        },
+        {
+          "slug": "occ-count-moth-lamp-0",
+          "content": "miscounted the first batch",
+          "laid_by": "gran",
+          "witnessed": 8
+        },
+        {
+          "slug": "occ-count-moth-lamp-0~o",
+          "content": "miscounted the first batch",
+          "subject": "occ-count-moth-lamp-0",
+          "object": "count-moth-lamp-0",
+          "witnessed": 8
+        },
+        {
+          "slug": "occ-count-moth-lamp-0~o~q",
+          "content": "occludes [q-occludes]",
+          "subject": "occ-count-moth-lamp-0~o",
+          "object": "q-occludes",
+          "witnessed": 8
+        }
+      ],
+      "expect": {
+        "valueOf": {
+          "holder": "moth",
+          "key": "lamp",
+          "value": 2
+        },
+        "valueAsOf": [
+          {
+            "asOf": 3,
+            "value": 7
+          },
+          {
+            "asOf": 8,
+            "value": 2
+          }
+        ]
+      }
+    },
+    {
+      "id": "sections-are-read",
+      "note": "Section membership is BETWEENNESS-shaped: read from the newest live placement, never a field on the key. Moving is an APPEND, so the old placement stays readable as-of.",
+      "rows": [
+        {
+          "slug": "lamp",
+          "content": "a lamp",
+          "name": "Lamp",
+          "witnessed": 1
+        },
+        {
+          "slug": "count-moth-lamp-0",
+          "content": "1",
+          "laid_by": "moth",
+          "witnessed": 2
+        },
+        {
+          "slug": "count-moth-lamp-0~c",
+          "content": "+1 lamp",
+          "subject": "count-moth-lamp-0",
+          "object": "lamp",
+          "witnessed": 2
+        },
+        {
+          "slug": "place-moth-lamp-0",
+          "content": "bag",
+          "laid_by": "moth",
+          "witnessed": 3
+        },
+        {
+          "slug": "place-moth-lamp-0~p",
+          "content": "lamp -> bag",
+          "subject": "place-moth-lamp-0",
+          "object": "lamp",
+          "witnessed": 3
+        },
+        {
+          "slug": "place-moth-lamp-1",
+          "content": "bank",
+          "laid_by": "moth",
+          "witnessed": 6
+        },
+        {
+          "slug": "place-moth-lamp-1~p",
+          "content": "lamp -> bank",
+          "subject": "place-moth-lamp-1",
+          "object": "lamp",
+          "witnessed": 6
+        }
+      ],
+      "expect": {
+        "sectionOf": {
+          "holder": "moth",
+          "key": "lamp",
+          "section": "bank"
+        },
+        "sectionAsOf": [
+          {
+            "asOf": 3,
+            "section": "bag"
+          },
+          {
+            "asOf": 5,
+            "section": "bag"
+          },
+          {
+            "asOf": 6,
+            "section": "bank"
+          }
+        ],
+        "valueOf": {
+          "holder": "moth",
+          "key": "lamp",
+          "value": 1
+        }
+      }
+    },
+    {
+      "id": "holders-do-not-share",
+      "note": "Two holders counting the same key never see each other's total. The namespace is in the delta slug, not in a field anyone could forget to set.",
+      "rows": [
+        {
+          "slug": "lamp",
+          "content": "a lamp",
+          "name": "Lamp",
+          "witnessed": 1
+        },
+        {
+          "slug": "count-a-lamp-0",
+          "content": "2",
+          "laid_by": "a",
+          "witnessed": 2
+        },
+        {
+          "slug": "count-a-lamp-0~c",
+          "content": "+2 lamp",
+          "subject": "count-a-lamp-0",
+          "object": "lamp",
+          "witnessed": 2
+        },
+        {
+          "slug": "count-b-lamp-0",
+          "content": "7",
+          "laid_by": "b",
+          "witnessed": 3
+        },
+        {
+          "slug": "count-b-lamp-0~c",
+          "content": "+7 lamp",
+          "subject": "count-b-lamp-0",
+          "object": "lamp",
+          "witnessed": 3
+        }
+      ],
+      "expect": {
+        "valueOf": {
+          "holder": "a",
+          "key": "lamp",
+          "value": 2
+        },
+        "alsoValueOf": {
+          "holder": "b",
+          "key": "lamp",
+          "value": 7
+        }
+      }
+    },
+    {
+      "id": "provenance-survives",
+      "note": "The fold does not flatten WHO. Every surviving delta reports its layer, so 'who gave you these' is answerable from the same read that gives the count.",
+      "rows": [
+        {
+          "slug": "chart",
+          "content": "a moon chart",
+          "name": "Moon Chart",
+          "witnessed": 1
+        },
+        {
+          "slug": "count-moth-chart-0",
+          "content": "1",
+          "laid_by": "gran",
+          "witnessed": 2
+        },
+        {
+          "slug": "count-moth-chart-0~c",
+          "content": "+1 chart",
+          "subject": "count-moth-chart-0",
+          "object": "chart",
+          "witnessed": 2
+        },
+        {
+          "slug": "count-moth-chart-1",
+          "content": "1",
+          "laid_by": "the-foreman",
+          "witnessed": 3
+        },
+        {
+          "slug": "count-moth-chart-1~c",
+          "content": "+1 chart",
+          "subject": "count-moth-chart-1",
+          "object": "chart",
+          "witnessed": 3
+        }
+      ],
+      "expect": {
+        "valueOf": {
+          "holder": "moth",
+          "key": "chart",
+          "value": 2
+        },
+        "layers": [
+          "gran",
+          "the-foreman"
+        ]
+      }
+    }
+  ]
+}

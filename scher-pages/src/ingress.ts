@@ -36,8 +36,8 @@
 // is the truth. A round-trip that erased it would be lying to look tidy.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { Society, type EventRow } from "scher/society";
-import { gistOf } from "scher/stories";
+import { Society, type EventRow } from "scher/society.js";
+import { gistOf } from "scher/stories.js";
 
 /** A field in a shape. Deliberately tiny — this is a mapping, not a validator;
  *  bring zod/ajv if you want real schema enforcement at the edge. */

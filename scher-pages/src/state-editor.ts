@@ -16,10 +16,10 @@
 // what you want is `succeed(slug, …)`, and the difference is the whole library.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { Society, isOccluded } from "scher/society";
-import { reading } from "scher/stories";
-import { el, esc } from "scher/dom";
-import { project } from "scher/projection";
+import { Society, isOccluded } from "scher/society.js";
+import { reading } from "scher/stories.js";
+import { el, esc } from "scher/dom.js";
+import { project } from "scher/projection.js";
 
 export interface EditorParams {
   /** WHO is writing. Required: "no statement is not spoken from"

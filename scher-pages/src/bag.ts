@@ -30,10 +30,10 @@
 // else. Slightly more machinery; no stored grid to drift.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { Society } from "scher/society";
-import { reading } from "scher/stories";
-import { el, esc } from "scher/dom";
-import { project } from "scher/projection";
+import { Society } from "scher/society.js";
+import { reading } from "scher/stories.js";
+import { el, esc } from "scher/dom.js";
+import { project } from "scher/projection.js";
 import {
   type Counted, type CountedSpec, type CountedRead,
   readCounted, place, count, sectionOf, valueOf,

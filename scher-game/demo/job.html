@@ -1,0 +1,396 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>a job</title>
+<style>
+  /* LAYOUT (Hallie): she is in the UPPER area, you are BELOW — mirroring the
+     interview scene, where she sits across the desk and your cards are on
+     this side of it. Your area is just "You", and you have barely any art:
+     in a VN the player is the viewpoint, not a portrait. */
+  :root{ --ink:#e8e4da; --dim:#8a8296; --gold:#ffd76a; --panel:#171320;
+         --line:#2a2530; --good:#8fd3a0; }
+  *{box-sizing:border-box}
+  body{margin:0;background:#0f0d13;color:var(--ink);
+       font:13px ui-monospace,Menlo,monospace;display:flex;justify-content:center;padding:14px}
+  .table{width:min(700px,100%)}
+
+  .side{display:flex;gap:12px;border:2px solid var(--line);background:var(--panel);
+        padding:16px 10px 10px}   /* headroom for the thought bubble */
+  .side.you{border-color:#3a3446;padding:8px 10px}
+  .portrait{width:96px;height:124px;object-fit:cover;border:3px solid #111;flex:0 0 auto}
+  /* SIMLISH: bugs think in emoji, and the emoji ARE the stats. A bubble is not
+     flavour text — it is the key she is reaching for, in the same notation the
+     board uses. (career-rpg/muslins/09-language/LANGUAGE.md) */
+  .portwrap{position:relative;flex:0 0 auto}
+  .bubble{position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:#f4f1e8;color:#111;
+          border:2px solid #111;border-radius:14px;padding:3px 8px;font-size:17px;
+          white-space:nowrap;line-height:1.2}
+  .bubble:after{content:"";position:absolute;left:8px;bottom:-8px;width:0;height:0;
+                border:6px solid transparent;border-top-color:#111}
+  .whoBox{flex:1;min-width:0}
+  .whoBox h2{margin:0 0 3px;font-size:14px;color:var(--gold);letter-spacing:.04em}
+  /* you get a thin rule, not a portrait */
+  .youmark{width:4px;background:var(--gold);opacity:.5;flex:0 0 auto}
+  .star{font-size:11px;color:var(--dim);line-height:1.5}
+  .pull{font-size:11px;color:#a99cc4;margin-top:4px}
+  .tally{font-size:15px;margin-top:6px;letter-spacing:.06em}
+  .turnhere{outline:2px solid var(--gold);outline-offset:2px}
+
+  /* ── ACTUAL CARDS ──────────────────────────────────────────────────
+     They were rendering as info panels. A card should read as a card:
+     portrait aspect, a titled header band, art, rules text in the middle,
+     and the cost/fuel down in the corner where a card keeps it. */
+  .hand{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .card{
+    width:158px;min-height:214px;display:flex;flex-direction:column;
+    background:linear-gradient(#221c2e,#191424);
+    border:2px solid #6b5f86;border-radius:9px;
+    box-shadow:0 2px 0 #0a0810, inset 0 0 0 1px #3b3350;
+    overflow:hidden;position:relative;
+    /* a card is a THING you pick up, not a paragraph you select */
+    user-select:none;-webkit-user-select:none;
+    transition:transform .09s, box-shadow .09s, border-color .09s;
+  }
+  /* PLAYABLE: lifts, glows, and says so. */
+  .card.playable{cursor:pointer;border-color:var(--gold)}
+  .card.playable:hover{transform:translateY(-4px);
+    box-shadow:0 6px 0 #0a0810, 0 0 14px rgba(255,215,106,.28), inset 0 0 0 1px #6b5f86}
+  .card.playable:active{transform:translateY(-1px)}
+  /* NOT PLAYABLE: dimmed, and the footer says why. */
+  .card.spent{filter:grayscale(.7) brightness(.62);cursor:not-allowed}
+  .card.theirs{cursor:default;opacity:.92}
+  .card .why{position:absolute;inset:auto 0 0 0;background:#2a1420;color:#e0a0a0;
+             font-size:9px;text-align:center;padding:2px;border-top:1px solid #5a2a3a}
+  .card .playnow{position:absolute;top:4px;right:5px;background:var(--gold);color:#1a1520;
+                 font-size:8px;font-weight:700;padding:1px 5px;border-radius:8px;
+                 letter-spacing:.04em}
+  .card .hdr{background:linear-gradient(#3a3152,#2b2440);border-bottom:1px solid #6b5f86;
+             padding:5px 7px;font-size:11px;font-weight:700;color:var(--gold);
+             letter-spacing:.02em;line-height:1.25}
+  .card .frame{margin:6px 6px 0;height:52px;border:1px solid #4a4256;border-radius:4px;
+               background:#141019;display:flex;align-items:center;justify-content:center;
+               font-size:26px;letter-spacing:2px}
+  /* RULES up top where a player looks for what it does; FLAVOR at the bottom
+     in italics where flavour goes. (Hallie: "you have rules text and not
+     flavor text on those cards.") */
+  .card .rules{padding:6px 7px 4px;font-size:10.5px;line-height:1.35;flex:1;color:#e8e4da}
+  .card .v{color:var(--good);display:block;margin-top:4px;font-size:9.5px}
+  /* no flavor row — killed (Hallie). English prose is what Simlish retires;
+     what a card says is its RULE, and the mood is the art and the glyphs. */
+  .card .foot{border-top:1px solid #3b3350;background:#15111e;padding:4px 7px;
+              font-size:9.5px;color:var(--dim);display:flex;justify-content:space-between;
+              align-items:center;gap:4px}
+  .card .pips{letter-spacing:1px;color:var(--gold)}
+  .bar{height:4px;background:var(--line);margin:4px 7px 0}
+  .bar i{display:block;height:100%;background:var(--gold)}
+  .chg{color:var(--gold);font-weight:700}
+
+  .boardwrap{display:flex;justify-content:center;padding:8px 0}
+  button{font:inherit;font-size:11px;background:#241f2c;color:var(--ink);
+         border:1px solid #4a4256;padding:5px 10px;cursor:pointer}
+  button:hover{border-color:var(--gold)}
+  .controls{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;padding:5px 0}
+  .meta{display:flex;gap:14px;justify-content:center;font-size:11px;color:var(--dim)}
+  .meta b{color:var(--gold)}
+  .strip{text-align:center;font-size:11px;color:var(--dim);padding:5px;
+         border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin:6px 0}
+  .strip b{color:var(--gold)}
+  .jobbar{height:6px;background:var(--line);margin:5px auto;max-width:340px}
+  .jobbar i{display:block;height:100%;background:#8fd3a0}
+  .log{font-size:10px;color:var(--dim);max-height:110px;overflow:auto;
+       border:1px solid var(--line);padding:6px;margin-top:8px}
+</style>
+
+<div class="table">
+  <div class="side" id="themSide">
+    <div class="portwrap">
+      <img class="portrait" src="art/moth-desk.jpg" alt="the moth at the desk">
+      <div class="bubble" id="themThink" title="what she is thinking — and it is
+        the same glyph as her star, and as the gem on the board">…</div>
+    </div>
+    <div class="whoBox" id="them"></div>
+  </div>
+
+  <div class="strip" id="job"></div>
+  <div class="strip" id="align"></div>
+
+  <div class="boardwrap" id="board"></div>
+  <div class="meta">
+    <span>turn <b id="turn">—</b></span>
+    <span>moves <b id="moves">0</b></span>
+    <span>beats <b id="beats">0</b></span>
+  </div>
+  <div class="controls">
+    <button onclick="J.step()">take a turn</button>
+    <button onclick="J.run(10)">work 10 turns</button>
+    <button onclick="J.card()">play your card</button>
+    <button onclick="J.theirCard()">let her play hers</button>
+    <button onclick="J.reset()">new job</button>
+  </div>
+
+  <div class="side you" id="youSide">
+    <div class="youmark"></div>
+    <div class="whoBox" id="you"></div>
+  </div>
+
+  <div class="log" id="log"></div>
+</div>
+
+<script type="importmap">
+{ "imports": { "scher": "/dist/index.js", "scher/": "/dist/" } }
+</script>
+<script type="module">
+import { Society } from "/dist/society.js";
+import { openBoard, boardNow, swap, moveCount, playCardOnBoard }
+  from "/scher-game/dist/match3.js";
+import { match3Canvas, GLYPHS, GEM } from "/scher-game/dist/match3-canvas.js";
+import { planProbabilistic } from "/scher-game/dist/match3-superposition.js";
+import { MOON_MOTH, FLY_ME_TO_THE_MOON, INVESTIGATE, starIn,
+         playerAt, stanceBetween, affinityOf, distribution, emptyRecord,
+         chargesOf, cooldownProgress, canPlay, winners, applyCard, lonelyCells,
+         rulesTextOf,
+         gemsFor, kindsFor, paletteGlyphs, boardIndexOf,
+         DO_THE_CALCULATIONS, WEATHER, phaseAt, jobDone, jobProgress,
+         requirementProgress }
+  from "/scher-game/dist/match3-players.js";
+
+// ONE vocabulary; the board takes the subset this crew and job need. Named
+// indices so "moon" is 🌙 and cannot silently become 😎 (which is exactly the
+// bug the first version of this demo shipped).
+const ALL = GLYPHS;
+const { ROCKET, MOON, HEART, GLASS, QUESTION,
+        NERD, PLUS, MINUS, SUN, CLOUD, RAIN, LIGHTNING } = GEM;
+
+/** THE JOB asks for its own keys — reclamation wants hands-on work and care,
+ *  and it carries a hazard. The board's palette is the union of this and
+ *  whoever showed up. */
+// THE JOB CARD — what the WORK needs, shared. Everyone's clears count toward
+// it, so the job finishing and who got credit are two different reads.
+// DO THE CALCULATIONS — the job contributes 4 gems (🤓➕➖🚀), the moth 3
+// (🚀🌙❤️), you 3 (😎❤️🔍). Overlap is visible in the board itself.
+const JOB = DO_THE_CALCULATIONS(NERD, PLUS, MINUS, ROCKET);
+// THE WEATHER: a chained event whose pull moves through phases, then clears.
+const WX = WEATHER(0, SUN, CLOUD, RAIN, LIGHTNING);
+
+/** YOU. No name and barely any art — you are the viewpoint. Your stars are
+ *  whatever the character you built is reaching for; this demo seeds two so
+ *  the alignment read has something real to work on. You hold FLY ME TO THE
+ *  MOON as well: cards are not exclusive (Hallie), and the same card plays
+ *  differently in a different hand because your STARS differ. */
+const YOU = () => ({
+  id: "you", name: "You",
+  stars: [starIn(MOON, "To get to the moon.", 1),
+          starIn(GLASS, "To find the thing nobody else found.", 0.5)],
+  hand: [FLY_ME_TO_THE_MOON(ROCKET, MOON), INVESTIGATE(QUESTION, GLASS)],
+});
+
+let soc, view, rec, match, spec, glyphs, turn = 0;
+const log = (m) => { const d=document.getElementById("log");
+  d.innerHTML = m + "<br>" + d.innerHTML; };
+
+function reset() {
+  view?.stop(); view = null;
+  document.getElementById("board").textContent = "";
+  match = { players: [MOON_MOTH(ROCKET, MOON, HEART), YOU()] };
+  // THE GEMS ARE DERIVED — from who is here plus what the job wants.
+  glyphs = paletteGlyphs(ALL, match, JOB, [WX]);
+  spec = { id: "job-1", w: 8, h: 8, kinds: kindsFor(match, JOB, [WX]), seed: 2026 };
+  soc = new Society();
+  openBoard(soc, spec, "job");
+  rec = emptyRecord(match, spec.kinds);
+  turn = 0;
+  render();
+}
+
+/** a player's gem index on THIS board (their star keys are in game vocabulary) */
+const onBoard = (gem) => boardIndexOf(match, gem, JOB, [WX]);
+
+const cardHtml = (c, p, i) => {
+  const ch = chargesOf(c, rec, p);
+  const prog = c.victory?.progress?.(rec, p) ?? 0;
+  const spent = ch !== Infinity && ch <= 0;
+  const mine = p.id === "you";
+  const myTurn = playerAt(match, turn).id === p.id;
+  const offBoard = onBoard(c.effect.into ?? 0) < 0;
+  // ONE place decides playability, and the card SHOWS the answer.
+  const playable = mine && myTurn && !spent && !offBoard && !view?.busy;
+  const why = !mine ? "" : spent ? `needs ${ALL[c.recharge.gem]}`
+            : offBoard ? "not on this board"
+            : !myTurn ? "not your turn" : "";
+  // the card's "art" is Simlish too: the glyphs it works in, big.
+  const art = c.effect.kind === "convert-lonely" ? `${ALL[GEM.QUESTION]}`
+            : c.effect.kind === "transmute" ? `${ALL[c.effect.into]}×${c.effect.count}`
+            : "◆";
+  const cd = cooldownProgress(c, rec, p);
+  const pips = ch === Infinity ? "∞"
+    : ch > 0 ? "●".repeat(Math.min(5, ch))
+    : `○ ${Math.round(cd*100)}%`;      // empty: show the cooldown filling
+  return `<div class="card${spent ? " spent" : ""}${playable ? " playable" : ""}${
+      mine ? "" : " theirs"}"
+      ${playable ? `onclick="J.play('${p.id}',${i})"` : ""}
+      title="${playable ? "click to play" : (why || "")}">
+    ${playable ? '<span class="playnow">PLAY</span>' : ""}
+    <div class="hdr">${c.name}</div>
+    <div class="frame">${art}</div>
+    <div class="rules">${rulesTextOf(c, g => ALL[g])}
+      <span class="v">★ ${c.victory?.says ?? "—"}</span>
+    </div>
+    <div class="bar"><i style="width:${(prog*100).toFixed(0)}%"></i></div>
+    <div class="foot">
+      <span class="pips">${pips}</span>
+      <span>${c.recharge ? `${ALL[c.recharge.gem]}×${c.recharge.per}` : "always"}</span>
+    </div>
+    ${why ? `<div class="why">${why}</div>` : ""}
+  </div>`;
+};
+
+function sideHtml(p) {
+  const dist = distribution(affinityOf(p, spec.kinds));
+  const pull = dist.map((d,i)=>[glyphs[i],d]).sort((a,b)=>b[1]-a[1]).slice(0,2)
+    .map(([g,d])=>`${g}${(d*spec.kinds).toFixed(1)}×`).join("  ");
+  const tally = rec.cleared[p.id].map((n,i)=>n?`${glyphs[i]}${n}`:"").filter(Boolean).join(" ") || "—";
+  return `<h2>${p.name}</h2>
+    <div class="star">${p.stars.map(s=>s.wish).join("<br>")}</div>
+    <div class="pull">pulls ${pull}</div>
+    <div class="tally">${tally}</div>
+    <div class="hand">${(p.hand??[]).map((c,i)=>cardHtml(c,p,i)).join("")}</div>`;
+}
+
+function render() {
+  const [them, you] = match.players;
+  document.getElementById("them").innerHTML = sideHtml(them);
+  document.getElementById("you").innerHTML = sideHtml(you);
+
+  // THE BUBBLE IS A READ, not written dialogue: her brightest star, plus a ?
+  // when the board is thin on it. Nothing here is authored, which is the whole
+  // point — no voice can drift because there is no voice.
+  const brightest = [...them.stars].sort((a,b)=>b.magnitude-a.magnitude)[0];
+  const wantIdx = onBoard(brightest.keys[0]);
+  const onBoardCount = wantIdx < 0 ? 0
+    : boardNow(soc, spec).cells.filter(g => g === wantIdx).length;
+  document.getElementById("themThink").textContent =
+    ALL[brightest.keys[0]] + (onBoardCount < 6 ? "?" : onBoardCount > 12 ? "!" : "");
+
+  const up = playerAt(match, turn);
+  document.getElementById("themSide").classList.toggle("turnhere", up.id === them.id);
+  document.getElementById("youSide").classList.toggle("turnhere", up.id === you.id);
+
+  // requirements read as GEMS AND NUMBERS — the glyph is the description.
+  const reqs = JOB.requires.map(r => {
+    const p = requirementProgress(r, rec);
+    return `<span style="color:${p.met ? "#8fd3a0" : "var(--dim)"}">` +
+           `${ALL[r.gem]} ${p.done}/${p.need}${p.met ? "✓" : ""}</span>`;
+  }).join("  ");
+  // No credit split and no countdown (Hallie's call). Both were reads the
+  // library still supports — contribution() and jobFailed() — but on screen
+  // they turned a shared job into a scoreboard and a clock, which is the
+  // opposite of what a coopetitive board is for. The work either gets done or
+  // it does not; who carried it is a thing the fiction can raise if it wants.
+  const done = jobDone(JOB, rec);
+  document.getElementById("job").innerHTML =
+    `<b>${JOB.name}</b> — ${JOB.brief}<br>${reqs}` +
+    (() => { const ph = phaseAt(WX, rec.turns);
+      return ph ? `<br><span style="font-size:15px" title="the weather">${
+        ph.pull.map(x => ALL[x.gem]).join(" ")}</span>` : ""; })() +
+    `<div class="jobbar"><i style="width:${(jobProgress(JOB, rec)*100).toFixed(0)}%"></i></div>` +
+    (done ? `<b style="color:#8fd3a0">JOB DONE</b>` : "");
+
+  const st = stanceBetween(them, you, ALL.length);   // GAME vocabulary, not board
+  const word = st.ally > .55 ? "COOPERATIVE — you want the same thing"
+             : st.ally > .15 ? "COOPETITIVE — your stars partly overlap"
+             : st.ally < -.15 ? "OPPOSED" : "INDIFFERENT — different stars";
+  document.getElementById("align").innerHTML =
+    `ALIGNMENT <b>${st.ally.toFixed(2)}</b> · ${word} — <i>read from shared stars, not chosen</i>`;
+
+  document.getElementById("turn").textContent = up.name;
+  document.getElementById("moves").textContent = moveCount(soc, spec);
+  document.getElementById("beats").textContent = soc.all().length;
+
+  // MOUNT ONCE. Re-creating the canvas each render killed any in-flight
+  // cascade, which is why another player's turn used to snap instead of
+  // animating. Panels repaint freely; the board persists.
+  const host = document.getElementById("board");
+  if (!view) {
+    view = match3Canvas(soc, { spec, gems: glyphs, cell: 54, by: "job" });
+    host.appendChild(view.node);
+  } else {
+    view.redraw();
+  }
+
+  const w = winners(match, rec);
+  if (w.length) log(`<b style="color:#8fd3a0">${w.map(p=>p.name).join(" & ")} met a victory condition</b>`);
+}
+
+function credit(who, before, after) {
+  const b={}, a={};
+  before.forEach(g=>g>=0&&(b[g]=(b[g]||0)+1));
+  after.forEach(g=>g>=0&&(a[g]=(a[g]||0)+1));
+  for (let g=0; g<spec.kinds; g++){ const gone=(b[g]||0)-(a[g]||0);
+    if (gone>0) rec.cleared[who.id][g]+=gone; }
+}
+
+function playCard(who, idx=0) {
+  const c = (who.hand ?? [])[idx];
+  if (!c) return log(`${who.name} has no card there`);
+  if (!canPlay(c, rec, who))
+    return log(`<b>${c.name}</b> is empty — ${who.name} needs ${ALL[c.recharge.gem]}`);
+  const before = boardNow(soc, spec).cells;
+  const into = onBoard(c.effect.into ?? 0);
+  if (into < 0)
+    // REFUSE rather than silently retarget: a card that makes 🚀 cannot make
+    // them on a board with no 🚀. Quietly turning it into gem 0 would be the
+    // clamped-write lie in a different costume.
+    return log(`<b>${c.name}</b> makes ${ALL[c.effect.into]}, which is not on this board — it does nothing here`);
+  const eff = { ...c, effect: { ...c.effect, into } };
+  const after = applyCard(spec, before, eff);
+  const changedAt = after.map((g,i)=>g!==before[i] ? i : -1).filter(i=>i>=0);
+  if (!changedAt.length) return log(`<b>${c.name}</b> would change nothing here`);
+
+  // LAY IT. This was the bug: the effect was computed and thrown away, so the
+  // fold over swaps replayed a board on which the card had never happened.
+  playCardOnBoard(soc, spec, changedAt.map(i => [i, after[i]]), who.id);
+
+  credit(who, before, boardNow(soc, spec).cells);   // the cascade it caused counts
+  rec.played[who.id][c.id] = (rec.played[who.id][c.id]||0)+1;
+  log(`<b>${who.name} plays ${c.name}</b> — ${changedAt.length} cells → ${glyphs[into]}` +
+      (c.effect.kind==="convert-lonely"
+        ? ` (${lonelyCells(spec, before).length} lonely)` : ""));
+  rec.turns = ++turn; render();
+  // particles at the changed cells, then the match check the card created
+  view?.cardFired(before, changedAt, glyphs[into]);
+}
+
+window.J = {
+  step(){
+    if (view?.busy) return;              // let the current cascade finish
+    const who = playerAt(match, turn);
+    const before = boardNow(soc, spec).cells;
+    const p = planProbabilistic(soc, spec, { samples: 16 });
+    if (!p) return log("the board is dead — no legal moves");
+    swap(soc, spec, p.move[0], p.move[1], who.id);
+    credit(who, before, boardNow(soc, spec).cells);
+    rec.moves[who.id]++; rec.turns = ++turn;
+    log(`<b>${who.name}</b> ${p.because.slice(0,110)}…`);
+    render();
+    // ANIMATE IT — whoever took it. Watching her work is the point of a
+    // shared board.
+    view?.animateMove(before, p.move[0], p.move[1]);
+  },
+  /** turns play in sequence, each waiting for the last cascade to land, so a
+   *  run reads as work happening rather than a jump cut. */
+  run(n){
+    let left = n;
+    const tick = () => {
+      if (left <= 0) return;
+      if (view?.busy) return setTimeout(tick, 60);
+      left--; J.step(); setTimeout(tick, 120);
+    };
+    tick();
+  },
+  /** clicking a card plays it — the buttons below are now just shortcuts. */
+  play(pid, i){ playCard(match.players.find(p => p.id === pid), i); },
+  card(){ playCard(match.players[1], 0); },
+  theirCard(){ playCard(match.players[0], 0); },
+  reset,
+};
+reset();
+</script>

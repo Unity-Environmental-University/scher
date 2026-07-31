@@ -1,0 +1,132 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>match3 — scher-game stress test</title>
+<style>
+  body{margin:0;background:#0f0d13;color:#e8e4da;font:13px ui-monospace,Menlo,monospace;
+       display:flex;gap:18px;padding:18px;flex-wrap:wrap}
+  .panel{min-width:280px;max-width:340px}
+  h1{font-size:14px;letter-spacing:.1em;margin:0 0 10px}
+  .stat{display:flex;justify-content:space-between;border-bottom:1px solid #2a2530;padding:4px 0}
+  .stat b{color:#ffd76a}
+  button{font:inherit;font-size:11px;background:#241f2c;color:#e8e4da;border:1px solid #4a4256;
+         padding:5px 10px;cursor:pointer;margin:2px 4px 2px 0}
+  button:hover{border-color:#ffd76a}
+  .note{color:#8a8296;font-size:11px;line-height:1.5;margin-top:12px}
+  .log{font-size:10px;color:#8a8296;max-height:180px;overflow:auto;border:1px solid #2a2530;
+       padding:6px;margin-top:8px}
+</style>
+<div id="game"></div>
+<div class="panel">
+  <h1>MATCH3 — STRESS TEST</h1>
+  <div class="stat"><span>score</span><b id="score">0</b></div>
+  <div class="stat"><span>last chain</span><b id="chain">0</b></div>
+  <div class="stat"><span>moves (live)</span><b id="moves">0</b></div>
+  <div class="stat"><span>BEATS IN LOG</span><b id="beats">0</b></div>
+  <div class="stat"><span>beats / move</span><b id="ratio">—</b></div>
+  <div class="stat"><span>legal moves</span><b id="legal">0</b></div>
+  <div style="margin-top:10px">
+    <button onclick="G.undo()">undo (occlude)</button>
+    <button onclick="G.swapSet()">swap gem set</button>
+    <button onclick="G.auto(25)">auto-play 25</button>
+    <button onclick="G.bench()">bench 200 moves</button>
+  </div>
+  <h1 style="margin-top:14px">AI PLAYERS</h1>
+  <div>
+    <button onclick="G.hint()">hint</button>
+    <button onclick="G.ai(1)">search ×1</button>
+    <button onclick="G.ai(10)">search ×10</button>
+    <button onclick="G.prob(1)">probabilistic ×1</button>
+    <button onclick="G.prob(10)">probabilistic ×10</button>
+    <button onclick="G.duel()">duel: search vs greedy</button>
+  </div>
+  <div class="note">
+    A move lays <b>3 beats</b> no matter how long the cascade. The falling gems are
+    <b>derived</b> — <code>settle()</code> returns an animation script nothing ever
+    laid. Undo is occlusion; the board re-folds.
+  </div>
+  <div class="log" id="log"></div>
+</div>
+<script type="importmap">
+{ "imports": { "scher/": "/dist/", "scher": "/dist/index.js" } }
+</script>
+<script type="module">
+import { Society } from "/dist/society.js";
+import { openBoard, boardNow, undoLastSwap, moveCount, legalMoves, swap }
+  from "/scher-game/dist/match3.js";
+import { match3Canvas, GEMS } from "/scher-game/dist/match3-canvas.js";
+import { plan, planGreedy, playBest } from "/scher-game/dist/match3-ai.js";
+import { planProbabilistic, playProbabilistic }
+  from "/scher-game/dist/match3-superposition.js";
+
+const SPEC = { id: "board-1", w: 8, h: 8, kinds: 6, seed: 42 };
+const soc = new Society();
+openBoard(soc, SPEC, "frame-player");
+
+let sets = ["career", "world"], si = 0, view;
+const log = (m) => { const d=document.getElementById("log");
+  d.innerHTML = m + "<br>" + d.innerHTML; };
+
+function stats() {
+  const b = boardNow(soc, SPEC), m = moveCount(soc, SPEC);
+  document.getElementById("score").textContent = b.score;
+  document.getElementById("chain").textContent = b.chain;
+  document.getElementById("moves").textContent = m;
+  document.getElementById("beats").textContent = soc.all().length;
+  document.getElementById("ratio").textContent = m ? (soc.all().length/m).toFixed(2) : "—";
+  document.getElementById("legal").textContent = legalMoves(soc, SPEC).length;
+}
+
+function mount() {
+  const host = document.getElementById("game");
+  host.textContent = "";
+  view?.stop();
+  view = match3Canvas(soc, { spec: SPEC, gems: sets[si], cell: 58, by: "frame-player",
+    onScore: (t, c) => { log(`chain ${c} · +score → ${t}`); stats(); } });
+  host.appendChild(view.node);
+  stats();
+}
+
+window.G = {
+  undo(){ undoLastSwap(soc, SPEC, "frame-player"); log("undo → board re-folded"); mount(); },
+  swapSet(){ si = (si+1) % sets.length; log(`gem set → ${sets[si]}`); mount(); },
+  auto(n){ for (let i=0;i<n;i++){ const m = legalMoves(soc, SPEC);
+      if (!m.length){ log("board dead"); break; } swap(soc, SPEC, m[0][0], m[0][1], "auto"); }
+    log(`auto-played ${n}`); mount(); },
+  bench(n=200){
+    const t0 = performance.now();
+    let made = 0;
+    for (let i=0;i<n;i++){ const m = legalMoves(soc, SPEC);
+      if (!m.length) break; if (swap(soc, SPEC, m[0][0], m[0][1], "bench")) made++; }
+    const t1 = performance.now();
+    const r0 = performance.now(); boardNow(soc, SPEC); const r1 = performance.now();
+    log(`<b>BENCH</b> ${made} moves in ${(t1-t0).toFixed(0)}ms · ` +
+        `full re-fold ${(r1-r0).toFixed(1)}ms · ${soc.all().length} beats`);
+    mount();
+  },
+  hint(){ const p = plan(soc, SPEC, { depth: 2, width: 8 });
+    if (!p) return log("no legal moves");
+    log(`<b>HINT</b> ${p.move[0]}↔${p.move[1]} — ${p.because}`); },
+  ai(n){ const t0=performance.now(); let boards=0;
+    for (let i=0;i<n;i++){ const p = playBest(soc, SPEC, { depth: 3, width: 6 }, "frame-ai");
+      if (!p) { log("no legal moves"); break; } boards += p.boardsSearched;
+      if (n===1) log(`<b>SEARCH</b> ${p.because}`); }
+    if (n>1) log(`<b>SEARCH ×${n}</b> ${boards} boards predicted in ${(performance.now()-t0).toFixed(0)}ms`);
+    mount(); },
+  prob(n){ const t0=performance.now();
+    for (let i=0;i<n;i++){ const p = playProbabilistic(soc, SPEC, { samples: 24 }, "frame-ai-prob");
+      if (!p) { log("no legal moves"); break; }
+      if (n===1) log(`<b>PROB</b> ${p.because}`); }
+    if (n>1) log(`<b>PROB ×${n}</b> in ${(performance.now()-t0).toFixed(0)}ms`);
+    mount(); },
+  duel(){
+    const run = (which) => { const s2 = new Society(); openBoard(s2, SPEC, "duel");
+      for (let i=0;i<30;i++){ const p = which==="search" ? plan(s2,SPEC,{depth:3,width:6})
+                                                        : planGreedy(s2,SPEC);
+        if (!p) break; swap(s2, SPEC, p.move[0], p.move[1], which); }
+      return boardNow(s2, SPEC).score; };
+    const a = run("search"), b = run("greedy");
+    log(`<b>DUEL</b> 30 moves — search <b>${a}</b> vs greedy <b>${b}</b> → ` +
+        (a>b?"search wins":a<b?"greedy wins":"tie")); },
+};
+mount();
+</script>

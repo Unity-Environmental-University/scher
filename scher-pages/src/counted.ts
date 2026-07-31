@@ -39,7 +39,7 @@
 // now rather than discovered later.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { Society, isOccluded } from "scher/society";
+import { Society, isOccluded } from "scher/society.js";
 
 /** A key in a Counted. Opaque — never parsed for meaning (no string-matching
  *  on slugs; that is the discipline scher's CLAUDE.md names explicitly). */

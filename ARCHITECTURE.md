@@ -3,35 +3,64 @@
 Short notes on decisions that look like warts but are load-bearing. If you're tempted
 to "fix" one of these, read here first.
 
-## Why imports say `.js`, not `.ts` — and why there's no build layer
+## Why the library's own imports say `.js`
 
-You'll see `import { … } from "./society.js"` in `.ts` files. This is correct and
-deliberate, not a leftover.
+The library builds with plain `tsc`, and `tsc` does not rewrite import specifiers: it
+type-checks `./society.js` against `society.ts` and emits the import unchanged, so the
+emitted `.js` resolves natively in Node and the browser. Under `tsc` alone, `.js` is not
+a style choice — it is the only specifier that survives the build.
 
-- **`tsc` does not rewrite import specifiers.** It type-checks `./society.js` against
-  `society.ts` and emits the import *unchanged*, so the emitted `.js` resolves natively
-  in Node and the browser. Importing `./society.ts` either errors or can't be emitted to
-  runnable JS.
-- **scher is `tsc`-only, on purpose.** The pitch is: zero runtime deps, raw ES modules
-  served static, the source *is* the artifact (modulo type erasure). No bundler, no
-  alias resolver, no virtual modules. `npm run build` is one `tsc` invocation.
+That is a fact about **this package's own build**, and it stops there. How a consumer
+imports scher is a separate question, answered in `IMPORTING.md`: bundle the app, leave
+the library bare. Both are true at once.
 
-A build layer (esbuild/vite/rollup) *could* let us write `./society.ts` or extensionless
-imports — bundlers don't care about the extension. We don't, for two reasons:
+### FUNERAL: "and why there's no build layer" (2026-06-23 – 2026-08-04)
 
-1. **Honesty about what runs.** A bundler trades "the source is the artifact" for "the
-   source compiles to the artifact." For a library whose value is legibility and
-   no-magic, that's a real loss. (See the scar-comment in `frames.ts`: a bare specifier
-   that didn't resolve in the browser blanked a page in the parent project.)
-2. **AST/crawler friendliness.** The `.js`-pointing-at-`.ts` convention keeps the
-   *source* import graph identical to the *runtime* import graph. A naive crawler reads
-   `from "./society.js"`, maps it to `society.ts`, and is done — no resolver config to
-   replicate. Add aliases or extensionless imports behind a bundler and any tool walking
-   the graph must now reimplement your resolver. The ugly-looking convention is the
-   crawler-friendly one.
+This section used to carry a second half forbidding bundlers — *"No bundler, no alias
+resolver, no virtual modules… Keep this library bare"* — on two grounds: honesty about
+what runs, and crawler-friendliness. It also framed `.js` imports as a positive good
+rather than as a `tsc` constraint.
 
-If you want nicer imports, do it in an *app* or a bundled consumer — places where a
-bundler already earns its keep. Keep this library bare.
+**Hallie's ruling, 2026-08-04**, in two parts:
+
+> *"I don't actually mind a bundler, haven't for a while, have had this conversation
+> multiple times."*
+>
+> *"I don't want to be importing .js files, I want to be importing .ts for human
+> readability and linter functionality."*
+
+The repetition is the finding. A doc that has to be overruled repeatedly is not recording
+a decision; it is manufacturing one. This section was cited back to her twice in one
+session as a reason she couldn't have something she had never asked not to have.
+
+It was already answered before it was buried. `IMPORTING.md` (2026-07-30, `88ae67d`) takes
+both arguments apart on the merits — sourcemaps already buy the legibility that "the
+source IS the artifact" was defending; crawler-friendliness has teeth only if something
+actually crawls — and names the conflation directly: *"That is an argument about scher's
+dist. It is not an argument about how your app consumes scher. Those got conflated, and
+the conflation cost this repo some ergonomics it did not need to pay for."* That analysis
+stands; this is the section it was about, now removed rather than left to be re-litigated.
+
+One detail worth recording, because it is what made the prose persuasive: it cited "the
+scar-comment in `frames.ts` — a bare specifier that didn't resolve in the browser blanked
+a page." `grep` for `blanked` or `bare specifier` across `src/` returns nothing, in either
+checkout. The measured-sounding detail was decoration.
+
+**Measured, 2026-08-04** — both halves of the ruling work in a vite consumer:
+
+- **`.ts` imports:** `allowImportingTsExtensions: true` with `moduleResolution: "bundler"`.
+  `tsc --noEmit` passes, vite builds, and no `.ts` specifier survives into the output
+  (verified by grep on the emitted bundle) — the bundler resolves and inlines them.
+  Requires `noEmit`/`emitDeclarationOnly`, which is the right shape for an app anyway.
+- **JSX:** `el(tag, props, ...children)` is already the classic JSX factory signature, so
+  JSX needs *no library change* — a `jsx.d.ts` mapping `JSX.IntrinsicElements` to
+  `ElOptions`, plus `jsxFactory: "el"`. Verified type-level (red on a bad tag and a bad
+  prop) and at runtime under jsdom (real DOM, live event handler). Implementer's note:
+  vite 6+/vitest 4.x transform with **oxc**, which silently ignores `esbuild.jsxFactory`
+  and then fails resolving `react/jsx-dev-runtime`; the working key is
+  `oxc: { jsx: { runtime: "classic", pragma: "el" } }`.
+
+A worked example of both is in `penelope-course/specs/muslins-and-examples/`.
 
 ## Why time/locale use native `Intl`, not Temporal
 

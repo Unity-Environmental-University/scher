@@ -31,7 +31,12 @@ pub struct EdgeWord {
     pub qualities: Vec<String>,
     pub b: String,
 }
-
+//HALLIE: HEY CLAUDE, weould you feel up to doing a Fleisch kincaid 6 pass on the comments in here
+//and the explainations? The code has the precision for the contracts and the technical, the
+//history in the doc of rulings is amazing, thou I wonder if we should as a matter of course keep
+//it closer to being at the BOTTOM of the file and referenced at the top along with a note of the
+//last time it was archived and which commit tagged with "We got rid of comment spam but you can
+//read it at this tag"
 const OPEN: &str = "be(";
 const CLOSE: &str = ")cause";
 const BARE: &str = " because ";
@@ -385,6 +390,7 @@ where
     // closure args would be ambiguous with a function call, and arrows/angle-brackets were
     // spoken for elsewhere in the grammar. Pipes were free, unambiguous, and already a familiar
     // shape from Ruby — a borrowed idiom that also happened to solve a real parsing problem.
+    // HALLIE: THANK YOU THATS RAD
     let candidates: Vec<String> = content.into_iter().map(|s| s.to_string()).collect();
     // one pass over the because-topology: collect every slug that ever appears as an `a`
     // (a resting-thing) and every slug that appears as a `b` (a ground).

@@ -132,6 +132,11 @@ pub const Q_SETTLES: &str = "q-settles";
 /// (opaque-slugs law) — mirrors the `Q_END_POLE` designation pattern exactly.
 pub const Q_COMMENT: &str = "q-comment";
 
+//HALLIE: I think we should deprecate 'beat' to an alias for Event on -- all occasions. Beat/Story
+//is a dicohotomy of the grammar of use, not of the ontology of data and we're in thef rame of
+//reference o the ontology.
+//HALLIE: I am seriuosly considering making title mandatory and content optional. I thik the
+//alternative is leaking legibiliy and tokens into our graph like noone's business.
 /// A beat. With subject+object it is a prehension (an edge). A quality beat (slug ending
 /// `~q`, object a `q-*`) carries mode. Mirrors the `EventRow` interface in society.ts.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -289,6 +294,8 @@ impl Society {
         s
     }
 
+    //TECHNICALLY there should be a way to delete slugs, but it requires validation and the laying
+    //of a separate edge accounting for it.
     // the one write. `lay` of an existing slug is inert (ON CONFLICT DO NOTHING). Beats are
     // never overwritten. The witnessing clock is monotone across BOTH explicit stamps and
     // auto-stamps: an explicitly-witnessed beat advances the clock so a later auto-stamp

@@ -17,14 +17,18 @@
 // a LOCAL calendar date (split the parts) so it never zone-shifts the way
 // `new Date("2026-06-17")` (UTC-midnight) would.
 //
-// FUTURE: the TC39 Temporal API is the natural substrate for time-as-frame
-// (Temporal.PlainDate is exactly "a calendar date that cannot zone-shift";
-// Temporal.ZonedDateTime is exactly "an instant read through a zone"). As of mid-2026
-// Temporal ships in Chrome 144+ and is ES2026, but Safari/mobile still lack stable
-// support, so using it would force a ~200KB polyfill and break scher's zero-dep promise.
-// The time surface below (timeFrame / clockLabel) is kept deliberately small so it can
-// be reimplemented over Temporal — with no caller-visible API change — once it's Baseline.
+// TIME IS TEMPORAL (2026-08-07, Hallie's call). Temporal.PlainDate is exactly "a
+// calendar date that cannot zone-shift" and Temporal.ZonedDateTime is exactly "an
+// instant read through a zone" — the frame model's two cases, as types rather than as
+// branches of a string parse.
+//
+// This costs the zero-dependency promise: `temporal-polyfill` is a real runtime
+// dependency, taken deliberately, because Temporal is not in node yet (undefined in
+// v25.6.1; V8 knows --harmony-temporal but the build does not ship it). When node ships
+// it, drop the import and nothing else changes.
 // ─────────────────────────────────────────────────────────────────────────────
+
+import { Temporal } from "temporal-polyfill";
 
 // ── TIME AS A FRAME ────────────────────────────────────────────────────────────
 
@@ -47,44 +51,42 @@ export function timeFrame(userZone?: string | null): string {
 
 /** Render a date into a plain, frame-correct label.
  *  - a hand-written string ("Weds AM") passes through untouched
- *  - a bare ISO date (YYYY-MM-DD) is a calendar date — parsed LOCAL, never zone-shifts
+ *  - a bare ISO date (YYYY-MM-DD) is a calendar date — it has no instant to shift
  *  - a full instant is read THROUGH the reader's frame (their zone, or the system's)
+ *
+ *  Over Temporal since 2026-08-07. The two kinds are now different TYPES rather than
+ *  two branches of one string parse, which is what the frame model was claiming all
+ *  along: `PlainDate` is a calendar date that cannot zone-shift, `Instant` is a moment
+ *  read through a zone. Three things the old `Date` version got wrong fall out:
+ *   - a bare ISO date used to be parsed local and then formatted ignoring `userZone`;
+ *     a PlainDate has no zone to ignore, so the label is the date the author wrote.
+ *   - `Date.parse` is lenient enough to swallow "March 5" and re-word it in someone
+ *     else's zone; `Instant.from` is strict, so hand-written strings stay hand-written.
+ *   - the two-Intl-calls-per-label thing is one call now.
  */
 // TODO(socratic): now that I take BOTH userZone and userLocale, they arrive as two loose optionals — should a reader's frame be one value (zone+locale together) rather than two parameters a caller can half-pass, recreating the half-frame this signature just repaired?
 export function clockLabel(when: string, userZone?: string | null, userLocale?: string | null): string {
-  // bare calendar date — the common case. Parse the parts as a LOCAL date: no day-shift.
-  const isoDate = when.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (isoDate) {
-    const [, y, m, d] = isoDate;
-    // TODO(socratic): new Date(year, month, day) in JS is always LOCAL — but does labelOf then read the same date in ANOTHER zone if the caller passed userZone?  (the calendar date was parsed local to the machine, but then labelOf ignores userZone entirely — is that the contract, or a bug)?
-    return labelOf(new Date(Number(y), Number(m) - 1, Number(d)), userLocale);
-  }
-  // TODO(socratic): my "hand-written strings pass through" promise rests on Date.parse returning NaN — but Date.parse is famously lenient ("March 5", "2026/06/17" parse in many engines), so which hand-written labels get silently hijacked into the instant branch and re-worded in someone's zone?
-  // a full instant (has time/offset) — read it in the reader's frame via Intl.
-  const t = Date.parse(when);
-  if (!Number.isNaN(t)) {
-    const zone = timeFrame(userZone);
-    const locale = localeFrame(userLocale);
+  const locale = localeFrame(userLocale);
+  const opts = { weekday: "short", month: "short", day: "numeric" } as const;
+
+  // A bare calendar date. No instant, therefore nothing a zone could shift.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(when)) {
     try {
-      // TODO(socratic): Why call Intl twice (once for weekday, once for date) instead of a single format call with both options?
-      const day = new Intl.DateTimeFormat(locale, { weekday: "short", timeZone: zone }).format(t);
-      const date = new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", timeZone: zone }).format(t);
-      return `${day} ${date}`;
+      return Temporal.PlainDate.from(when).toLocaleString(locale, opts);
     } catch {
-      // TODO(socratic): If Intl formatting fails, we fall back to labelOf — which doesn't know the userZone; is this the contract, or should the fallback honor the frame somehow?
-      return labelOf(new Date(t), userLocale);
+      return when; // not a real date (2026-13-45) — the author's string stands
     }
   }
-  // already-plain hand-written string ("Weds AM") passes through.
-  return when;
-}
 
-function labelOf(d: Date, userLocale?: string | null): string {
-  // plain register: short weekday + month + day. The READER'S locale words, frame-correct date.
-  const locale = localeFrame(userLocale);
-  const day = d.toLocaleDateString(locale, { weekday: "short" });
-  const date = d.toLocaleDateString(locale, { month: "short", day: "numeric" });
-  return `${day} ${date}`;
+  // A full instant — read at the reader's standpoint.
+  try {
+    return Temporal.Instant.from(when)
+      .toZonedDateTimeISO(timeFrame(userZone))
+      .toLocaleString(locale, opts);
+  } catch {
+    // TODO(socratic): a zoned-but-not-instant string ("2026-06-17T12:00") has no offset — should it read as a PlainDateTime in the reader's zone rather than falling through to pass-through?
+    return when; // hand-written ("Weds AM") — passes through untouched
+  }
 }
 
 // ── LOCALE AS A FRAME ────────────────────────────────────────────────────────────

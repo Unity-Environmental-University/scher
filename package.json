@@ -33,5 +33,8 @@
     "jsdom": "^29.1.1",
     "typescript": "5.7.2",
     "vitest": "^4.1.9"
+  },
+  "dependencies": {
+    "temporal-polyfill": "^1.0.3"
   }
 }

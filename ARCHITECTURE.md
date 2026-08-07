@@ -15,10 +15,14 @@ caught by the thing it points at rather than sitting here sounding authoritative
   `moduleResolution: "bundler"`, worked example in `penelope-course/specs/muslins-and-examples/`.
   Whether the library itself should move is open.
 
-- **Time/locale use native `Intl`** → `src/frames.ts:20-26`, which says this better and is
-  next to the code. Temporal was skipped for Safari/mobile support in mid-2026. That has
-  moved; **we could use Temporal now** and the surface was kept small so it can be swapped
-  with no caller-visible change. Nobody has checked what it costs today.
+- **Time/locale use native `Intl`** → `src/frames.ts`. **Measured 2026-08-07: Temporal is not
+  available in this library's own runtime.** `typeof Temporal === "undefined"` in node
+  v25.6.1; V8 recognises `--harmony-temporal` but the implementation is not in the build.
+  The old note blamed Safari, and that part has moved on — but the blocker now is nearer to
+  home: adopting it means a polyfill (~200KB), which breaks the zero-dependency promise the
+  library rests on. The surface is still deliberately small (`timeFrame`, `clockLabel`) so it
+  can be swapped with no caller-visible change. **Recheck when node ships it** — that is the
+  gate, not browser support.
 
 - **A frame is a standpoint, not a person** → `src/society.ts` (occlusion), `src/frames.ts`
   (reference frames), `src/stories.ts` (`FrameStory`, an unrelated UI leaf — naming
@@ -32,19 +36,14 @@ caught by the thing it points at rather than sitting here sounding authoritative
   The claim used to be that this was the testing philosophy; it describes about a tenth of
   the suite. The rest are dolls (`test/PLAY.md`) and example tests, deliberately.
 
-- **The trajectory harness** → `test/support/trajectory.ts` (169 lines). Records each lay with
-  the society's clock so a society can be replayed *as of* a past moment. It earned its keep
-  once: `asOf(past).reads(beat)` was written before the library could satisfy it, and going
-  green surfaced a clock-monotonicity bug a final-state test would not have found.
-
-  **Dormant, and worth a decision.** Written 2026-06-23; last real work 2026-07-02 (a
-  repo-wide rename, not the harness). Two callers — `fisheye.test.ts` and its own
-  `trajectory.harness.test.ts`, both quiet since July 10. 145 commits since then touched
-  neither. The design intent was that `asOf` was the first of several witnessing-axis reads
-  it would drive out (`from?`, satisfaction/settledness came next); those did not arrive.
-  So: revive it against the reads it was meant to drive, or let it shrink to what
-  `fisheye.test.ts` actually uses. Nobody has decided, and it has been costing nothing
-  either way, which is why nobody has had to.
+- **The trajectory harness is gone** (removed 2026-08-07, Hallie's call). It recorded each
+  lay with the society's clock so a society could be replayed *as of* a past moment, and it
+  earned its keep once: `asOf(past).reads(beat)` was written before the library could satisfy
+  it, and going green surfaced a clock-monotonicity bug a final-state test would not have
+  found. **`asOf` itself stays** — that read is in `society.ts` and the dolls use it.
+  What went was the 169-line harness around it: written 2026-06-23, last real work 2026-07-02
+  (a repo-wide rename), and by the end its only caller was its own test. `fisheye.test.ts`
+  looked like a second caller and was not — it contained the word "trajectory" in a comment.
 
 ---
 

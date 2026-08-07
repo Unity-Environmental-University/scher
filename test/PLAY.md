@@ -46,6 +46,12 @@ cd scher && npm test                        # run everything (the dolls + the re
   Dōgen, al-Ash'arī, Hebrew liturgy, Ubuntu, Whitehead-as-the-longest-way). A forest, not a chain.
 - **city-of-death** — Scaroth splintered across time; six frame-relative Mona Lisas; "THIS IS A FAKE"
   in felt-tip under the paint (a reading laid for a future frame to un-occlude).
+- **tenet** — the temporal pincer. Hyperion's anti-time is ONE canon read against its own
+  insertion; Tenet's is TWO series with no global order between them, related only where they
+  touch. The turnstile is a standpoint, not a substrate converter. "What's happened, happened"
+  IS append-only: to act against the past you must first prehend it, and prehending it is what
+  makes it hold. The doomsday device is a *global* order imposed across all series — and the
+  grammar's answer is structural: there is no place to lay "and this order is the only one."
 - **emoji-charge-doll-a/b/c** — a play committee's three dolls on emoji-as-charge-markers: (a) the
   existing q-feel reaction shape already IS the charter's ask, plus a real react/un-react/react-again
   bug found while stress-testing it; (b) a standing glyph-node buys unbounded aggregation, costs a

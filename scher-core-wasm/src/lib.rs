@@ -29,9 +29,11 @@
 //   • as_of crosses as f64 (JS number), cast to u64 — witnessed clocks in canon are
 //     small integers; a fractional or negative as_of is truncated, not refused.
 
-use scher_core::{is_occluded, EventRow, Society};
+use scher_core::{
+    is_occluded, prehensions_from, quality_subjects_onto, reaches_set, EventRow, Society,
+};
 use scher_epistemology::{buckets_of, members_of};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
 // ── the boundary itself ──────────────────────────────────────────────────────────
@@ -53,6 +55,21 @@ struct RowIn {
     laid_by: Option<String>,
     #[serde(default)]
     voltage: Option<String>,
+}
+
+/// A row on the way back out — what an event SAYS, so a JS caller does not need a
+/// second source of truth for content/name/witnessed alongside the kernel's reads.
+#[derive(Serialize)]
+struct RowOut {
+    slug: String,
+    content: String,
+    name: Option<String>,
+    subject: Option<String>,
+    object: Option<String>,
+    witnessed: Option<u64>,
+    /// Who laid it. Dropped from the first cut of this struct by oversight — provenance
+    /// reads ("who proposed this, who accepted it") are unanswerable without it.
+    laid_by: Option<String>,
 }
 
 /// A Society held on the wasm side. Constructed ONCE from a whole batch of rows
@@ -106,6 +123,57 @@ impl WasmSociety {
     pub fn buckets_of(&self, event: &str, as_of: Option<f64>) -> String {
         let b = buckets_of(&self.soc, event, as_of.map(|t| t as u64));
         serde_json::to_string(&b).expect("Buckets serializes")
+    }
+
+    /// prehensionsFrom, one call → JSON array of {slug, subject, object} for every
+    /// un-occluded prehension FROM `event` co-prehending `quality`, as of a moment.
+    /// The outward half of an axis read: "what does this prehend along q-contains?"
+    #[wasm_bindgen(js_name = qualityObjectsFrom)]
+    pub fn quality_objects_from(&self, event: &str, quality: &str, as_of: Option<f64>) -> String {
+        let t = as_of.map(|t| t as u64);
+        let v: Vec<String> = prehensions_from(&self.soc, event, quality, t)
+            .iter()
+            .filter(|p| !is_occluded(&self.soc, &p.slug, t))
+            .filter_map(|p| p.object.clone())
+            .collect();
+        serde_json::to_string(&v).expect("Vec<String> serializes")
+    }
+
+    /// qualitySubjectsOnto, one call → JSON array of slugs. The inward half: "what
+    /// prehends this along q-after?" Already occlusion-filtered in scher-core.
+    #[wasm_bindgen(js_name = qualitySubjectsOnto)]
+    pub fn quality_subjects_onto_js(&self, row: &str, quality: &str, as_of: Option<f64>) -> String {
+        let v = quality_subjects_onto(&self.soc, row, quality, as_of.map(|t| t as u64));
+        serde_json::to_string(&v).expect("Vec<String> serializes")
+    }
+
+    /// reachesSet, one call → JSON array of every node reachable from `from` along
+    /// un-occluded prehensions co-prehending `quality`. One walk instead of N.
+    #[wasm_bindgen(js_name = reachesSet)]
+    pub fn reaches_set_js(&self, from: &str, quality: &str, as_of: Option<f64>) -> String {
+        let mut v: Vec<String> =
+            reaches_set(&self.soc, from, quality, as_of.map(|t| t as u64)).into_iter().collect();
+        v.sort(); // HashSet order is not stable; a UI reading this wants determinism.
+        serde_json::to_string(&v).expect("Vec<String> serializes")
+    }
+
+    /// The row itself, as JSON, or "null" — so a caller can read content/name/witnessed
+    /// without a second source of truth for what an event says.
+    #[wasm_bindgen(js_name = rowOf)]
+    pub fn row_of(&self, slug: &str) -> String {
+        match self.soc.all().find(|b| b.slug == slug) {
+            Some(r) => serde_json::to_string(&RowOut {
+                slug: r.slug.clone(),
+                content: r.content.clone(),
+                name: r.name.clone(),
+                subject: r.subject.clone(),
+                object: r.object.clone(),
+                witnessed: r.witnessed,
+                laid_by: r.laid_by.clone(),
+            })
+            .expect("RowOut serializes"),
+            None => "null".to_string(),
+        }
     }
 
     // ── CAUTIONARY PROBES — benchmark instrumentation, NOT the API ────────────────

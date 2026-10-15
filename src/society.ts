@@ -229,8 +229,10 @@ export function assertOneEnd(soc: Society, slug: string, subject: string, object
  *  True whether or not it has since closed — only isOpenEndPole cares about that. */
 function isDesignatedEndPole(soc: Society, node: string | null, asOf?: number): boolean {
   if (!node) return false;
-  return soc.all().some(
-    (b) => b.object === node && b.subject !== null &&
+  // Adjacency-indexed (was a full soc.all() scan on every layP via assertNakedPole —
+  // O(n²) over a build; mirrors scher-core/src/poles.rs is_designated_end_pole, 2026-10-15).
+  return soc.edgesOntoObject(node).some(
+    (b) => b.subject !== null &&
       prehendsAs(soc, b.slug, "q-end-pole", asOf) && !isOccluded(soc, b.slug, asOf),
   );
 }
@@ -278,7 +280,8 @@ export function checkSublimeNeverCloses(soc: Society, slug: string, subject: str
   // q-sublime-pole designation itself is structural; it is exempt (like q-end-pole).
   if (quality === "q-sublime-pole") return null;
   // Trying to lay a q-grounding OUT of a sublime-pole (sublime as subject)
-  if (subject !== null && isSublimePole(soc, subject) && quality === "q-grounding") {
+  // quality first: the pole read only matters for a q-grounding (same order as scher-core's lay_p).
+  if (quality === "q-grounding" && subject !== null && isSublimePole(soc, subject)) {
     return (
       `[ANTI-Q-LURE GUARANTEE] '${slug}' tries to close the sublime-pole '${subject}' ` +
       `with q-grounding. A sublime is NEVER ACTUAL — it is a receding horizon, not a ` +
@@ -321,8 +324,10 @@ export function assertSublimeAcyclic(soc: Society, slug: string, subject: string
  *  is eternal. */
 export function isSublimePole(soc: Society, node: string | null, asOf?: number): boolean {
   if (!node) return false;
-  return soc.all().some(
-    (b) => b.object === node && b.subject !== null &&
+  // Adjacency-indexed (was a full soc.all() scan on every layP via assertSublimeNeverCloses;
+  // mirrors scher-core/src/poles.rs is_sublime_pole, 2026-10-15).
+  return soc.edgesOntoObject(node).some(
+    (b) => b.subject !== null &&
       prehendsAs(soc, b.slug, "q-sublime-pole", asOf) && !isOccluded(soc, b.slug, asOf),
   );
 }
@@ -796,9 +801,9 @@ export function contentBeats(soc: Society): EventRow[] {
 export interface IntervalContext {
   /** objects of visible ~q mode-beats — the quality tokens classified OUT of the walk. */
   qualityTokens: Set<string>;
-  /** nodes designated as End-poles by an un-occluded q-end-pole edge. Precomputed here
-   *  because isDesignatedEndPole is a full soc.all() scan; scher-core calls it per-edge
-   *  because by_object indexes it. Same result, different cost model. */
+  /** nodes designated as End-poles by an un-occluded q-end-pole edge. Precomputed in one
+   *  pass (isDesignatedEndPole is adjacency-indexed now, as scher-core's always was, so a
+   *  per-edge call would also be fine). Same result either way. */
   endPoles: Set<string>;
   /** plain-edge adjacency, subject→objects. */
   fwdAdj: Map<string, string[]>;

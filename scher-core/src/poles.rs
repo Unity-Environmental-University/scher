@@ -197,9 +197,10 @@ pub fn is_any_pole(soc: &Society, node: &str, as_of: Option<u64>) -> bool {
 /// Q_SUBLIME_POLE edge)? Unlike an End-pole, a sublime is NEVER ACTUAL — its openness
 /// is eternal. (2026-07-06 sublimes-store design.) Mirrors `isSublimePole` in society.ts.
 pub fn is_sublime_pole(soc: &Society, node: &str, as_of: Option<u64>) -> bool {
-    soc.all().any(|b| {
-        b.object.as_deref() == Some(node)
-            && b.subject.is_some()
+    // Adjacency-indexed (was a full soc.all() scan per call — same fix as
+    // is_designated_end_pole above; mirrors society.ts isSublimePole, 2026-10-15).
+    soc.edges_onto_object(node).any(|b| {
+        b.subject.is_some()
             && prehends_as(soc, &b.slug, Q_SUBLIME_POLE, as_of)
             && !is_occluded(soc, &b.slug, as_of)
     })
@@ -245,10 +246,10 @@ pub fn sublimes_charged_from(soc: &Society, node: &str, as_of: Option<u64>) -> V
 /// So a charge is a bare edge with subject==end AND whose object is NOT a now-pole.
 /// Mirrors `chargesOn` in society.ts.
 pub fn charges_on<'a>(soc: &'a Society, end: &str, as_of: Option<u64>) -> Vec<&'a EventRow> {
-    soc.all()
+    // Adjacency-indexed (mirrors society.ts chargesOn's edgesFromSubject, 2026-10-15).
+    soc.edges_from_subject(end)
         .filter(|b| {
-            b.subject.as_deref() == Some(end)
-                && b.object.is_some()
+            b.object.is_some()
                 && visible_at(b, as_of)
                 && !has_any_quality(soc, &b.slug, as_of)
                 && !is_occluded(soc, &b.slug, as_of)

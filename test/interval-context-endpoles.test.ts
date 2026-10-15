@@ -2,7 +2,7 @@
 // interval-context-endpoles.test.ts — reconciles the DUPLICATED law.
 //
 // "What is a designated End-pole" is now written twice in society.ts: once in
-// isDesignatedEndPole (a per-call soc.all() scan, used by the address-law guards)
+// isDesignatedEndPole (a per-call adjacency read, used by the address-law guards)
 // and once as the endPoles prepass inside intervalContext (a batched set, so the
 // interval walk stays O(1) per edge). Nothing but this test checks they agree.
 //

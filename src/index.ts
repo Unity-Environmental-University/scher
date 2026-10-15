@@ -92,6 +92,8 @@ export {
   lawBreaches,
   type LawBreach,
   diamond,
+  framesOf,
+  assertOneEnd,
   type LayOpts,
   floatingCharge,
   overload,

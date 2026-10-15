@@ -20,7 +20,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
-import { Society, prehensionsFrom, isOccluded, type EventRow } from "../src/society.js";
+import { Society, prehensionsFrom, isOccluded, framesOf, type EventRow } from "../src/society.js";
 
 const V0 = "the-bodhisattva-vow-v0";
 const MIRAGE = "the-mirage-of-objectivity";
@@ -31,11 +31,13 @@ function succeeds(s: Society, heir: string, parent: string) {
   lay(s, heir); lay(s, parent);
   s.layP(`${heir}--succ--${parent}`, `${heir} succeeds ${parent}`, heir, parent, "q-utterance");
 }
-/** a WHY laid BY a named frame: from --q-end-pole--> aim, authored from a standpoint. The KEY move —
- *  the same idea can route to different aims depending on WHO reads it. */
+/** a WHY laid IN a named frame: from --q-end-pole--> aim, read from a standpoint. The KEY move —
+ *  the same idea can route to different aims depending on WHO reads it. The frame rides on the
+ *  designation as structure (q-frame, 2026-10-15: one End per (story, frame)), never read back
+ *  out of the slug. */
 function whyFrom(s: Society, frame: string, from: string, aim: string) {
   lay(s, frame); lay(s, from); lay(s, aim);
-  s.layP(`${frame}::${from}--why--${aim}`, `${frame}: ${from} so that ${aim}`, from, aim, "q-end-pole");
+  s.layP(`${frame}::${from}--why--${aim}`, `${frame}: ${from} so that ${aim}`, from, aim, "q-end-pole", { frame });
 }
 /** does `start` route by q-end-pole to `target`, FROM a given frame? (only that frame's why-edges.) */
 function routesFrom(s: Society, frame: string, start: string, target: string, seen = new Set<string>()): boolean {
@@ -43,7 +45,7 @@ function routesFrom(s: Society, frame: string, start: string, target: string, se
   if (seen.has(start)) return false;
   seen.add(start);
   return prehensionsFrom(s, start, "q-end-pole")
-    .filter((e) => e.slug.startsWith(frame + "::"))
+    .filter((e) => framesOf(s, e.slug).includes(frame))
     .some((e) => e.object && routesFrom(s, frame, e.object, target, seen));
 }
 

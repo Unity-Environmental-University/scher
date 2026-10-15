@@ -9,12 +9,13 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
-  Society, endActual, voltageOf, standingClosings, lawBreaches, diamond, type Quality,
+  Society, endActual, voltageOf, standingClosings, lawBreaches, diamond, endOf, type Quality,
 } from "../src/society.js";
 
 interface FixtureRow { slug: string; content: string; subject?: string; object?: string; witnessed: number; laid_by?: string }
 interface Expectation {
-  read: "endActual" | "voltageOf" | "standingClosings" | "lawBreaches" | "diamond";
+  read: "endActual" | "voltageOf" | "standingClosings" | "lawBreaches" | "diamond" | "endOf";
+  frame?: string;
   asOf?: number;
   value: unknown;
   node?: string;
@@ -38,12 +39,13 @@ for (const r of fixture.rows) {
 describe(`conformance corpus: ${fixture.name}`, () => {
   for (const e of fixture.expect) {
     const at = e.asOf === undefined ? "now" : `asOf=${e.asOf}`;
-    it(`${e.read}(${e.node ?? e.story ?? e.from ?? ""}) @ ${at}`, () => {
+    it(`${e.read}(${e.node ?? e.story ?? e.from ?? ""}${e.frame ? " in " + e.frame : ""}) @ ${at}`, () => {
       switch (e.read) {
         case "endActual": expect(endActual(soc, e.node!, e.asOf)).toBe(e.value); break;
         case "voltageOf": expect(voltageOf(soc, e.story!, undefined, e.asOf)).toBe(e.value); break;
         case "standingClosings": expect(standingClosings(soc, e.node!, e.asOf).map((c) => c.slug).sort()).toEqual(e.value); break;
         case "lawBreaches": expect(lawBreaches(soc, e.asOf)).toEqual(e.value); break;
+        case "endOf": expect(endOf(soc, e.story!, e.frame ?? e.story!)).toBe(e.value); break;
         case "diamond": expect(diamond(soc, e.from!, e.to!, e.quality! as Quality, e.asOf)).toEqual(e.value); break;
       }
     });

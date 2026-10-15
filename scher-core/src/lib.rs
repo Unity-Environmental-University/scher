@@ -98,6 +98,12 @@ pub const Q_SUBLIME_POLE: &str = "q-sublime-pole";
 /// this designation laid in a migration pass — not this file's job; these reads just
 /// need to handle the designation once it lands.
 pub const Q_NOW_POLE: &str = "q-now-pole";
+/// The standpoint an End-designation is read IN (Hallie, 2026-10-15: "the end should be frame
+/// relative but default to the story as its own frame"). `designation ~frame~ F` puts it in
+/// frame F; with no Q_FRAME edge the frame is the story itself (SOFD). Structural, so the
+/// one-End guard can see it — a frame read out of a slug would be the opaque-slug sin.
+/// Mirrors "q-frame" in society.ts; see `frames_of`.
+pub const Q_FRAME: &str = "q-frame";
 /// MARK THE EXCEPTION, NOT THE RULE (Hallie's ruling, 2026-07-13, q-grounding-death design).
 /// `Q_GROUNDING` ("q-grounding") is a dead, redundant relation-LABEL under the one-relation
 /// ruling — but bare `"because"` vs a CLOSING is a live structural distinction the
@@ -361,6 +367,33 @@ impl Society {
         object: &str,
         quality: &str,
     ) -> Result<bool, String> {
+        self.lay_p_framed(slug, content, subject, object, quality, None)
+    }
+
+    /// `lay_p` read IN a named frame: lays the prehension, then `{slug}~frame~{frame}`
+    /// (Q_FRAME). The one-End guard checks against `frame`, not the story's own. Mirrors
+    /// `layP(..., { frame })` in society.ts.
+    pub fn lay_p_in_frame(
+        &mut self,
+        slug: &str,
+        content: &str,
+        subject: &str,
+        object: &str,
+        quality: &str,
+        frame: &str,
+    ) -> Result<bool, String> {
+        self.lay_p_framed(slug, content, subject, object, quality, Some(frame))
+    }
+
+    fn lay_p_framed(
+        &mut self,
+        slug: &str,
+        content: &str,
+        subject: &str,
+        object: &str,
+        quality: &str,
+        frame: Option<&str>,
+    ) -> Result<bool, String> {
         // DEAD GRAMMAR (mirrors society.ts assertNoLure). Err, not assert!: `quality` is
         // caller-reachable through the relate door's bucket map, and a panic mid-write
         // poisons the shared lock. (law: three-poles, no-luring-verb)
@@ -385,6 +418,25 @@ impl Society {
                  End-pole '{object}'. Comments and references prehend the STORY, never its \
                  End. Fix: point this edge at the story. (law: naked-pole)"
             ));
+        }
+        // ONE-END LAW (Hallie, 2026-10-15): one End per (story, frame), the frame defaulting
+        // to the story itself. Reopening lays a charge because the closing, never a second
+        // End. `law_breaches` surfaces the same law at read time. (law: one-end)
+        if quality == Q_END_POLE {
+            let in_frame = frame.unwrap_or(subject);
+            if let Some(other) = designations_in(self, subject, in_frame, None)
+                .into_iter()
+                .find(|p| p.object.as_deref() != Some(object) && p.slug != slug)
+            {
+                return Err(format!(
+                    "[ONE-END LAW] '{slug}' designates a SECOND End '{object}' for '{subject}' in \
+                     the frame '{in_frame}', where '{}' already gave it the End '{}'. One End per \
+                     (story, frame). Fix: to reopen, lay a charge because the closing; to give \
+                     another standpoint its own End, name its frame (lay_p_in_frame). (law: one-end)",
+                    other.slug,
+                    other.object.as_deref().unwrap_or("")
+                ));
+            }
         }
         // SUBLIME GUARD (blocking — mirrors society.ts assertSublimeNeverCloses,
         // 2026-07-06 sublimes-store design): a sublime-pole is NEVER ACTUAL. It is a
@@ -474,6 +526,9 @@ impl Society {
         let q_slug = format!("{slug}~q");
         let q_content = format!("{content} [{quality}]");
         let q = self.lay(EventRow::edge(&q_slug, &q_content, slug, quality));
+        if let Some(f) = frame {
+            self.lay_p(&format!("{slug}~frame~{f}"), &format!("read in the frame {f}"), slug, f, Q_FRAME)?;
+        }
         Ok(a || q)
     }
 
@@ -1342,9 +1397,45 @@ pub fn interval_of_with(soc: &Society, ctx: &IntervalContext, once: &str, end: &
 /// 2026-07-06; q-lure is dead — see the lay_p guard). Mirrors `endOf` in society.ts.
 // TODO(socratic): find() returns the first match in an unordered map — what defines "first", and if two pole designations match (reopened differentials), should end_of pick one deterministically or error?
 pub fn end_of(soc: &Society, story: &str) -> Option<String> {
+    end_of_in(soc, story, story)
+}
+
+/// end_of_in: the story's End in a named frame — one End per (story, frame), Hallie
+/// 2026-10-15. `end_of` is this in the story's own frame. Occluded designations still count,
+/// as they always have here. Mirrors `endOf(soc, story, frame)` in society.ts.
+pub fn end_of_in(soc: &Society, story: &str, frame: &str) -> Option<String> {
     soc.edges_from_subject(story)
-        .find(|b| prehends_as(soc, &b.slug, Q_END_POLE, None))
+        .find(|b| prehends_as(soc, &b.slug, Q_END_POLE, None) && frames_of(soc, &b.slug, None).iter().any(|f| f == frame))
         .and_then(|b| b.object.clone())
+}
+
+/// frames_of: the frames an End-designation is read in — the objects of its un-occluded
+/// Q_FRAME edges, or, with none, the designation's subject (the story as its own frame).
+/// Mirrors `framesOf` in society.ts.
+pub fn frames_of(soc: &Society, designation: &str, as_of: Option<u64>) -> Vec<String> {
+    let mut named: Vec<String> = Vec::new();
+    for p in prehensions_from(soc, designation, Q_FRAME, as_of) {
+        if is_occluded(soc, &p.slug, as_of) {
+            continue;
+        }
+        if let Some(o) = p.object.as_deref() {
+            if !named.iter().any(|n| n == o) {
+                named.push(o.to_string());
+            }
+        }
+    }
+    if !named.is_empty() {
+        return named;
+    }
+    soc.get(designation).and_then(|d| d.subject.clone()).into_iter().collect()
+}
+
+/// The un-occluded End-designations `story` has in `frame`.
+fn designations_in<'a>(soc: &'a Society, story: &str, frame: &str, as_of: Option<u64>) -> Vec<&'a EventRow> {
+    prehensions_from(soc, story, Q_END_POLE, as_of)
+        .into_iter()
+        .filter(|p| !is_occluded(soc, &p.slug, as_of) && frames_of(soc, &p.slug, as_of).iter().any(|f| f == frame))
+        .collect()
 }
 
 /// voltage_of: the scalar across the story's differentials, read RELATIVE TO A GROUND —
@@ -1481,6 +1572,8 @@ pub struct LawBreach {
     /// "one-end" | "one-closing" | "naked-pole"
     pub law: &'static str,
     pub at: String,
+    /// one-end only: the frame the story has two Ends in.
+    pub frame: Option<String>,
     pub rows: Vec<String>,
 }
 
@@ -1508,10 +1601,18 @@ pub fn law_breaches(soc: &Society, as_of: Option<u64>) -> Vec<LawBreach> {
     let mut ends: BTreeSet<String> = BTreeSet::new();
     for (story, designations) in &ends_by_story {
         ends.extend(designations.iter().map(|(_, e)| e.clone()));
-        if designations.iter().map(|(_, e)| e).collect::<BTreeSet<_>>().len() > 1 {
-            let mut rows: Vec<String> = designations.iter().map(|(d, _)| d.clone()).collect();
-            rows.sort();
-            out.push(LawBreach { law: "one-end", at: story.clone(), rows });
+        let mut by_frame: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+        for (d, e) in designations {
+            for f in frames_of(soc, d, as_of) {
+                by_frame.entry(f).or_default().push((d.clone(), e.clone()));
+            }
+        }
+        for (frame, in_frame) in by_frame {
+            if in_frame.iter().map(|(_, e)| e).collect::<BTreeSet<_>>().len() > 1 {
+                let mut rows: Vec<String> = in_frame.iter().map(|(d, _)| d.clone()).collect();
+                rows.sort();
+                out.push(LawBreach { law: "one-end", at: story.clone(), frame: Some(frame), rows });
+            }
         }
     }
     for end in &ends {
@@ -1519,7 +1620,7 @@ pub fn law_breaches(soc: &Society, as_of: Option<u64>) -> Vec<LawBreach> {
         if standing.len() > 1 {
             let mut rows: Vec<String> = standing.iter().map(|c| c.slug.clone()).collect();
             rows.sort();
-            out.push(LawBreach { law: "one-closing", at: end.clone(), rows });
+            out.push(LawBreach { law: "one-closing", at: end.clone(), frame: None, rows });
         }
         if !standing.is_empty() {
             continue;
@@ -1537,11 +1638,11 @@ pub fn law_breaches(soc: &Society, as_of: Option<u64>) -> Vec<LawBreach> {
             .collect();
         if !parked.is_empty() {
             parked.sort();
-            out.push(LawBreach { law: "naked-pole", at: end.clone(), rows: parked });
+            out.push(LawBreach { law: "naked-pole", at: end.clone(), frame: None, rows: parked });
         }
     }
     let rank = |l: &str| match l { "one-end" => 0, "one-closing" => 1, _ => 2 };
-    out.sort_by(|a, b| rank(a.law).cmp(&rank(b.law)).then_with(|| a.at.cmp(&b.at)));
+    out.sort_by(|a, b| rank(a.law).cmp(&rank(b.law)).then_with(|| a.at.cmp(&b.at)).then_with(|| a.frame.cmp(&b.frame)));
     out
 }
 
@@ -1708,8 +1809,23 @@ mod address_law {
         assert!(end_actual(&soc, &end, None));
         assert_eq!(
             law_breaches(&soc, None),
-            vec![LawBreach { law: "one-closing", at: end.clone(), rows: vec!["close-by-a".into(), "close-by-b".into()] }]
+            vec![LawBreach { law: "one-closing", at: end.clone(), frame: None, rows: vec!["close-by-a".into(), "close-by-b".into()] }]
         );
+    }
+
+    /// ONE End per (story, frame), the frame defaulting to the story. Mirrors the TS
+    /// "one-end at lay" test in docket-rulings.test.ts.
+    #[test]
+    fn one_end_per_story_and_frame() {
+        let mut soc = Society::new();
+        let (end, _) = story(&mut soc, "s");
+        let own = soc.lay_p("s~why~aim", "second End, own frame", "s", "aim", Q_END_POLE);
+        assert!(own.as_ref().is_err_and(|e| e.contains("one-end")), "{own:?}");
+        soc.lay_p_in_frame("s~why~aim", "the skeptic's End", "s", "aim", Q_END_POLE, "skeptic").unwrap();
+        assert_eq!(end_of(&soc, "s"), Some(end));
+        assert_eq!(end_of_in(&soc, "s", "skeptic"), Some("aim".to_string()));
+        assert!(soc.lay_p_in_frame("s~why~other", "a second skeptic End", "s", "other", Q_END_POLE, "skeptic").is_err());
+        assert!(law_breaches(&soc, None).is_empty());
     }
 
     #[test]

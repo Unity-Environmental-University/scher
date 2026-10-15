@@ -5,7 +5,7 @@
 // file; if either side fails, the twins have diverged on what "done" means.
 // ─────────────────────────────────────────────────────────────────────────────
 
-use scher_core::{diamond, end_actual, law_breaches, standing_closings, voltage_of, EventRow, Society};
+use scher_core::{diamond, end_actual, end_of_in, law_breaches, standing_closings, voltage_of, EventRow, Society};
 use serde_json::Value;
 
 fn replay(rows: &[Value]) -> Society {
@@ -46,17 +46,26 @@ fn one_end_reopen_fixture_replays_identically() {
                 assert_eq!(got, strings(&e["value"]), "standing_closings({}) @ {as_of:?}", s("node"));
             }
             "lawBreaches" => {
-                let got: Vec<(String, String, Vec<String>)> = law_breaches(&soc, as_of)
+                type Row = (String, String, Option<String>, Vec<String>);
+                let got: Vec<Row> = law_breaches(&soc, as_of)
                     .into_iter()
-                    .map(|b| (b.law.to_string(), b.at, b.rows))
+                    .map(|b| (b.law.to_string(), b.at, b.frame, b.rows))
                     .collect();
-                let want: Vec<(String, String, Vec<String>)> = e["value"]
+                let want: Vec<Row> = e["value"]
                     .as_array()
                     .unwrap()
                     .iter()
-                    .map(|b| (b["law"].as_str().unwrap().to_string(), b["at"].as_str().unwrap().to_string(), strings(&b["rows"])))
+                    .map(|b| {
+                        let frame = b.get("frame").and_then(Value::as_str).map(str::to_string);
+                        (b["law"].as_str().unwrap().to_string(), b["at"].as_str().unwrap().to_string(), frame, strings(&b["rows"]))
+                    })
                     .collect();
                 assert_eq!(got, want, "law_breaches @ {as_of:?}");
+            }
+            "endOf" => {
+                let story = s("story");
+                let frame = e.get("frame").and_then(Value::as_str).unwrap_or(story);
+                assert_eq!(end_of_in(&soc, story, frame), e["value"].as_str().map(str::to_string), "end_of_in({story}, {frame})");
             }
             "diamond" => assert_eq!(diamond(&soc, s("from"), s("to"), s("quality"), as_of), strings(&e["value"]), "diamond @ {as_of:?}"),
             other => panic!("unknown read in fixture: {other}"),

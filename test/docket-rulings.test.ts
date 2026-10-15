@@ -179,13 +179,43 @@ describe("ruling 3 — laws guarded at lay AND surfaced at read, never thrown th
     expect(lawBreaches(s)).toEqual([]); // a closed End may be referenced
   });
 
-  it("one-end at read: canon with two End designations for one story shows, and nothing picks", () => {
+  it("one-end at read: canon with two Ends for one story in one frame shows, and nothing picks", () => {
     const s = new Society();
     capture(s, "s");
     unpackPoles(s, "s");
-    s.layP("s~end-pole~s~hea-1", "a second End, as pre-2026-10-15 reopens laid it", "s", "s~hea-1", "q-end-pole");
-    expect(lawBreaches(s)).toEqual([{ law: "one-end", at: "s", rows: ["s~end-pole~s~hea", "s~end-pole~s~hea-1"] }]);
+    // laid by bare lay, as pre-2026-10-15 reopens and old canon did — the guard never saw it
+    s.lay({ slug: "s~end-pole~s~hea-1", content: "a second End", subject: "s", object: "s~hea-1" });
+    s.lay({ slug: "s~end-pole~s~hea-1~q", content: "[q-end-pole]", subject: "s~end-pole~s~hea-1", object: "q-end-pole" });
+    expect(lawBreaches(s)).toEqual([{ law: "one-end", at: "s", frame: "s", rows: ["s~end-pole~s~hea", "s~end-pole~s~hea-1"] }]);
   });
+
+  it("one-end at lay: one End per (story, frame) — the frame defaults to the story (Hallie, 2026-10-15)", () => {
+    const s = new Society();
+    capture(s, "s");
+    unpackPoles(s, "s"); // s~hea, in s's own frame
+    expect(() => s.layP("s~why~aim", "a second End, own frame", "s", "aim", "q-end-pole")).toThrowError(/ONE-END LAW.*frame 's'/s);
+    s.layP("s~why~aim", "the skeptic's End for s", "s", "aim", "q-end-pole", { frame: "skeptic" });
+    expect(endOf(s, "s")).toBe("s~hea"); // the story's own frame
+    expect(endOf(s, "s", "skeptic")).toBe("aim");
+    expect(() => s.layP("s~why~other", "a second skeptic End", "s", "other", "q-end-pole", { frame: "skeptic" }))
+      .toThrowError(/ONE-END LAW.*frame 'skeptic'/s);
+    expect(lawBreaches(s)).toEqual([]);
+  });
+
+  it("PINNED for Hallie: this-day's chunk-the-dolls (one chunk, two aims, own frame) is refused", () => {
+    const s = new Society();
+    s.layP("n32-why", "chunk-the-dolls so that hea-we-enjoy-our-work", "chunk-the-dolls", "hea-we-enjoy-our-work", "q-end-pole");
+    expect(() => s.layP("n33-why", "chunk-the-dolls so that hea-we-test-mechanics-on-real-history",
+      "chunk-the-dolls", "hea-we-test-mechanics-on-real-history", "q-end-pole")).toThrowError(/ONE-END LAW/);
+  });
+
+  it("two stories sharing one End is not a breach (this-day's 'two readings')", () => {
+    const s = new Society();
+    s.layP("r1", "", "reading-fix-a-bug", "ev-this-session", "q-end-pole");
+    s.layP("r2", "", "reading-hold-frames-plural", "ev-this-session", "q-end-pole");
+    expect(lawBreaches(s)).toEqual([]);
+  });
+
 });
 
 describe("docket item 3 — one act, one wave", () => {

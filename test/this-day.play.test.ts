@@ -63,7 +63,13 @@ describe("this day, in its own grammar 🌊", () => {
     expect(["ev-seed-q-occludes","ev-fix-referent-race"].every((ev) => routesTo(s, ev, V0))).toBe(true);
   });
 
-  it("THE AFTERNOON — the dolls: history & fiction, routed to enjoying-the-work AND testing-on-history", () => {
+  // PINNED BREACH, left for Hallie (2026-10-15). Her ruling: "so the end should be frame
+  // relative but default to the story as its own frame" — one End per (story, frame). This doll
+  // gives `chunk-the-dolls` TWO Ends in its own frame, so the one-End guard refuses the second
+  // `why` ([ONE-END LAW]). Its own comment ("fun is not separate from rigor") may mean ONE End
+  // with two connections — but it's her doll, so its shape is hers to change. Pinned in
+  // docket-rulings.test.ts too. When she reshapes it, drop `.fails`.
+  it.fails("THE AFTERNOON — the dolls: history & fiction, routed to enjoying-the-work AND testing-on-history", () => {
     const s = new Society(); backbone(s);
     for (const doll of ["doll-tudor", "doll-founding", "doll-why-circuit", "doll-mind-line",
                         "doll-re-reading", "doll-orient-express"]) {

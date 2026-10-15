@@ -77,7 +77,12 @@ export type KernelQuality =
   // NOTE: no charge quality exists on purpose. A charge is just any bare edge onto a
   // story's open End-pole (see chargesOn) — the charge is a property of the edge, not
   // of the node, so there's nothing to mint a word for.
-  | "q-assigned-to";
+  | "q-assigned-to"
+  // q-frame: the standpoint a designation is read IN (2026-10-15). `designation ~frame~ F`
+  // puts that End-designation in frame F; with no q-frame edge, the frame is the story
+  // itself (Q2, Story's Own Frame Default). Structural, so a guard can see it — the frame
+  // used to live only in slugs and content, which no read may parse. See framesOf.
+  | "q-frame";
 
 /** The mode an edge can carry: a KernelQuality name, or any other string a caller invents
  *  (q-shared, q-due, q-succeeds, etc). */
@@ -90,6 +95,11 @@ export type Mode = "established" | "scripted";
  *  (2026-07-07, "no statement is not spoken from") is that new ones pass it. */
 export interface LayOpts {
   laid_by?: string;
+  /** the standpoint this prehension is read in (2026-10-15). Laid in the same act as
+   *  `${slug}~frame~${frame}` (q-frame). Omitted, the frame is the subject's own — for an
+   *  End-designation, the story itself. Not `laid_by`: a frame is a standpoint, an author
+   *  is who spoke (ARCHITECTURE.md). */
+  frame?: string;
 }
 
 /** `{ laid_by }` when given, `{}` when not — exactOptionalPropertyTypes forbids `undefined`. */
@@ -177,14 +187,43 @@ export function assertNakedPole(
   // one closing leaves a pole — moved to layBareP, where closings live.
 }
 
-// ── ONE-END LAW: a story has exactly one End ────────────────────────────────────
+// ── ONE-END LAW: one End per (story, frame) ─────────────────────────────────────
 // Hallie, 2026-10-15: "it should be a read period. And the connections to that end change
-// where it is, but the end itself doesn't." Reopening never mints a second End; it lays a
-// charge `because` the closing (reopenTask). NOT guarded at lay (yet): dollhouse canon
-// already designates two Ends for one story on purpose — two frames' rival aims
-// (mind-line.play) and one story with two whys (this-day.play). Whether one End is per
-// story or per frame, and whether a grown aim is a new End, waits on Hallie. Until then
-// lawBreaches surfaces it ("one-end") and nothing refuses it.
+// where it is, but the end itself doesn't." Then, same day: "so the end should be frame
+// relative but default to the story as its own frame." Reopening never mints a second End;
+// it lays a charge `because` the closing (reopenTask). Two frames may each give a story its
+// own End (mind-line.play's rival aims); one frame may not give it two. Guarded here at
+// lay; surfaced by lawBreaches for routes that skip the guard (merge, replay, old canon).
+
+/** framesOf: the frames an End-designation is read in — the objects of its un-occluded
+ *  q-frame edges, or, with none, the designation's subject: the story as its own frame. */
+export function framesOf(soc: Society, designation: string, asOf?: number): string[] {
+  const named = prehensionsFrom(soc, designation, "q-frame", asOf)
+    .filter((p) => !isOccluded(soc, p.slug, asOf)).map((p) => p.object!);
+  if (named.length > 0) return [...new Set(named)];
+  const d = soc.get(designation);
+  return d?.subject ? [d.subject] : [];
+}
+
+/** The End-designations `story` has in `frame` (un-occluded), as of a moment. */
+function designationsIn(soc: Society, story: string, frame: string, asOf?: number): EventRow[] {
+  return prehensionsFrom(soc, story, "q-end-pole", asOf)
+    .filter((p) => !isOccluded(soc, p.slug, asOf) && framesOf(soc, p.slug, asOf).includes(frame));
+}
+
+export function assertOneEnd(soc: Society, slug: string, subject: string, object: string, quality: Quality, frame = subject): void {
+  if (quality !== "q-end-pole") return;
+  const other = designationsIn(soc, subject, frame).find((p) => p.object !== object && p.slug !== slug);
+  if (other) {
+    throw new Error(
+      `[ONE-END LAW] '${slug}' designates a SECOND End '${object}' for '${subject}' in the ` +
+      `frame '${frame}', where '${other.slug}' already gave it the End '${other.object}'. ` +
+      `One End per (story, frame); open or closed is a read of its connections. Fix: to ` +
+      `reopen, lay a charge because the closing (reopenTask); to give another standpoint its ` +
+      `own End, name its frame (layP opts.frame). (law: one-end)`,
+    );
+  }
+}
 
 /** isDesignatedEndPole: is `node` the object of an un-occluded q-end-pole designation?
  *  True whether or not it has since closed — only isOpenEndPole cares about that. */
@@ -472,12 +511,16 @@ export class Society {
     return this.layAtomic(() => {
       assertNoLure(slug, quality); // BLOCKS: q-lure is dead grammar (Hallie, 2026-07-06)
       assertNakedPole(this, slug, subject, object, quality); // BLOCKS: nothing touches a naked pole
+      assertOneEnd(this, slug, subject, object, quality, opts?.frame ?? subject); // BLOCKS: one End per (story, frame)
       assertSublimeNeverCloses(this, slug, subject, object, quality); // BLOCKS: sublimes never close
       assertSublimeAcyclic(this, slug, subject, object, quality); // BLOCKS: sublime-DAG stays acyclic (currently never fires — RELAXED, see its own comment)
       assertNotMembershipContainment(slug, quality);
       const by = spokenBy(opts);
       const a = this.lay({ slug, content, subject, object, ...by });
       const q = this.lay({ slug: slug + "~q", content: `${content} [${quality}]`, subject: slug, object: quality, ...by });
+      if (opts?.frame !== undefined) {
+        this.layP(`${slug}~frame~${opts.frame}`, `read in the frame ${opts.frame}`, slug, opts.frame, "q-frame", spokenBy(opts));
+      }
       return a || q;
     });
   }
@@ -845,12 +888,13 @@ export function intervalOf(soc: Society, once: string, end: string, ctx?: Interv
 
 /** the story's End-pole — the object of its q-end-pole designation (laid by the unpack),
  *  structurally; no spelling is read (F-A ruling + pole law, 2026-07-06). */
-export function endOf(soc: Society, story: string): string | null {
+export function endOf(soc: Society, story: string, frame = story): string | null {
   // TODO(socratic): should endOf return null if the designation is occluded, or is the presence of any pole-edge the right answer?
-  // ANSWERED(Hallie, 2026-10-15): a story has exactly ONE End — reopening never mints a
-  // second (reopenTask lays a charge), so [0] is correct for what the kernel writes. Canon
-  // that carries two is surfaced by lawBreaches ("one-end"), not picked between here.
-  const pole = prehensionsFrom(soc, story, "q-end-pole")[0];
+  // ANSWERED(Hallie, 2026-10-15): one End per (story, frame), the frame defaulting to the
+  // story itself — so [0] within a frame is correct for what the kernel writes. Canon that
+  // carries two in one frame is surfaced by lawBreaches ("one-end"), not picked between here.
+  // occluded designations count, as before this ruling (the TODO above is still open)
+  const pole = prehensionsFrom(soc, story, "q-end-pole").find((p) => framesOf(soc, p.slug).includes(frame));
   return pole?.object ?? null;
 }
 
@@ -899,7 +943,7 @@ export function storyNow(story: string): string {
  *  OBJECT: a closing's object is a designated Now-pole, a charge's isn't. */
 export function unpackPoles(soc: Society, event: string, end = `${event}~hea`): PoleUnpack {
   const now = storyNow(event);
-  const existing = prehensionsFrom(soc, event, "q-end-pole")[0];
+  const existing = prehensionsFrom(soc, event, "q-end-pole").find((p) => framesOf(soc, p.slug).includes(event)); // the story's own frame (Q2)
   if (existing) return { once: event, end: existing.object!, pole: existing.slug, now };
   soc.lay({ slug: end, content: `the End-pole of ${event}, not yet actual`, subject: null, object: null });
   // Q2 (Story's Own Frame Default, ruled-for-now): edges laid in a story's course carry
@@ -1083,12 +1127,14 @@ export function reopenTask(soc: Society, story: string, by: string, content = "r
 export interface LawBreach {
   law: "one-end" | "one-closing" | "naked-pole";
   at: string;
+  /** one-end only: the frame the story has two Ends in. */
+  frame?: string;
   rows: string[];
 }
 
 /** lawBreaches: every place the society, as read now (or as of a moment), breaks a kernel
  *  law. Deterministic order (law, then `at`). An empty list is the healthy reading.
- *  - one-end: a story with more than one un-occluded End designation.
+ *  - one-end: a story with more than one End in one frame (frame defaults to the story).
  *  - one-closing: an End with more than one standing closing (two frames closed it
  *    concurrently, and no reopen has come between).
  *  - naked-pole: a labelled edge onto an End that reads open. Note this can surface after a
@@ -1104,9 +1150,18 @@ export function lawBreaches(soc: Society, asOf?: number): LawBreach[] {
   }
   const ends = new Set<string>();
   for (const [story, designations] of endsByStory) {
-    for (const d of designations) ends.add(d.object!);
-    if (new Set(designations.map((d) => d.object)).size > 1) {
-      out.push({ law: "one-end", at: story, rows: designations.map((d) => d.slug).sort() });
+    const byFrame = new Map<string, EventRow[]>();
+    for (const d of designations) {
+      ends.add(d.object!);
+      for (const f of framesOf(soc, d.slug, asOf)) {
+        const list = byFrame.get(f);
+        if (list) list.push(d); else byFrame.set(f, [d]);
+      }
+    }
+    for (const [frame, inFrame] of byFrame) {
+      if (new Set(inFrame.map((d) => d.object)).size > 1) {
+        out.push({ law: "one-end", at: story, frame, rows: inFrame.map((d) => d.slug).sort() });
+      }
     }
   }
   for (const end of ends) {
@@ -1119,7 +1174,8 @@ export function lawBreaches(soc: Society, asOf?: number): LawBreach[] {
     if (parked.length > 0) out.push({ law: "naked-pole", at: end, rows: parked.map((b) => b.slug).sort() });
   }
   const rank = { "one-end": 0, "one-closing": 1, "naked-pole": 2 } as const;
-  return out.sort((a, b) => rank[a.law] - rank[b.law] || (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
+  const cmp = (x = "", y = "") => (x < y ? -1 : x > y ? 1 : 0);
+  return out.sort((a, b) => rank[a.law] - rank[b.law] || cmp(a.at, b.at) || cmp(a.frame, b.frame));
 }
 
 // ── MEMBERSHIP: derived, never laid ink ─────────────────────────────────────────

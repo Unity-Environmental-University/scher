@@ -19,11 +19,6 @@ import {
   endOf,
   isStory,
   unpackPoles,
-  assertNoLure,
-  assertNakedPole,
-  assertSublimeNeverCloses,
-  assertSublimeAcyclic,
-  assertNotMembershipContainment,
   INGRESSION_PREFIX,
 } from "./society.js";
 // reactionsOn: cut from society.ts into pathos.ts (2026-07-15, separation-of-
@@ -80,7 +75,7 @@ export function reading<T>(soc: Society, read: (s: Society) => T): Read<T> {
 
 /** the TASTE arm: given the read, draw the mode's copy/symbol. Caller supplies this —
  *  scher never picks the words. The copy is Penelope's to write, not scher's. */
-export type ModeArm = (v: CardRead) => Node;
+export type ModeArm = (v: CardRead, slug: string) => Node;
 
 export interface CardStoryParams {
   slug: string;
@@ -115,7 +110,7 @@ export function cardStory(soc: Society, params: CardStoryParams): Node {
     card.appendChild(el("div", { class: "content" }, v.content));
     // the mode SLOT is structural (scher); its CONTENTS are the caller's taste arm.
     const modeSlot = el("div", { class: `mode ${v.mode}` });
-    modeSlot.appendChild(params.modeArm(v));
+    modeSlot.appendChild(params.modeArm(v, slug));
     card.appendChild(modeSlot);
     if (v.pathos.length) {
       const p = el("div", { class: "pathos" });
@@ -690,20 +685,6 @@ function emojiNodeSlug(emoji: string): string {
   return `emoji-${emoji}`;
 }
 
-/** Lays the q-feel edge with laid_by set inline. layP has no laid_by param, so this
- *  repeats layP's guards by hand, plus the one thing gen4-policy adds: laid_by set
- *  at lay time, never patched in after (append-only). */
-function layReactionFeel(soc: Society, slug: string, content: string, subject: string, object: string, layer: string): boolean {
-  assertNoLure(slug, "q-feel");
-  assertNakedPole(soc, slug, subject, object, "q-feel");
-  assertSublimeNeverCloses(soc, slug, subject, object, "q-feel");
-  assertSublimeAcyclic(soc, slug, subject, object, "q-feel");
-  assertNotMembershipContainment(slug, "q-feel");
-  const a = soc.lay({ slug, content, subject, object, laid_by: layer });
-  const q = soc.lay({ slug: slug + "~q", content: `${content} [q-feel]`, subject: slug, object: "q-feel" });
-  return a || q;
-}
-
 /** The authorship testimony pair, mirroring gen4-policy's `lay_ingression`.
  *  Redundant with the inline laid_by above on purpose — ruling 13: "both the
  *  column and the entry." */
@@ -744,7 +725,7 @@ export function reactionStory(soc: Society, params: ReactionStoryParams): Node {
             // exactly (see the AUTHORSHIP RECONCILIATION note above).
             const emojiNode = emojiNodeSlug(emoji);
             soc.lay({ slug: emojiNode, content: emoji, subject: null, object: null });
-            layReactionFeel(soc, slug, emoji, target, emojiNode, by);
+            soc.layP(slug, emoji, target, emojiNode, "q-feel", { laid_by: by }); // laid_by at lay time, never patched in after
             layReactionAuthorship(soc, slug, by);
           } else {
             // UN-REACT = OCCLUDE my own q-feel (2026-06-26: was a self-loop supersede). `by` is the

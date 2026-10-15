@@ -330,12 +330,12 @@ describe("DOLL 2 — capacitor: unattached charges press on a standing routing s
       layCharge(s, "team-formed", "vik", "need 1");
 
       closePole(s, "team-formed"); // Odalys closes it (in team-formed's own frame)
-      const reopened = reopenTask(s, "team-formed"); // ...then reopens (the team decided it wasn't actually done)
-      expect(endActual(s, reopened.end)).toBe(false);
+      reopenTask(s, "team-formed", "odalys"); // ...then reopens (the team decided it wasn't actually done)
+      expect(endActual(s, "team-formed~routing-end")).toBe(false); // the same one End, read open again
 
-      // team-formed's own frame reads the REOPENED differential as open (voltage > 0 —
-      // the strike counts again since the NEW pole isn't closed), while the OLD closed
-      // pole no longer contributes in that same frame (it's closed there):
+      // team-formed's own frame reads the reopened differential as open (voltage > 0 —
+      // the strike counts again, and the reopening is itself a charge), while the closing
+      // it reopened stays actual in the log (2026-10-15: one End, open-ness is a read):
       expect(voltageOf(s, "team-formed")).toBeGreaterThan(0);
     });
 

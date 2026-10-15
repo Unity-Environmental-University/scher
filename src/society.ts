@@ -4,7 +4,7 @@
 // not stored (see mode_at, confidence, below).
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { Cell, type Read } from "./cell.js";
+import { Cell, batch, type Read } from "./cell.js";
 
 /** Authorship-node prefix for NEW writes. Mirrors `gen4_policy::INGRESSION_PREFIX` —
  *  no compiler checks that, so change both or the two languages mint different slugs. */
@@ -29,7 +29,10 @@ export interface EventRow {
   title?: string | null;
   subject: string | null;
   object: string | null;
-  /** when the local society witnessed this beat (the client's own db_witnessed). */
+  /** when the local society witnessed this beat (the client's own db_witnessed). NOT an
+   *  order across sources (Hallie, 2026-10-15): stamps from different societies may break
+   *  ties so a read is deterministic, but genuine concurrency must stay readable as such.
+   *  Order between events is because-structure. */
   witnessed?: number;
   /** WHO laid this beat: the frame's subject, or a causing event's slug when machinery
    *  lays it. Required by rule (2026-07-07): no statement is not spoken from. */
@@ -83,6 +86,17 @@ export type Quality = KernelQuality | (string & { readonly __quality?: never });
 /** The mode a beat reads as. Derived, not stored. */
 export type Mode = "established" | "scripted";
 
+/** Who is speaking a guarded lay. Optional so old call sites keep compiling; the rule
+ *  (2026-07-07, "no statement is not spoken from") is that new ones pass it. */
+export interface LayOpts {
+  laid_by?: string;
+}
+
+/** `{ laid_by }` when given, `{}` when not — exactOptionalPropertyTypes forbids `undefined`. */
+function spokenBy(opts?: LayOpts): { laid_by?: string } {
+  return opts?.laid_by !== undefined ? { laid_by: opts.laid_by } : {};
+}
+
 // ── DEPRECATE GUARD: membership is NOT containment ─────────────────────────────
 // LAW: a beat's membership in a Story is its position between the Story's Once/End
 // bounds, computed by intervalOf — never a stored q-containment "inside" edge.
@@ -129,11 +143,15 @@ export function assertNoLureInSociety(soc: Society): void {
 }
 
 // ── ADDRESS LAW: nothing touches a naked pole ───────────────────────────────────
-// LAW (2026-07-06): an open End-pole receives only charge-edges onto it, and eventually
-// one closing edge out of it. Nothing else touches a naked pole — comments and
-// references go on the STORY, never its End. This is what makes a charge a pure address
-// read (chargesOn): a charge is just a bare edge onto the open End, a property of the
-// edge, never the node.
+// LAW (2026-07-06): no labelled edge lands ON an open End-pole — comments and references
+// go on the STORY, never its End. (Charges and closings both LEAVE the End since
+// 2026-07-20, so this onto-half no longer guards chargesOn.)
+//
+// STILL LIVE (checked 2026-10-15, docket item 2 fact 3): two reads take edges onto an End.
+// distanceToHEA's `realized` is isEstablished(End), which counts q-grounding prehensions
+// ONTO the End, so a labelled edge onto an open End would read it realized. And
+// intervalOf's backward cone walks edges onto the End, so a reference parked there joins
+// the story's interior. Guarded here at lay; surfaced at read by lawBreaches.
 //
 // If you hit this: point your edge at the story instead, or lay a bare edge if you mean
 // a charge. Once the End closes, ordinary edges are fine again.
@@ -158,6 +176,15 @@ export function assertNakedPole(
   // at the cost of a load-bearing exemption on a dying string. Its real content — exactly
   // one closing leaves a pole — moved to layBareP, where closings live.
 }
+
+// ── ONE-END LAW: a story has exactly one End ────────────────────────────────────
+// Hallie, 2026-10-15: "it should be a read period. And the connections to that end change
+// where it is, but the end itself doesn't." Reopening never mints a second End; it lays a
+// charge `because` the closing (reopenTask). NOT guarded at lay (yet): dollhouse canon
+// already designates two Ends for one story on purpose — two frames' rival aims
+// (mind-line.play) and one story with two whys (this-day.play). Whether one End is per
+// story or per frame, and whether a grown aim is a new End, waits on Hallie. Until then
+// lawBreaches surfaces it ("one-end") and nothing refuses it.
 
 /** isDesignatedEndPole: is `node` the object of an un-occluded q-end-pole designation?
  *  True whether or not it has since closed — only isOpenEndPole cares about that. */
@@ -407,6 +434,14 @@ export class Society {
   /** ATOMIC LAY (2026-07-27): runs `steps` under one transaction mark; a row laid
    *  mid-`steps` is unreadable outside until it returns (or forever, if it throws). */
   layAtomic<T>(steps: () => T): T {
+    // ONE ACT, ONE WAVE (docket item 3, 2026-10-15): without batch() every inner lay bumps
+    // `rev` and a Cell reader wakes mid-transaction — inside the active-txn stack, so it
+    // passes #assertReadable and reads the half-laid act with no error. batch() holds
+    // every notification until the outermost transaction returns.
+    return batch(() => this.#layAtomic(steps));
+  }
+
+  #layAtomic<T>(steps: () => T): T {
     const txn = Symbol(`txn-${++this.#txnSeq}`);
     this.#txnLabel.set(txn, String(txn.description));
     this.#activeTxnStack.push(txn);
@@ -431,8 +466,8 @@ export class Society {
   /** Lay a prehension and its '~q' mode-beat as ONE atomic act. Answers the old
    *  TODO(socratic) — a half-mode-carrying prehension IS a corruption, mechanized in
    *  atomic-lay.play.test.ts's "MECHANIZED GUARANTEE". */
-  layP(slug: string, content: string, subject: string, object: string, quality: Quality): boolean {
-    // TRIPWIRE: all four guards below throw on purpose, by ruling (2026-07-15) — do not
+  layP(slug: string, content: string, subject: string, object: string, quality: Quality, opts?: LayOpts): boolean {
+    // TRIPWIRE: all the guards below throw on purpose, by ruling (2026-07-15) — do not
     // swap them for the non-throwing check* variants. See checkSublimeNeverCloses's note.
     return this.layAtomic(() => {
       assertNoLure(slug, quality); // BLOCKS: q-lure is dead grammar (Hallie, 2026-07-06)
@@ -440,8 +475,9 @@ export class Society {
       assertSublimeNeverCloses(this, slug, subject, object, quality); // BLOCKS: sublimes never close
       assertSublimeAcyclic(this, slug, subject, object, quality); // BLOCKS: sublime-DAG stays acyclic (currently never fires — RELAXED, see its own comment)
       assertNotMembershipContainment(slug, quality);
-      const a = this.lay({ slug, content, subject, object });
-      const q = this.lay({ slug: slug + "~q", content: `${content} [${quality}]`, subject: slug, object: quality });
+      const by = spokenBy(opts);
+      const a = this.lay({ slug, content, subject, object, ...by });
+      const q = this.lay({ slug: slug + "~q", content: `${content} [${quality}]`, subject: slug, object: quality, ...by });
       return a || q;
     });
   }
@@ -450,22 +486,24 @@ export class Society {
    *  scher-core's `lay_bare_p`, except that it THROWS where the Rust twin returns Err —
    *  the same split every guard here already carries (no shared write lock to poison).
    *
-   *  `lay` stays the dumb primitive because canon replay goes through it. ONE-CLOSING LAW:
-   *  a closing is a bare edge from a designated End onto a designated Now. Re-laying the
-   *  same closing is inert; a second, different one throws. */
-  layBareP(slug: string, content: string, subject: string, object: string): boolean {
+   *  `lay` stays the dumb primitive because canon replay goes through it. ONE-CLOSING LAW
+   *  (reworded 2026-10-15): a closing is a bare edge from a designated End onto a designated
+   *  Now, and no second closing lands without a reopening between — every earlier closing
+   *  must already be reopened (see standingClosings). Re-laying the same closing is inert.
+   *  The same law is surfaced at read time by lawBreaches, never thrown there. */
+  layBareP(slug: string, content: string, subject: string, object: string, opts?: LayOpts): boolean {
     if (!this.get(slug) && isDesignatedEndPole(this, subject) && isNowPole(this, object)) {
-      const existing = closingEdgesFrom(this, subject)[0];
+      const existing = standingClosings(this, subject)[0];
       if (existing) {
         throw new Error(
           `[ONE-CLOSING LAW] '${slug}' lays a SECOND closing out of the End-pole ` +
-          `'${subject}', which '${existing.slug}' already closed. Exactly one closing ever ` +
-          `leaves a pole. Fix: occlude the standing closing first, or point this edge at ` +
-          `the story. (law: one-closing)`,
+          `'${subject}', which '${existing.slug}' already closed and nothing has reopened. ` +
+          `No second closing without a reopening between. Fix: reopen it first ` +
+          `(reopenTask), or point this edge at the story. (law: one-closing)`,
         );
       }
     }
-    return this.lay({ slug, content, subject, object });
+    return this.lay({ slug, content, subject, object, ...spokenBy(opts) });
   }
 
   /** THE COUPLING PRIMITIVE (2026-07-27): one satisfaction grants a wish AND solves a
@@ -618,9 +656,7 @@ export function reaches(soc: Society, from: string, to: string, quality: Quality
   const stack = [from];
   while (stack.length) {
     const n = stack.pop()!;
-    const edges = quality === "q-grounding" ? closingEdgesFrom(soc, n, asOf) : prehensionsFrom(soc, n, quality, asOf);
-    for (const p of edges) {
-      if (isOccluded(soc, p.slug, asOf)) continue;
+    for (const p of stepsFrom(soc, n, quality, asOf)) {
       const next = p.object!;
       if (next === to) return true;
       if (!seen.has(next)) {
@@ -630,6 +666,43 @@ export function reaches(soc: Society, from: string, to: string, quality: Quality
     }
   }
   return false;
+}
+
+/** one step of the walk reaches and diamond share: the un-occluded `quality` edges out of `n`
+ *  (q-grounding also leaves a designated End by its bare closing — see reaches' TRIPWIRE). */
+function stepsFrom(soc: Society, n: string, quality: Quality, asOf?: number): EventRow[] {
+  const edges = quality === "q-grounding" ? closingEdgesFrom(soc, n, asOf) : prehensionsFrom(soc, n, quality, asOf);
+  return edges.filter((p) => !isOccluded(soc, p.slug, asOf));
+}
+
+/** diamond: the causal diamond from `from` to `to` along ONE quality — every node on some
+ *  un-occluded `quality` path between them, both ends included, sorted; empty if `to` isn't
+ *  reached. The same walk as reaches, kept so it can be read back from `to`.
+ *  Not intervalOf (docket item 6, 2026-10-15): intervalOf IS the membership law and walks
+ *  every plain edge, so perceives/done-by edges swallow a canon. Mirrors scher-core's
+ *  `diamond`. */
+export function diamond(soc: Society, from: string, to: string, quality: Quality, asOf?: number): string[] {
+  const back = new Map<string, string[]>(); // object -> subjects, over the edges the forward walk took
+  const seen = new Set<string>([from]);
+  const stack = [from];
+  while (stack.length) {
+    const n = stack.pop()!;
+    for (const p of stepsFrom(soc, n, quality, asOf)) {
+      const next = p.object!;
+      const prev = back.get(next);
+      if (prev) prev.push(n); else back.set(next, [n]);
+      if (!seen.has(next)) { seen.add(next); stack.push(next); }
+    }
+  }
+  if (!seen.has(to)) return [];
+  const between = new Set<string>([to]);
+  const up = [to];
+  while (up.length) {
+    for (const p of back.get(up.pop()!) ?? []) {
+      if (!between.has(p)) { between.add(p); up.push(p); }
+    }
+  }
+  return [...between].sort();
 }
 
 /** establishedTo: is `beat` behind the reader's Now on the grounding topology?
@@ -774,7 +847,9 @@ export function intervalOf(soc: Society, once: string, end: string, ctx?: Interv
  *  structurally; no spelling is read (F-A ruling + pole law, 2026-07-06). */
 export function endOf(soc: Society, story: string): string | null {
   // TODO(socratic): should endOf return null if the designation is occluded, or is the presence of any pole-edge the right answer?
-  // TODO(socratic): if a story carries multiple pole-designations (reopened differentials), [0] returns only the first — is that intentional or a bug?
+  // ANSWERED(Hallie, 2026-10-15): a story has exactly ONE End — reopening never mints a
+  // second (reopenTask lays a charge), so [0] is correct for what the kernel writes. Canon
+  // that carries two is surfaced by lawBreaches ("one-end"), not picked between here.
   const pole = prehensionsFrom(soc, story, "q-end-pole")[0];
   return pole?.object ?? null;
 }
@@ -788,8 +863,13 @@ export function endOf(soc: Society, story: string): string | null {
 // Voltage is read ACROSS the poles, stored in neither, always relative to a ground (a
 // frame's now-lineage head). A charge/strike/closing counts only if established to that
 // ground — nothing is ever globally zeroed; a closing discharges outward by ordinary
-// reachability. Charge is a bare edge onto the open End-pole. Reopen = a new unpack, never
-// an un-doing.
+// reachability. A charge is a bare edge OUT of the End onto the noticer's frame.
+//
+// ONE END, OPEN-NESS IS A READ (Hallie, 2026-10-15): "the connections to that end change
+// where it is, but the end itself doesn't." Closings and reopening charges are connections
+// to the one End. Done = a closing no charge points back at; a reopen is a charge `because`
+// the closing it reopens. Order is because-structure, never `witnessed`. Past closings stay
+// actual forever and are never occluded — a reopen adds, it never un-does.
 
 /** what one unpack laid. */
 export interface PoleUnpack {
@@ -848,10 +928,38 @@ function closingEdgesFrom(soc: Society, end: string, asOf?: number): EventRow[] 
   return [...quality, ...bare].filter((p) => !isOccluded(soc, p.slug, asOf));
 }
 
-/** endActual: is this End-pole actual (closed because a Now)? Reads closingEdgesFrom;
- *  before closing, an End rests on nothing — scripted, open. */
+/** closingsOf: every closing ever laid out of this End (un-occluded), reopened or not.
+ *  Past closings stay actual forever; whether one still STANDS is standingClosings'. */
+export function closingsOf(soc: Society, end: string, asOf?: number): EventRow[] {
+  return closingEdgesFrom(soc, end, asOf);
+}
+
+/** reopeningsOf: the charges on `end` that point back at `closing` — an un-occluded bare
+ *  edge from the charge onto the closing (`charge ~because~ closing`). The pointing IS the
+ *  order: the charge is because the closing, so it came after. */
+export function reopeningsOf(soc: Society, end: string, closing: string, asOf?: number): EventRow[] {
+  return chargesOn(soc, end, asOf).filter((ch) => pointsBackAt(soc, ch.slug, closing, asOf));
+}
+
+function pointsBackAt(soc: Society, from: string, to: string, asOf?: number): boolean {
+  return soc.edgesFromSubject(from).some(
+    (e) => e.object === to && visibleAt(e, asOf) && !hasAnyQuality(soc, e.slug, asOf) && !isOccluded(soc, e.slug, asOf),
+  );
+}
+
+/** standingClosings: the closings no charge has reopened. THE DONE READ (2026-10-15): an
+ *  End is closed iff this is non-empty. More than one standing is a one-closing breach a
+ *  merge can produce — readable here and in lawBreaches, never thrown. */
+export function standingClosings(soc: Society, end: string, asOf?: number): EventRow[] {
+  return closingEdgesFrom(soc, end, asOf).filter((c) => reopeningsOf(soc, end, c.slug, asOf).length === 0);
+}
+
+/** endActual: does this End read closed — does some closing stand, un-reopened? Before any
+ *  closing, an End rests on nothing (scripted, open); after a reopen it reads open again,
+ *  though the closing it reopened stays actual (closingsOf). The name predates the read;
+ *  every "is this End closed" question still comes through here. */
 export function endActual(soc: Society, end: string, asOf?: number): boolean {
-  return closingEdgesFrom(soc, end, asOf).length > 0;
+  return standingClosings(soc, end, asOf).length > 0;
 }
 
 /** chargesOn: the charges on a differential — un-occluded bare edges whose SUBJECT is the
@@ -867,52 +975,68 @@ export function chargesOn(soc: Society, end: string, asOf?: number): EventRow[] 
   );
 }
 
-/** layCharge: mark voltage against `story` — a bare edge, subject the story's open
- *  End-pole, object the charged event (2026-07-20: "the End prehends the capture").
- *  Unpacks the event first if needed. Re-noticing is never a duplicate, just another
- *  charge. Also weaves `storyNow ~because~ charge` so the story's own frame witnesses it. */
-export function layCharge(soc: Society, story: string, by: string, content = "charge"): string {
-  const u = unpackPoles(soc, story); // lazy unpack on first need (idempotent)
-  const n = soc.all().filter((b) => b.subject === u.end && b.object !== null && !hasAnyQuality(soc, b.slug)).length;
-  const slug = `${u.end}~charge-${n}`;
-  soc.lay({ slug, content, subject: u.end, object: by });
-  soc.layP(`${u.now}~because~${slug}`, `the story's frame witnesses its charge`, u.now, slug, "q-grounding");
-  return slug;
+/** layCharge: mark voltage against `story`. A charge IS the noticing (Hallie, 2026-10-15):
+ *  one bare edge, subject the story's End, object `by` — the noticer's frame — laid_by the
+ *  noticer. The edge is an event in its own right: it has a slug, content ("noticed again
+ *  at the fridge"), and other beats can point at it. Unpacks the story first if needed.
+ *  Also weaves `storyNow ~because~ charge` so the story's own frame witnesses it.
+ *
+ *  NAME: one per act of noticing — `${end}~charge~${by}~${act}`. `act` is whatever makes
+ *  this noticing this one (a capture beat, a message id); omitted, it is a fresh id. Never
+ *  a local count: two replicas counting alike minted one name for two noticings. Re-noticing
+ *  is never a duplicate — it is another act, so another charge. */
+export function layCharge(soc: Society, story: string, by: string, content = "charge", opts: { act?: string } = {}): string {
+  return soc.layAtomic(() => {
+    const u = unpackPoles(soc, story); // lazy unpack on first need (idempotent)
+    const slug = `${u.end}~charge~${by}~${opts.act ?? globalThis.crypto.randomUUID()}`;
+    soc.lay({ slug, content, subject: u.end, object: by, laid_by: by });
+    soc.layP(`${u.now}~because~${slug}`, `the story's frame witnesses its charge`, u.now, slug, "q-grounding", { laid_by: slug });
+    return slug;
+  });
 }
 
 /** closePole: the done-verb's kernel half — the End, now actual, because the Now of its
  *  closing. Closes in the story's own frame: the closing Now is storyNow. Other frames
- *  read the closing once it establishes to them (see voltageOf). Idempotent.
- *  TRIPWIRE (2026-07-15): closes with a BARE edge (soc.lay(), no quality) — never
- *  layP — because a bare edge out of a designated End-pole IS the closing, structurally.
- *  Do not route this back through layP with "q-grounding". */
+ *  read the closing once it establishes to them (see voltageOf). Idempotent: an End this
+ *  frame already closed returns the standing closing.
+ *  TRIPWIRE (2026-07-15): closes with a BARE edge (no quality) — never layP — because a
+ *  bare edge out of a designated End-pole IS the closing, structurally. Do not route this
+ *  back through layP with "q-grounding".
+ *  ONE-CLOSING (2026-10-15): goes through layBareP, so a closing another frame laid that
+ *  still stands refuses this one. A re-close after a reopen is a NEW closing, named by the
+ *  reopens it follows, so two frames re-closing after the same reopen collapse honestly. */
 export function closePole(soc: Society, story: string, end?: string): string {
   const u = unpackPoles(soc, story, end ?? undefined);
   const theEnd = end ?? u.end;
-  const closing = `${theEnd}~because~${u.now}`;
-  soc.lay({ slug: closing, content: `the end is because now (frame: ${story})`, subject: theEnd, object: u.now });
+  const mine = standingClosings(soc, theEnd).find((c) => c.object === u.now);
+  if (mine) return mine.slug;
+  const reopens = [...new Set(closingsOf(soc, theEnd).flatMap((c) => reopeningsOf(soc, theEnd, c.slug).map((r) => r.slug)))].sort();
+  const closing = reopens.length === 0 ? `${theEnd}~because~${u.now}` : `${theEnd}~because~${u.now}~over~${reopens.join("+")}`;
+  soc.layBareP(closing, `the end is because now (frame: ${story})`, theEnd, u.now);
   return closing;
 }
 
 /** voltageOf: the scalar across the story's differentials, relative to a ground — derived,
  *  stored nowhere. `ground` is a now-lineage head node; default is the story's own Now.
  *
- *  Per differential: closed for this ground iff some closing establishes to it (discharge
- *  propagates — no global zeroing, so an un-reached frame honestly reads residual
- *  voltage). While open: the strike and each charge count iff established to the ground.
- *  Simple sum, no decay this pass. */
+ *  Closed for this ground (2026-10-15, the one-End read): some closing the ground sees,
+ *  that no reopening the ground sees points back at. The ground "sees" a beat once it
+ *  establishes to it (discharge propagates — no global zeroing, so an un-reached frame
+ *  honestly reads residual voltage); the story's own frame sees its own closings and
+ *  reopens. While open: the strike and each charge count iff established to the ground —
+ *  a reopening charge is a charge, so it counts too. Simple sum, no decay this pass.
+ *  Loops over every designation so a two-End story (pre-2026-10-15 reopens, or canon with
+ *  rival aims — see the ONE-END note) still reads; reopenTask never makes one. */
 export function voltageOf(soc: Society, story: string, ground = storyNow(story), asOf?: number): number {
   const poles = prehensionsFrom(soc, story, "q-end-pole", asOf).filter((p) => !isOccluded(soc, p.slug, asOf));
+  const own = ground === storyNow(story);
+  const sees = (slug: string) => own || establishedTo(soc, ground, slug, asOf);
   let v = 0;
   for (const p of poles) {
     const end = p.object!;
-    const closings = closingEdgesFrom(soc, end, asOf); // bare or legacy q-grounding
-    const closedHere = closings.length > 0 && (
-      // the story's own frame always witnesses its own closing; other grounds wait for
-      // ordinary establishment (discharge propagates).
-      ground === storyNow(story) ||
-      closings.some((c) => c.object === ground || establishedTo(soc, ground, c.slug, asOf))
-    );
+    const closedHere = closingEdgesFrom(soc, end, asOf).some((c) =>
+      (c.object === ground || sees(c.slug)) &&
+      !reopeningsOf(soc, end, c.slug, asOf).some((r) => sees(r.slug)));
     if (closedHere) continue; // discharged to this ground — this differential reads closed
     if (establishedTo(soc, ground, story, asOf)) v += 1; // the strike
     for (const c of chargesOn(soc, end, asOf)) {
@@ -922,19 +1046,80 @@ export function voltageOf(soc: Society, story: string, ground = storyNow(story),
   return v;
 }
 
-/** reopenTask: strike a NEW differential across the same subject matter — a fresh unpack
- *  to a fresh unactualized End. Never an un-doing: the prior End stays actual forever
- *  (Thursday's holding stays actual); no occlusion, no erasure, only a new opening. */
-export function reopenTask(soc: Society, story: string): PoleUnpack {
-  unpackPoles(soc, story); // a never-unpacked story reopens by unpacking first (lineage laid once)
-  const n = prehensionsFrom(soc, story, "q-end-pole").length;
-  const end = `${story}~hea-${n}`;
-  soc.lay({ slug: end, content: `the End-pole of ${story} (reopened), not yet actual`, subject: null, object: null });
-  const pole = `${story}~end-pole~${end}`;
-  // Q2 frame mark, same ink as unpackPoles.
-  soc.layP(pole, `End-pole designation (frame: ${story})`, story, end, "q-end-pole");
-  // same frame, same lineage: the story's own Now (laid by the first unpack) carries on.
-  return { once: story, end, pole, now: storyNow(story) };
+/** reopenTask: reopen a done story — a CHARGE `because` the closing it reopens (Hallie,
+ *  2026-10-15; withdraws the 2026-07-06 fresh-End design). The same one End, a new
+ *  connection: the charge is a noticing by `by` like any other, plus a bare edge from it
+ *  onto every standing closing. Never an un-doing: the closing stays actual forever
+ *  (Thursday's holding stays actual) — it just no longer stands.
+ *
+ *  Two people reopening at once strike ONE differential (Hallie: "one.") — there is only
+ *  one End — while each noticing still counts as its own charge. Throws if nothing stands
+ *  to reopen: an open story takes a plain layCharge. Returns the reopening charge. */
+export function reopenTask(soc: Society, story: string, by: string, content = "reopened", opts: { act?: string } = {}): string {
+  const end = endOf(soc, story);
+  const standing = end === null ? [] : standingClosings(soc, end);
+  if (standing.length === 0) {
+    throw new Error(
+      `[REOPEN] '${story}' has no standing closing to reopen — it already reads open. ` +
+      `Fix: lay a plain charge (layCharge) to add voltage to an open story. (law: one-end)`,
+    );
+  }
+  return soc.layAtomic(() => {
+    const charge = layCharge(soc, story, by, content, opts);
+    for (const c of standing) {
+      soc.lay({ slug: `${charge}~because~${c.slug}`, content: "this noticing reopens that closing", subject: charge, object: c.slug, laid_by: by });
+    }
+    return charge;
+  });
+}
+
+// ── LAWS AT READ TIME (Hallie, 2026-10-15: "guards on both are safer for unexpected routes") ──
+// The lay-time guards stay primary — they fail fast and set expectations. A merge, a replay
+// through bare `lay`, or old canon can still hold what a guard would refuse, and the kernel
+// must boot its own past (e063560), so this read SURFACES a breach as a fact; it never throws.
+
+/** one law the society, as read, doesn't keep. `at` is where it shows; `rows` the beats
+ *  that together break it — read them all, the kernel picks no winner. */
+export interface LawBreach {
+  law: "one-end" | "one-closing" | "naked-pole";
+  at: string;
+  rows: string[];
+}
+
+/** lawBreaches: every place the society, as read now (or as of a moment), breaks a kernel
+ *  law. Deterministic order (law, then `at`). An empty list is the healthy reading.
+ *  - one-end: a story with more than one un-occluded End designation.
+ *  - one-closing: an End with more than one standing closing (two frames closed it
+ *    concurrently, and no reopen has come between).
+ *  - naked-pole: a labelled edge onto an End that reads open. Note this can surface after a
+ *    reopen: a reference laid while the End stood closed lands on an open End again. */
+export function lawBreaches(soc: Society, asOf?: number): LawBreach[] {
+  const out: LawBreach[] = [];
+  const endsByStory = new Map<string, EventRow[]>();
+  for (const b of soc.all()) {
+    if (b.subject === null || b.object === null || !visibleAt(b, asOf)) continue;
+    if (!prehendsAs(soc, b.slug, "q-end-pole", asOf) || isOccluded(soc, b.slug, asOf)) continue;
+    const list = endsByStory.get(b.subject);
+    if (list) list.push(b); else endsByStory.set(b.subject, [b]);
+  }
+  const ends = new Set<string>();
+  for (const [story, designations] of endsByStory) {
+    for (const d of designations) ends.add(d.object!);
+    if (new Set(designations.map((d) => d.object)).size > 1) {
+      out.push({ law: "one-end", at: story, rows: designations.map((d) => d.slug).sort() });
+    }
+  }
+  for (const end of ends) {
+    const standing = standingClosings(soc, end, asOf);
+    if (standing.length > 1) out.push({ law: "one-closing", at: end, rows: standing.map((c) => c.slug).sort() });
+    if (standing.length > 0) continue;
+    const parked = soc.edgesOntoObject(end).filter((b) =>
+      b.subject !== null && visibleAt(b, asOf) && hasAnyQuality(soc, b.slug, asOf) &&
+      !prehendsAs(soc, b.slug, "q-end-pole", asOf) && !isOccluded(soc, b.slug, asOf));
+    if (parked.length > 0) out.push({ law: "naked-pole", at: end, rows: parked.map((b) => b.slug).sort() });
+  }
+  const rank = { "one-end": 0, "one-closing": 1, "naked-pole": 2 } as const;
+  return out.sort((a, b) => rank[a.law] - rank[b.law] || (a.at < b.at ? -1 : a.at > b.at ? 1 : 0));
 }
 
 // ── MEMBERSHIP: derived, never laid ink ─────────────────────────────────────────

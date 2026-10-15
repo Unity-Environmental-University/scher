@@ -22,6 +22,9 @@ import {
   endOf,
   reaches,
   reopenTask,
+  closingsOf,
+  standingClosings,
+  reopeningsOf,
 } from "../src/index.js";
 
 const capture = (s: Society, slug: string, content: string) =>
@@ -81,17 +84,25 @@ describe("three poles: capture · charge · done · reopen (default ground)", ()
     expect(s.get(p.pole)).toBeDefined();
   });
 
-  it("reopen is a NEW unpack (new differential); Thursday's holding stays actual forever", () => {
+  it("reopen is a charge BECAUSE the closing — one End, open again; Thursday's closing stays actual forever", () => {
     const s = new Society();
     capture(s, "buy-milk", "buy milk");
     const p = unpackPoles(s, "buy-milk");
-    closePole(s, "buy-milk");
+    const thursday = closePole(s, "buy-milk");
     expect(voltageOf(s, "buy-milk")).toBe(0);
-    const r = reopenTask(s, "buy-milk"); // a new differential — never an un-doing
-    expect(r.end).not.toBe(p.end);
-    expect(voltageOf(s, "buy-milk")).toBe(1); // open again across the new differential
-    expect(endActual(s, p.end)).toBe(true); // Thursday's holding still actual
-    expect(endActual(s, r.end)).toBe(false); // the new End is open
+    const r = reopenTask(s, "buy-milk", "frame-hallie"); // a noticing, because the closing — never an un-doing
+    expect(endOf(s, "buy-milk")).toBe(p.end); // the End itself doesn't change (Hallie, 2026-10-15)
+    expect(endActual(s, p.end)).toBe(false); // its connections moved where it stands: open
+    expect(voltageOf(s, "buy-milk")).toBe(2); // the one strike + the reopening charge
+    expect(closingsOf(s, p.end).map((c) => c.slug)).toEqual([thursday]); // Thursday's closing still actual
+    expect(standingClosings(s, p.end)).toEqual([]); // ...it just no longer stands
+    expect(reopeningsOf(s, p.end, thursday).map((c) => c.slug)).toEqual([r]);
+
+    const friday = closePole(s, "buy-milk"); // a NEW closing, not Thursday's re-laid
+    expect(friday).not.toBe(thursday);
+    expect(endActual(s, p.end)).toBe(true);
+    expect(voltageOf(s, "buy-milk")).toBe(0);
+    expect(standingClosings(s, p.end).map((c) => c.slug)).toEqual([friday]);
   });
 });
 

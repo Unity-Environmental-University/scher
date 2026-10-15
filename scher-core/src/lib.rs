@@ -27,9 +27,9 @@ pub mod substance;
 // already drew: pole-designation IS metaphysics, membersOf/bucketsOf-style taxonomy is not).
 mod poles;
 pub use poles::{
-    bearings_of, charges_on, end_actual, is_any_pole, is_open_end_pole, is_sublime_pole,
-    reached_sublimes_of, service_chain_of, sublimes_charged_from, story_now,
-    voltage_toward_sublime,
+    bearings_of, charges_on, closings_of, end_actual, is_any_pole, is_open_end_pole,
+    is_sublime_pole, reached_sublimes_of, reopenings_of, service_chain_of, standing_closings,
+    sublimes_charged_from, story_now, voltage_toward_sublime,
 };
 use poles::{grounding_edges_from, grounding_edges_onto, is_designated_end_pole, is_now_pole};
 
@@ -376,6 +376,9 @@ impl Society {
         // prehend the STORY. Q_END_POLE is the designation that creates End-hood, so it is
         // exempt. The law's other half (exactly one closing LEAVES a pole) moved to
         // `lay_bare_p`, where closings now live. (law: naked-pole)
+        // STILL LIVE (checked 2026-10-15): distance_to_hea's `realized` counts groundings ONTO
+        // the End, and interval_of's backward cone walks edges onto it. `law_breaches`
+        // surfaces the same law at read time.
         if quality != Q_END_POLE && is_open_end_pole(self, object, None) {
             return Err(format!(
                 "[ADDRESS LAW] '{slug}' lays a {quality} prehension ONTO the open \
@@ -481,10 +484,12 @@ impl Society {
     /// (api/src/canon_store) — a kernel that refuses its own past cannot boot. So doors that
     /// take caller-supplied slugs come here instead.
     ///
-    /// ONE-CLOSING LAW: a closing is a bare edge from a designated End onto a designated Now
-    /// (one arm of `grounding_edges_from`). Re-laying the SAME closing is inert; a second,
-    /// different one is refused. Read and guard share `is_designated_end_pole`/`is_now_pole`
-    /// so they cannot drift. (law: one-closing)
+    /// ONE-CLOSING LAW (reworded 2026-10-15): a closing is a bare edge from a designated End
+    /// onto a designated Now (one arm of `grounding_edges_from`), and no second closing lands
+    /// without a reopening between — every earlier closing must already be reopened
+    /// (`standing_closings`). Re-laying the SAME closing is inert. Read and guard share
+    /// `standing_closings`, so they cannot drift; `law_breaches` surfaces the same law at read
+    /// time for routes that skip this door. (law: one-closing)
     pub fn lay_bare_p(
         &mut self,
         slug: &str,
@@ -494,12 +499,13 @@ impl Society {
     ) -> Result<bool, String> {
         let would_close = is_designated_end_pole(self, subject, None) && is_now_pole(self, object, None);
         if would_close && self.get(slug).is_none() {
-            if let Some(existing) = grounding_edges_from(self, subject, None).first() {
+            if let Some(existing) = standing_closings(self, subject, None).first() {
                 return Err(format!(
                     "[ONE-CLOSING LAW] '{slug}' lays a SECOND closing out of the End-pole \
-                     '{subject}', which '{}' already closed. Exactly one closing ever leaves \
-                     a pole. Fix: occlude the standing closing before laying another, or \
-                     point this edge at the story. (law: one-closing)",
+                     '{subject}', which '{}' already closed and nothing has reopened. No \
+                     second closing without a reopening between. Fix: reopen it first (a \
+                     charge because the closing), or point this edge at the story. (law: \
+                     one-closing)",
                     existing.slug
                 ));
             }
@@ -881,6 +887,50 @@ pub fn reaches_set(soc: &Society, from: &str, quality: &str, as_of: Option<u64>)
         }
     }
     seen
+}
+
+/// diamond: the causal diamond from `from` to `to` along ONE quality — every node on some
+/// un-occluded `quality` path between them, both ends included, sorted; empty if `to` isn't
+/// reached. `reaches_set`'s walk, keeping the edges it took so it can be read back from `to`.
+/// Not `interval_of` (docket item 6, 2026-10-15): that IS the membership law and walks every
+/// plain edge. Mirrors `diamond` in society.ts.
+pub fn diamond(soc: &Society, from: &str, to: &str, quality: &str, as_of: Option<u64>) -> Vec<String> {
+    use std::collections::{HashMap, HashSet};
+    let mut back: HashMap<String, Vec<String>> = HashMap::new(); // object -> subjects walked
+    let mut seen: HashSet<String> = HashSet::from([from.to_string()]);
+    let mut stack = vec![from.to_string()];
+    while let Some(n) = stack.pop() {
+        let edges = if quality == Q_GROUNDING {
+            grounding_edges_from(soc, &n, as_of)
+        } else {
+            prehensions_from(soc, &n, quality, as_of)
+        };
+        for p in edges {
+            if is_occluded(soc, &p.slug, as_of) {
+                continue;
+            }
+            let Some(next) = p.object.as_deref() else { continue };
+            back.entry(next.to_string()).or_default().push(n.clone());
+            if seen.insert(next.to_string()) {
+                stack.push(next.to_string());
+            }
+        }
+    }
+    if !seen.contains(to) {
+        return Vec::new();
+    }
+    let mut between: HashSet<String> = HashSet::from([to.to_string()]);
+    let mut up = vec![to.to_string()];
+    while let Some(n) = up.pop() {
+        for p in back.get(&n).into_iter().flatten() {
+            if between.insert(p.clone()) {
+                up.push(p.clone());
+            }
+        }
+    }
+    let mut out: Vec<String> = between.into_iter().collect();
+    out.sort();
+    out
 }
 
 /// established_to: frame-relative establishment — is `row` behind the reader's Now on the
@@ -1304,13 +1354,15 @@ pub fn end_of(soc: &Society, story: &str) -> Option<String> {
 /// or walking lineage heads for other frames is POLICY (the kernel takes a node); no
 /// structural now-succession exists yet, so a frame's single Now IS its head.
 ///
-/// Per differential: CLOSED for this ground iff a closing is established to it (or the
-/// ground IS the closing's Now, or the ground is the story's own frame — SOFD: a closing
-/// on this story's End is an event in the story's own course). Discharge PROPAGATES; no
-/// global zeroing — an unestablished frame honestly reads residual voltage ("done, still
-/// discharging"). While open: the strike counts iff the story is established to the
-/// ground; each charge (bare edge onto the End — pure address) counts iff established to
-/// the ground. Simple sum, no decay this pass. Mirrors `voltageOf` in society.ts.
+/// Per differential: CLOSED for this ground (2026-10-15, the one-End read) iff some closing
+/// the ground sees has no reopening the ground sees pointing back at it. The ground "sees" a
+/// beat once it is established to it (or it IS the closing's Now); the story's own frame —
+/// SOFD — sees its own closings and reopens. Discharge PROPAGATES; no global zeroing — an
+/// unestablished frame honestly reads residual voltage ("done, still discharging"). While
+/// open: the strike counts iff the story is established to the ground; each charge
+/// (reopening charges included) counts iff established to the ground. Simple sum, no decay
+/// this pass. Loops every designation so a two-End story in old canon still reads. Mirrors
+/// `voltageOf` in society.ts.
 pub fn voltage_of(soc: &Society, story: &str, ground: Option<&str>, as_of: Option<u64>) -> u64 {
     let own = story_now(story);
     let ground = ground.unwrap_or(&own);
@@ -1322,17 +1374,11 @@ pub fn voltage_of(soc: &Society, story: &str, ground: Option<&str>, as_of: Optio
     let mut v = 0;
     for p in poles {
         let Some(end) = p.object.as_deref() else { continue };
-        // the arms live in grounding_edges_from (its own doc)
-        let closings: Vec<EventRow> = grounding_edges_from(soc, end, as_of)
-            .into_iter()
-            .cloned()
-            .collect();
-        let closed_here = !closings.is_empty()
-            && (ground == own
-                || closings.iter().any(|c| {
-                    c.object.as_deref() == Some(ground)
-                        || established_to(soc, ground, &c.slug, as_of)
-                }));
+        let sees = |slug: &str| ground == own || established_to(soc, ground, slug, as_of);
+        let closed_here = closings_of(soc, end, as_of).iter().any(|c| {
+            (c.object.as_deref() == Some(ground) || sees(&c.slug))
+                && !reopenings_of(soc, end, &c.slug, as_of).iter().any(|r| sees(&r.slug))
+        });
         if closed_here {
             continue; // discharged to this ground — this differential reads closed
         }
@@ -1426,6 +1472,77 @@ pub fn overload(soc: &Society, ground: &str, as_of: Option<u64>) -> (u64, Vec<Vo
     }
     readings.sort_by(|a, b| b.voltage.cmp(&a.voltage));
     (total, readings)
+}
+
+/// one law the society, as read, doesn't keep. `at` is where it shows; `rows` the beats that
+/// together break it, sorted — the kernel picks no winner. Mirrors `LawBreach` in society.ts.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LawBreach {
+    /// "one-end" | "one-closing" | "naked-pole"
+    pub law: &'static str,
+    pub at: String,
+    pub rows: Vec<String>,
+}
+
+/// law_breaches: LAWS AT READ TIME (Hallie, 2026-10-15: "guards on both are safer for
+/// unexpected routes"). The lay-time guards stay primary; a merge, a replay through bare
+/// `lay`, or old canon can still hold what a guard would refuse, and a kernel that refuses
+/// its own past cannot boot — so this SURFACES each breach as a fact and never errs.
+/// Deterministic order (law, then `at`). Empty is the healthy reading.
+/// - one-end: a story with more than one un-occluded End designation (not guarded at lay
+///   yet — dollhouse canon designates rival Ends on purpose; that question is Hallie's).
+/// - one-closing: an End with more than one standing closing.
+/// - naked-pole: a labelled edge onto an End that reads open (can surface after a reopen).
+/// Mirrors `lawBreaches` in society.ts.
+pub fn law_breaches(soc: &Society, as_of: Option<u64>) -> Vec<LawBreach> {
+    use std::collections::{BTreeMap, BTreeSet};
+    let mut out = Vec::new();
+    let mut ends_by_story: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new(); // story -> (designation, end)
+    for b in soc.all() {
+        let (Some(story), Some(end)) = (b.subject.as_deref(), b.object.as_deref()) else { continue };
+        if !visible_at(b, as_of) || !prehends_as(soc, &b.slug, Q_END_POLE, as_of) || is_occluded(soc, &b.slug, as_of) {
+            continue;
+        }
+        ends_by_story.entry(story.to_string()).or_default().push((b.slug.clone(), end.to_string()));
+    }
+    let mut ends: BTreeSet<String> = BTreeSet::new();
+    for (story, designations) in &ends_by_story {
+        ends.extend(designations.iter().map(|(_, e)| e.clone()));
+        if designations.iter().map(|(_, e)| e).collect::<BTreeSet<_>>().len() > 1 {
+            let mut rows: Vec<String> = designations.iter().map(|(d, _)| d.clone()).collect();
+            rows.sort();
+            out.push(LawBreach { law: "one-end", at: story.clone(), rows });
+        }
+    }
+    for end in &ends {
+        let standing = standing_closings(soc, end, as_of);
+        if standing.len() > 1 {
+            let mut rows: Vec<String> = standing.iter().map(|c| c.slug.clone()).collect();
+            rows.sort();
+            out.push(LawBreach { law: "one-closing", at: end.clone(), rows });
+        }
+        if !standing.is_empty() {
+            continue;
+        }
+        let mut parked: Vec<String> = soc
+            .edges_onto_object(end)
+            .filter(|b| {
+                b.subject.is_some()
+                    && visible_at(b, as_of)
+                    && has_any_quality(soc, &b.slug, as_of)
+                    && !prehends_as(soc, &b.slug, Q_END_POLE, as_of)
+                    && !is_occluded(soc, &b.slug, as_of)
+            })
+            .map(|b| b.slug.clone())
+            .collect();
+        if !parked.is_empty() {
+            parked.sort();
+            out.push(LawBreach { law: "naked-pole", at: end.clone(), rows: parked });
+        }
+    }
+    let rank = |l: &str| match l { "one-end" => 0, "one-closing" => 1, _ => 2 };
+    out.sort_by(|a, b| rank(a.law).cmp(&rank(b.law)).then_with(|| a.at.cmp(&b.at)));
+    out
 }
 
 /// distance_to_hea: the HEA as a gradient, READ (not a stored lure). For a story from
@@ -1553,6 +1670,57 @@ mod address_law {
 
         assert!(soc.lay_bare_p("chg", "charge", &end, "captured").unwrap());
         assert_eq!(charges_on(&soc, &end, None).len(), 1);
+    }
+
+    /// THE ONE-END READ (Hallie, 2026-10-15). A reopen is a charge because the closing; the
+    /// End never changes, its connections move where it stands. Mirrors docket-rulings.test.ts.
+    #[test]
+    fn a_reopen_points_back_at_the_closing_and_the_end_reads_open() {
+        let mut soc = Society::new();
+        let (end, now) = story(&mut soc, "s");
+        let closing = format!("{end}~because~{now}");
+        soc.lay_bare_p(&closing, "closing", &end, &now).unwrap();
+        assert!(end_actual(&soc, &end, None));
+
+        soc.lay(EventRow::edge("plain", "noticed after done", &end, "hallie"));
+        assert!(end_actual(&soc, &end, None), "a charge that points at nothing doesn't reopen");
+
+        soc.lay(EventRow::edge("reopen", "reopened", &end, "hallie"));
+        soc.lay(EventRow::edge("reopen~because~closing", "reopens", "reopen", &closing));
+        assert!(!end_actual(&soc, &end, None));
+        assert_eq!(closings_of(&soc, &end, None).len(), 1, "the closing stays actual");
+        assert_eq!(reopenings_of(&soc, &end, &closing, None).len(), 1);
+
+        assert!(soc.lay_bare_p("again", "a closing after the reopen", &end, &now).unwrap());
+        let standing: Vec<&str> = standing_closings(&soc, &end, None).iter().map(|c| c.slug.as_str()).collect();
+        assert_eq!(standing, vec!["again"]);
+        assert!(soc.lay_bare_p("third", "no reopen between", &end, &now).is_err());
+    }
+
+    /// Two closings merged from concurrent replicas: readable, coherent, surfaced — never Err.
+    #[test]
+    fn concurrent_closings_surface_as_a_breach_not_an_error() {
+        let mut soc = Society::new();
+        let (end, now) = story(&mut soc, "s");
+        let (_, other_now) = story(&mut soc, "other");
+        soc.lay(EventRow::edge("close-by-a", "a closes", &end, &now));
+        soc.lay(EventRow::edge("close-by-b", "b closes", &end, &other_now));
+        assert!(end_actual(&soc, &end, None));
+        assert_eq!(
+            law_breaches(&soc, None),
+            vec![LawBreach { law: "one-closing", at: end.clone(), rows: vec!["close-by-a".into(), "close-by-b".into()] }]
+        );
+    }
+
+    #[test]
+    fn the_diamond_walks_one_quality_only() {
+        let mut soc = Society::new();
+        soc.lay_p("b~because~a", "", "b", "a", Q_GROUNDING).unwrap();
+        soc.lay_p("c~because~b", "", "c", "b", Q_GROUNDING).unwrap();
+        soc.lay_p("d~because~a", "", "d", "a", Q_GROUNDING).unwrap();
+        soc.lay_p("c~perceives~d", "", "c", "d", "q-perceives").unwrap();
+        assert_eq!(diamond(&soc, "c", "a", Q_GROUNDING, None), vec!["a", "b", "c"]);
+        assert!(diamond(&soc, "a", "c", Q_GROUNDING, None).is_empty());
     }
 
     /// Every refusal is an `Err`. A panic under the shared write lock poisons it for every

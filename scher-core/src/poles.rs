@@ -118,13 +118,47 @@ fn is_grounding_edge(soc: &Society, b: &EventRow, as_of: Option<u64>) -> bool {
         || (is_designated_end_pole(soc, subject, as_of) && is_now_pole(soc, object, as_of))
 }
 
-/// end_actual: is this End-pole ACTUAL — is it because something (per the pole law, the
-/// Now of its closing: `end ~because~ now`)? Reads the un-occluded outgoing closing edges
-/// FROM the End — a bare edge out (the current closePole shape) or a legacy
-/// quality-carrying Q_GROUNDING edge out (both-spellings window, same law as the
-/// dependency rename: the ink stays). Mirrors `endActual` in society.ts.
+/// closings_of: every closing ever laid out of this End (un-occluded), reopened or not — a
+/// bare edge out onto a Now (the closePole shape) or a legacy quality-carrying Q_GROUNDING
+/// edge out (the ink stays). Past closings stay actual forever; whether one still STANDS is
+/// `standing_closings`'. Mirrors `closingsOf` in society.ts.
+pub fn closings_of<'a>(soc: &'a Society, end: &str, as_of: Option<u64>) -> Vec<&'a EventRow> {
+    grounding_edges_from(soc, end, as_of)
+}
+
+/// reopenings_of: the charges on `end` that point back at `closing` — an un-occluded bare
+/// edge from the charge onto the closing (`charge ~because~ closing`). The pointing IS the
+/// order (Hallie, 2026-10-15: because-structure, never `witnessed`). Mirrors `reopeningsOf`.
+pub fn reopenings_of<'a>(soc: &'a Society, end: &str, closing: &str, as_of: Option<u64>) -> Vec<&'a EventRow> {
+    charges_on(soc, end, as_of)
+        .into_iter()
+        .filter(|ch| {
+            soc.edges_from_subject(&ch.slug).any(|e| {
+                e.object.as_deref() == Some(closing)
+                    && visible_at(e, as_of)
+                    && !has_any_quality(soc, &e.slug, as_of)
+                    && !is_occluded(soc, &e.slug, as_of)
+            })
+        })
+        .collect()
+}
+
+/// standing_closings: the closings no charge has reopened — THE DONE READ (Hallie,
+/// 2026-10-15: one End, open-ness is a read of its connections). More than one standing is
+/// a one-closing breach a merge can produce, surfaced by `law_breaches`, never refused here.
+/// Mirrors `standingClosings` in society.ts.
+pub fn standing_closings<'a>(soc: &'a Society, end: &str, as_of: Option<u64>) -> Vec<&'a EventRow> {
+    closings_of(soc, end, as_of)
+        .into_iter()
+        .filter(|c| reopenings_of(soc, end, &c.slug, as_of).is_empty())
+        .collect()
+}
+
+/// end_actual: does this End read closed — does some closing stand, un-reopened? Before any
+/// closing an End rests on nothing (scripted, open); after a reopen it reads open again,
+/// though the closing it reopened stays actual (`closings_of`). Mirrors `endActual`.
 pub fn end_actual(soc: &Society, end: &str, as_of: Option<u64>) -> bool {
-    !grounding_edges_from(soc, end, as_of).is_empty()
+    !standing_closings(soc, end, as_of).is_empty()
 }
 
 /// story_now: the story's own frame's Now — the `{story}~now` constructor convention (an

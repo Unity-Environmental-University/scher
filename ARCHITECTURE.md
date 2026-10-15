@@ -45,6 +45,16 @@ caught by the thing it points at rather than sitting here sounding authoritative
   (a repo-wide rename), and by the end its only caller was its own test. `fisheye.test.ts`
   looked like a second caller and was not — it contained the word "trajectory" in a comment.
 
+- **A HEA node is a declared simplification** (Hallie, 2026-10-15) → `unpackPoles` in
+  `src/society.ts`, and the HEAs in `test/this-day.play.test.ts`. Strictly, a HEA is a *lure*:
+  the perished datum of a potentially eternal object's ingression. scher stores only that
+  perished datum, as a beat. The lure itself is read (a gradient) and never laid, and the
+  eternal object never enters the log at all. Full fidelity would descend forever. Instead a
+  HEA is the packed surface of its lure, unpacked only on first need, the same as a beat
+  becomes a story only when something needs its poles. HEAs concresce: `hea ~because~ end`,
+  and the HEA prehends what feeds it. **Nothing tests this yet.** If a read ever stores a lure
+  or an eternal object, this note is the thing it breaks.
+
 ---
 
 ## FUNERAL: this file, as an authority (2026-06-23 – 2026-08-07)

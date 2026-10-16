@@ -88,7 +88,7 @@ jobs:
           npm pack --pack-destination release
           npm pack ./scher-core-wasm/pkg --pack-destination release
           cd release
-          sha256sum *.tgz > SHA256SUMS
+          sha256sum ./*.tgz > SHA256SUMS
           cat SHA256SUMS
 
       - name: GitHub Release

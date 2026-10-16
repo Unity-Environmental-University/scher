@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Tag matches package.json version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $version"
+            exit 1
+          fi
+
+      # The wasm is reproducible only for a fixed toolchain, wasm-pack (which pins
+      # wasm-opt), Cargo.lock (which pins wasm-bindgen), flags, and checkout path.
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.95.0
+          targets: wasm32-unknown-unknown
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack@0.15.0
+
+      - name: Build wasm pkg
+        working-directory: scher-core-wasm
+        run: |
+          RUSTFLAGS="--remap-path-prefix=$GITHUB_WORKSPACE=/scher --remap-path-prefix=$HOME/.cargo=/cargo" \
+            wasm-pack build --target web --release
+
+      - name: Report pkg drift
+        run: |
+          .github/pkg-drift.sh drift.md
+          cat drift.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+
+      - name: Pack tarballs and checksums
+        run: |
+          mkdir release
+          npm pack --pack-destination release
+          npm pack ./scher-core-wasm/pkg --pack-destination release
+          cd release && sha256sum -- *.tgz > SHA256SUMS && cat SHA256SUMS
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "## Assets"
+            echo
+            echo '```'
+            cat release/SHA256SUMS
+            echo '```'
+            echo
+            echo "## scher-core-wasm/pkg drift"
+            echo
+            cat drift.md
+          } > notes.md
+          gh release create "$GITHUB_REF_NAME" release/*.tgz release/SHA256SUMS \
+            --verify-tag --generate-notes --notes-file notes.md

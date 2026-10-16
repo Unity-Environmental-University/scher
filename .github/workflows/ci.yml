@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      # Pinned to match release.yml; see RELEASING.md for why these versions.
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.95.0
+          targets: wasm32-unknown-unknown
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack@0.15.0
+
+      - name: Build wasm pkg
+        working-directory: scher-core-wasm
+        run: |
+          RUSTFLAGS="--remap-path-prefix=$GITHUB_WORKSPACE=/scher --remap-path-prefix=$HOME/.cargo=/cargo" \
+            wasm-pack build --target web --release
+
+      - name: Report pkg drift
+        run: |
+          .github/pkg-drift.sh drift.md
+          cat drift.md >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      # Runs against the pkg just built, so test/conformance.wasm.test.ts replays the fresh kernel.
+      - run: npm test
+      - run: npm run build

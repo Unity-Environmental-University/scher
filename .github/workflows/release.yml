@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+env:
+  RUST_TOOLCHAIN: 1.99.0
+  WASM_PACK_VERSION: 0.15.0
+  # Drift between the committed scher-core-wasm/pkg and a fresh build warns by
+  # default: a fresh build is not yet byte-identical to the committed one even on
+  # the same machine. Set to "true" once builds reproduce, to make drift fail.
+  STRICT_PKG_DRIFT: 'false'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Tag matches package.json
+        run: |
+          want="v$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "$want" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $want"
+            exit 1
+          fi
+
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
+          targets: wasm32-unknown-unknown
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-pack@${{ env.WASM_PACK_VERSION }}
+
+      - name: Fresh wasm build, outside the checkout
+        run: |
+          cp -r scher-core-wasm /tmp/wasm-fresh-src
+          cp -r scher-core scher-epistemology /tmp/
+          cd /tmp/wasm-fresh-src
+          wasm-pack build --target web --release --out-dir /tmp/wasm-fresh-pkg
+
+      - name: Compare committed pkg with fresh build
+        run: |
+          drift=0
+          for f in scher_core_wasm.js scher_core_wasm.d.ts scher_core_wasm_bg.wasm scher_core_wasm_bg.wasm.d.ts; do
+            if ! cmp -s "scher-core-wasm/pkg/$f" "/tmp/wasm-fresh-pkg/$f"; then
+              echo "drift: $f"
+              drift=1
+            fi
+          done
+          if [ "$drift" = 1 ]; then
+            {
+              echo "### scher-core-wasm/pkg drift"
+              echo "The committed pkg differs from a fresh build (rust $RUST_TOOLCHAIN, wasm-pack $WASM_PACK_VERSION)."
+              echo "The release ships the committed pkg. The fresh build is attached to the workflow run."
+              sha256sum scher-core-wasm/pkg/*.wasm /tmp/wasm-fresh-pkg/*.wasm
+            } >> "$GITHUB_STEP_SUMMARY"
+            if [ "$STRICT_PKG_DRIFT" = "true" ]; then
+              echo "::error::committed scher-core-wasm/pkg does not match a fresh build"
+              exit 1
+            fi
+            echo "::warning::committed scher-core-wasm/pkg does not match a fresh build"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wasm-fresh-pkg
+          path: /tmp/wasm-fresh-pkg
+
+      - name: Pack both packages
+        run: |
+          mkdir release
+          npm pack --pack-destination release
+          npm pack ./scher-core-wasm/pkg --pack-destination release
+          cd release
+          sha256sum *.tgz > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" release/*.tgz release/SHA256SUMS \
+            --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
